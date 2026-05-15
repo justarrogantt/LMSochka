@@ -141,7 +141,7 @@ export class Api {
     const { refreshToken } = Api.getTokens()
 
     if (!refreshToken) {
-      window.location.replace("/")
+      window.location.replace("/register")
       return false
     }
 
@@ -164,7 +164,7 @@ export class Api {
         throw new ApiError(Api.getErrorMessage(response.status), response.status)
       }
 
-      window.location.replace("/")
+      window.location.replace("/login")
       return false
     }
 
