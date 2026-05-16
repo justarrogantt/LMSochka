@@ -999,7 +999,6 @@ var require_react_development = __commonJS({
 // node_modules/react/index.js
 var require_react = __commonJS({
   "node_modules/react/index.js"(exports, module) {
-    "use strict";
     if (false) {
       module.exports = null;
     } else {
@@ -1013,4 +1012,4 @@ export {
   __toESM,
   require_react
 };
-//# sourceMappingURL=chunk-JQ3Y2HTE.js.map
+//# sourceMappingURL=chunk-3JN4T4E4.js.map
