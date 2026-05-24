@@ -1,0 +1,41 @@
+import os
+
+# Конфигурим окружение ДО импорта приложения, чтобы settings подхватил тестовые значения
+os.environ.setdefault("SECRET_KEY", "test-secret-key-do-not-use-in-prod")
+os.environ["DATABASE_NAME"] = "test_lms.db"
+
+import asyncio
+from pathlib import Path
+
+import pytest
+import pytest_asyncio
+from httpx import ASGITransport, AsyncClient
+
+from app.database.database import AsyncSessionLocal, engine  # noqa: E402
+from app.database.models import Base  # noqa: E402
+from app.main import app  # noqa: E402
+
+
+@pytest_asyncio.fixture(autouse=True)
+async def _fresh_db():
+    """Каждый тест получает чистую БД."""
+    db_path = Path("test_lms.db")
+    if db_path.exists():
+        db_path.unlink()
+
+    async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.create_all)
+
+    yield
+
+    await engine.dispose()
+    if db_path.exists():
+        db_path.unlink()
+
+
+@pytest_asyncio.fixture
+async def client():
+    async with AsyncClient(
+        transport=ASGITransport(app=app), base_url="http://test"
+    ) as ac:
+        yield ac
