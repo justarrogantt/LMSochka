@@ -1,0 +1,49 @@
+# Виртуальные окружения
+.venv/
+venv/
+env/
+ENV/
+
+# Зависимости / билды
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+build/
+dist/
+*.egg-info/
+*.egg
+pip-wheel-metadata/
+.eggs/
+
+# Тесты и линтеры
+.pytest_cache/
+.coverage
+.coverage.*
+htmlcov/
+.tox/
+.nox/
+.mypy_cache/
+.ruff_cache/
+.pyre/
+.pytype/
+coverage.xml
+*.cover
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Локальная БД и дампы
+*.db
+*.sqlite
+*.sqlite3
+*.db-journal
+
+# Секреты
+.env
+.env.*
+!.env.example
+
+# Кеш uv/pip
+.uv-cache/
+pip-log.txt
