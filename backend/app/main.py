@@ -12,6 +12,8 @@ from app.routers.classes import classes_router
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    """События при старте/остановке приложения."""
+    # создаём таблицы если их ещё нет (для dev — на проде лучше Alembic-миграции)
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
     yield
@@ -19,6 +21,7 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="LMS Backend", lifespan=lifespan)
 
+# для дева открыто всё; на проде заменить allow_origins на список доменов фронта
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],

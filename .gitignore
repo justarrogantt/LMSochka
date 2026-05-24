@@ -1,0 +1,40 @@
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+
+# Windows
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# Linux
+*~
+.fuse_hidden*
+.Trash-*
+
+# IDE / редакторы
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# AI ассистенты
+.claude/
+.cursor/
+.aider*
+.continue/
+
+# Логи и временные файлы
+*.log
+*.tmp
+*.bak
+
+# Секреты
+.env
+.env.local
+.env.*.local
+*.pem
+*.key

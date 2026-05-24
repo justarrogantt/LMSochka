@@ -1,9 +1,49 @@
-.DS_Store
-__pycache__/
-*.pyc
+# Виртуальные окружения
 .venv/
-*.db
-.env
+venv/
+env/
+ENV/
+
+# Зависимости / билды
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+build/
+dist/
+*.egg-info/
+*.egg
+pip-wheel-metadata/
+.eggs/
+
+# Тесты и линтеры
 .pytest_cache/
-.idea/
-.vscode/
+.coverage
+.coverage.*
+htmlcov/
+.tox/
+.nox/
+.mypy_cache/
+.ruff_cache/
+.pyre/
+.pytype/
+coverage.xml
+*.cover
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Локальная БД и дампы
+*.db
+*.sqlite
+*.sqlite3
+*.db-journal
+
+# Секреты
+.env
+.env.*
+!.env.example
+
+# Кеш uv/pip
+.uv-cache/
+pip-log.txt

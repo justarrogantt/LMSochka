@@ -11,6 +11,8 @@ def _now() -> datetime:
 
 
 def generate_access_token(user_id: int, jti: str) -> str:
+    # jti общий для пары access+refresh — по нему ищем сессию в БД;
+    # type нужен чтобы не принять refresh там, где ждём access
     payload = {
         "user_id": user_id,
         "jti": jti,
@@ -41,4 +43,5 @@ def decode_token(token: str) -> dict:
 
 
 def hash_token(token: str) -> str:
+    """sha256-хеш для хранения refresh в БД (сам токен не храним — защита от утечки БД)."""
     return hashlib.sha256(token.encode()).hexdigest()

@@ -18,7 +18,8 @@ _CODE_ALPHABET = string.ascii_uppercase + string.digits
 
 
 async def _generate_unique_code(db: AsyncSession) -> str:
-    """8 символов A-Z0-9. Перегенерируем при коллизии (вероятность мизерная)."""
+    """8 символов A-Z0-9 через secrets (криптостойко). Перегенерируем при коллизии."""
+    # 36^8 ≈ 2.8 трлн комбинаций, шанс коллизии ничтожный, но проверяем на всякий
     for _ in range(10):
         code = "".join(
             secrets.choice(_CODE_ALPHABET) for _ in range(settings.JOIN_CODE_LENGTH)
@@ -31,6 +32,7 @@ async def _generate_unique_code(db: AsyncSession) -> str:
 async def create_class(
     name: str, class_type: ClassType, creator_id: int, db: AsyncSession
 ) -> ClassDTO:
+    # код приглашения нужен только закрытым классам, открытые ищутся по id
     join_code = (
         await _generate_unique_code(db) if class_type == ClassType.CLOSED else None
     )
@@ -42,6 +44,8 @@ async def create_class(
         creator_id=creator_id,
         db=db,
     )
+    # сразу записываем создателя в участники с ролью creator,
+    # чтобы /my и /role работали для него без отдельной логики
     await class_repo.add_member(cls.id, creator_id, ClassRole.CREATOR, db)
     await db.commit()
     await db.refresh(cls)
@@ -89,6 +93,7 @@ async def join_open_class(
 async def join_by_code(
     code: str, user_id: int, db: AsyncSession
 ) -> ClassMembersTable:
+    # код мог прийти с пробелами или в нижнем регистре — приводим к канону
     cls = await class_repo.get_by_code(code.strip().upper(), db)
     if not cls:
         raise ServiceError("Неверный код приглашения", 404)

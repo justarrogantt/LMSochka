@@ -20,6 +20,7 @@ from app.services.token_service import (
 async def _create_session(
     user_id: int, db: AsyncSession, device_info: str | None
 ) -> tuple[str, str]:
+    """Генерит новую пару токенов и пишет сессию в БД. Используется при register/login/refresh."""
     jti = str(uuid.uuid4())
     access_token = generate_access_token(user_id, jti)
     refresh_token = generate_refresh_token(user_id, jti)
@@ -55,6 +56,7 @@ async def register(
     db: AsyncSession,
     device_info: str | None,
 ) -> AuthSuccessDTO:
+    # нормализуем email чтобы Foo@X.com и foo@x.com считались одним юзером
     email = email.lower().strip()
 
     existing = await user_repo.get_by_email(email, db)
@@ -109,18 +111,21 @@ async def refresh_tokens(
     if not session or session.user_id != user_id:
         raise ServiceError("Сессия не найдена", 401)
 
+    # сравниваем хеш — JWT подпись валидна, но токен мог быть подменён на чужой с тем же jti
     if session.refresh_token_hash != hash_token(refresh_token):
         raise ServiceError("Недействительный токен", 401)
 
-    # Reuse detection — если refresh уже использовался, считаем что токен украден
+    # Reuse detection: если этот refresh уже использовался или сессия отозвана —
+    # значит токен украден и его пытаются использовать повторно. Отзываем все сессии юзера.
     if session.refresh_used or session.revoked:
         await session_repo.revoke_all_for_user(user_id, db)
         raise ServiceError("Токен скомпрометирован, все сессии отозваны", 401)
 
+    # SQLite возвращает naive datetime, добавляем UTC чтобы сравнить с aware now()
     if session.expires_at.replace(tzinfo=timezone.utc) < datetime.now(timezone.utc):
         raise ServiceError("Срок действия токена истёк", 401)
 
-    # помечаем старую сессию использованной и отозванной
+    # старую сессию закрываем; новая создастся ниже в _create_session
     session.refresh_used = True
     session.revoked = True
     db.add(session)

@@ -23,6 +23,7 @@ async def register(
     request: Request,
     db: AsyncSession = Depends(get_db),
 ) -> AuthSuccessDTO:
+    """Регистрация по email/паролю. 409 если такой email уже есть."""
     try:
         return await auth_service.register(
             email=body.email,
@@ -42,6 +43,7 @@ async def login(
     request: Request,
     db: AsyncSession = Depends(get_db),
 ) -> AuthSuccessDTO:
+    """Вход по email/паролю. Создаёт новую сессию с парой токенов."""
     try:
         return await auth_service.login(
             email=body.email,
@@ -59,6 +61,7 @@ async def refresh(
     request: Request,
     db: AsyncSession = Depends(get_db),
 ) -> AuthSuccessDTO:
+    """Обмен refresh-токена на новую пару (rotation). Повторное использование отзовёт все сессии."""
     try:
         return await auth_service.refresh_tokens(
             refresh_token=body.refresh_token,
@@ -74,6 +77,7 @@ async def logout(
     context: tuple[UsersTable, str] = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> None:
+    """Выход с текущего устройства — отзывает только эту сессию (по jti)."""
     _, jti = context
     await auth_service.logout(jti, db)
 
@@ -82,5 +86,6 @@ async def logout(
 async def me(
     context: tuple[UsersTable, str] = Depends(get_current_user),
 ) -> UserDTO:
+    """Текущий пользователь по access-токену."""
     user, _ = context
     return UserDTO.model_validate(user)

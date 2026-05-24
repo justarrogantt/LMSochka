@@ -60,6 +60,7 @@ async def get_member(
 async def list_for_user(
     user_id: int, db: AsyncSession
 ) -> list[tuple[ClassesTable, ClassMembersTable]]:
+    """Классы юзера вместе с записью членства — отсюда берём роль и дату вступления."""
     result = await db.execute(
         select(ClassesTable, ClassMembersTable)
         .join(

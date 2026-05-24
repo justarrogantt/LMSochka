@@ -9,6 +9,7 @@ from app.database.models import SessionsTable
 async def get_active_by_jti(
     jti: str, user_id: int, db: AsyncSession
 ) -> SessionsTable | None:
+    """Активная сессия = не отозвана и не протухла. Используется для проверки access-токена."""
     result = await db.execute(
         select(SessionsTable).where(
             SessionsTable.id == jti,
@@ -21,6 +22,7 @@ async def get_active_by_jti(
 
 
 async def get_by_jti(jti: str, db: AsyncSession) -> SessionsTable | None:
+    """Сессия без фильтров — нужно для refresh, чтобы увидеть revoked/refresh_used и сработала reuse detection."""
     result = await db.execute(select(SessionsTable).where(SessionsTable.id == jti))
     return result.scalar_one_or_none()
 

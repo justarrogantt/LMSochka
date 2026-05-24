@@ -23,6 +23,7 @@ async def create_class(
     context: tuple[UsersTable, str] = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> ClassDTO:
+    """Создать класс. Создатель автоматически получает роль creator. Для closed генерится join_code."""
     user, _ = context
     try:
         return await class_service.create_class(body.name, body.type, user.id, db)
@@ -35,6 +36,7 @@ async def my_classes(
     context: tuple[UsersTable, str] = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> list[MyClassDTO]:
+    """Список классов, где состоит текущий юзер, вместе с его ролью в каждом."""
     user, _ = context
     return await class_service.list_my_classes(user.id, db)
 
@@ -45,6 +47,7 @@ async def join_by_code(
     context: tuple[UsersTable, str] = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> ClassRoleDTO:
+    """Присоединение к закрытому классу по коду приглашения."""
     user, _ = context
     try:
         member = await class_service.join_by_code(body.code, user.id, db)
@@ -59,6 +62,7 @@ async def join_open(
     context: tuple[UsersTable, str] = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> ClassRoleDTO:
+    """Присоединение к открытому классу по его id. Закрытым отвечает 403."""
     user, _ = context
     try:
         member = await class_service.join_open_class(class_id, user.id, db)
@@ -73,6 +77,7 @@ async def get_my_role(
     context: tuple[UsersTable, str] = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> ClassRoleDTO:
+    """Роль текущего юзера в классе. 404 если не состоит."""
     user, _ = context
     try:
         role = await class_service.get_user_role_in_class(class_id, user.id, db)

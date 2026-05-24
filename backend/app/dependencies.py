@@ -14,7 +14,7 @@ async def get_current_user(
     credentials: HTTPAuthorizationCredentials = Depends(security),
     db: AsyncSession = Depends(get_db),
 ) -> tuple[UsersTable, str]:
-    """Проверяет access-токен и живую сессию. Возвращает (user, jti)."""
+    """Зависимость для защищённых эндпоинтов: проверяет access-токен и живую сессию."""
     token = credentials.credentials
 
     try:
@@ -22,12 +22,14 @@ async def get_current_user(
     except ValueError as e:
         raise HTTPException(status_code=401, detail=str(e))
 
+    # отдельная проверка: refresh-токен сюда подсунуть нельзя
     if payload.get("type") != "access":
         raise HTTPException(status_code=401, detail="Неверный тип токена")
 
     user_id = payload.get("user_id")
     jti = payload.get("jti")
 
+    # подпись JWT может быть валидна, но сессию могли отозвать через logout — проверяем БД
     session = await session_repo.get_active_by_jti(jti, user_id, db)
     if not session:
         raise HTTPException(status_code=401, detail="Сессия отозвана или истекла")
@@ -36,4 +38,5 @@ async def get_current_user(
     if not user:
         raise HTTPException(status_code=401, detail="Пользователь не найден")
 
+    # jti возвращаем чтобы logout мог отозвать конкретно эту сессию
     return user, jti
