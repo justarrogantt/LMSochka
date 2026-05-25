@@ -10,10 +10,24 @@ const ME_ERRORS: Errors = {
   401: "Необходимо повторно войти в систему"
 }
 
+const LOGOUT_ERRORS: Errors = {
+  default: "Не удалось выйти из аккаунта. Попробуйте позже",
+  network: "Не удалось связаться с сервером",
+  401: "Сессия уже завершена"
+}
+
 export async function getCurrentUser(): Promise<AuthUser> {
   try {
     const response = await Api.fetchGet("/api/auth/me", ME_ERRORS)
     return await parseApiResponse(response, UserSchema)
+  } catch (error) {
+    throwApiResponseError(error)
+  }
+}
+
+export async function logout(): Promise<void> {
+  try {
+    await Api.fetchPost("/api/auth/logout", {}, LOGOUT_ERRORS)
   } catch (error) {
     throwApiResponseError(error)
   }
