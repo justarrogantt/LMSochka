@@ -26,6 +26,6 @@ export async function register(payload: RegisterPayload): Promise<AuthSuccess> {
     Api.saveTokens(authData.access_token, authData.refresh_token)
     return authData
   } catch (error) {
-    throwApiResponseError(error)
+    throwApiResponseError(error, { ignoreUnauthorized: false })
   }
 }

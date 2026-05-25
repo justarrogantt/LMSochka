@@ -24,6 +24,6 @@ export async function login(payload: LoginPayload): Promise<AuthSuccess> {
     Api.saveTokens(authData.access_token, authData.refresh_token)
     return authData
   } catch (error) {
-    throwApiResponseError(error)
+    throwApiResponseError(error, { ignoreUnauthorized: false })
   }
 }

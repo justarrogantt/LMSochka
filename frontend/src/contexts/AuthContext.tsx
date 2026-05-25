@@ -7,7 +7,7 @@ import {
   type ReactNode,
   type SetStateAction
 } from "react"
-import { useLocation, useNavigate } from "react-router-dom"
+import { useNavigate } from "react-router-dom"
 import { useToast } from "../components/Toast/ToastProvider"
 import { useDelayedLoading } from "../hooks/useDelayedLoading"
 import { API_UNAUTHORIZED_EVENT, ApiError } from "../services/api"
@@ -28,12 +28,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(null)
   const [isAuthLoading, onAuthLoadingChange] = useDelayedLoading(0, true)
   const navigate = useNavigate()
-  const location = useLocation()
   const showToast = useToast()
-
-  function isPublicPath() {
-    return publicPaths.has(location.pathname)
-  }
 
   async function runAuth() {
     try {
@@ -42,10 +37,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       setUser(currentUser)
       onAuthLoadingChange(false)
-
-      if (isPublicPath()) {
-        navigate("/classes", { replace: true })
-      }
     } catch (error) {
       setUser(null)
       onAuthLoadingChange(false)

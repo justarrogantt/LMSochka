@@ -8,13 +8,16 @@ import AssignmentPage from "./pages/AssignmentPage/AssignmentPage"
 import GradesPage from "./pages/GradesPage/GradesPage"
 import ProfilePage from "./pages/ProfilePage/ProfilePage"
 import ProtectedRoute from "./routes/ProtectedRoute"
+import PublicRoute from "./routes/PublicRoute"
 
 // Централизованная таблица маршрутов приложения.
 export default function RootRouter() {
   return (
     <Routes>
-      <Route path="/login" element={<LoginPage />} />
-      <Route path="/register" element={<RegisterPage />} />
+      <Route element={<PublicRoute />}>
+        <Route path="/login" element={<LoginPage />} />
+        <Route path="/register" element={<RegisterPage />} />
+      </Route>
 
       <Route element={<ProtectedRoute />}>
         {/* Корень редиректит на /classes — главная страница. */}
