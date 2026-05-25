@@ -6,10 +6,16 @@ import { createRoot } from 'react-dom/client'
 import { BrowserRouter } from 'react-router-dom'
 import './index.css'
 import RootRouter from './RootRouter.tsx'
+import { AuthProvider } from './contexts/AuthContext.tsx'
+import { ToastProvider } from './components/Toast/ToastProvider.tsx'
 
 // Non-null assertion безопасен, потому что Vite-шаблон всегда содержит <div id="root" />.
 createRoot(document.getElementById('root')!).render(
   <BrowserRouter>
-    <RootRouter />
+    <ToastProvider>
+      <AuthProvider>
+        <RootRouter />
+      </AuthProvider>
+    </ToastProvider>
   </BrowserRouter>,
 )

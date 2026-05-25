@@ -4,6 +4,7 @@ import type { Errors } from "../types/api.types"
 // Держи его не больше таймаута reverse proxy (Nginx/Traefik и т.д.),
 // чтобы UI завершал запрос контролируемо до того, как инфраструктура оборвет соединение.
 const REQUEST_TIMEOUT_MS = 120_000
+export const API_UNAUTHORIZED_EVENT = "api:unauthorized"
 
 let isPageUnloading = false
 
@@ -43,6 +44,10 @@ export class ApiSilentError extends Error {
 }
 
 export class Api {
+  private static notifyUnauthorized() {
+    window.dispatchEvent(new CustomEvent(API_UNAUTHORIZED_EVENT))
+  }
+
   private static readonly defaultErrors: Errors = {
     default: "Не удалось выполнить запрос. Попробуйте позже",
     network: "Не удалось связаться с сервером. Проверьте соединение с интернетом или попробуйте позже",
@@ -145,7 +150,6 @@ export class Api {
     const { refreshToken } = Api.getTokens()
 
     if (!refreshToken) {
-      window.location.replace("/login")
       return false
     }
 
@@ -165,8 +169,6 @@ export class Api {
       if (response.status !== 401) {
         throw new ApiError(Api.getErrorMessage(response.status), response.status)
       }
-
-      window.location.replace("/login")
       return false
     }
 
@@ -205,6 +207,13 @@ export class Api {
     timeoutMs: number = REQUEST_TIMEOUT_MS
   ): Promise<Response> {
     try {
+      const { accessToken, refreshToken } = Api.getTokens()
+
+      if (withAuth && (!refreshToken || !accessToken)) {
+        Api.notifyUnauthorized()
+        throw new ApiError(Api.getErrorMessage(401, errors, errorsReplace), 401)
+      }
+
       let response = await Api.fetchWithTimeout(
         path,
         {
@@ -217,7 +226,8 @@ export class Api {
       if (withAuth && response.status === 401) {
         const refreshed = await Api.fetchRefresh()
         if (!refreshed) {
-          throw new ApiSilentError()
+          Api.notifyUnauthorized()
+          throw new ApiError(Api.getErrorMessage(401, errors, errorsReplace), 401)
         }
 
         response = await Api.fetchWithTimeout(
@@ -231,6 +241,9 @@ export class Api {
       }
 
       if (!response.ok) {
+        if (withAuth && response.status === 401) {
+          Api.notifyUnauthorized()
+        }
         throw new ApiError(Api.getErrorMessage(response.status, errors, errorsReplace), response.status)
       }
 
