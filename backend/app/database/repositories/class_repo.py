@@ -14,6 +14,9 @@ from app.database.models import (
 # Все геттеры по умолчанию скрывают soft-deleted классы. Если когда-то понадобится
 # админский доступ к удалённым — добавим параметр include_deleted=True.
 _NOT_DELETED = ClassesTable.deleted_at.is_(None)
+# То же для участников: ушедшие/исключённые остаются в БД (для истории оценок),
+# но не должны показываться в обычных выборках
+_MEMBER_ACTIVE = ClassMembersTable.deleted_at.is_(None)
 
 
 async def get_by_id(class_id: int, db: AsyncSession) -> ClassesTable | None:
@@ -59,6 +62,22 @@ async def add_member(
 async def get_member(
     class_id: int, user_id: int, db: AsyncSession
 ) -> ClassMembersTable | None:
+    """Активный участник класса. Soft-deleted записи скрыты."""
+    result = await db.execute(
+        select(ClassMembersTable).where(
+            ClassMembersTable.class_id == class_id,
+            ClassMembersTable.user_id == user_id,
+            _MEMBER_ACTIVE,
+        )
+    )
+    return result.scalar_one_or_none()
+
+
+async def get_member_any(
+    class_id: int, user_id: int, db: AsyncSession
+) -> ClassMembersTable | None:
+    """То же, но включая удалённых. Нужно для /join, чтобы отличить
+    «никогда не вступал» от «был кикнут» — повторный join таким запрещён."""
     result = await db.execute(
         select(ClassMembersTable).where(
             ClassMembersTable.class_id == class_id,
@@ -68,6 +87,42 @@ async def get_member(
     return result.scalar_one_or_none()
 
 
+async def get_member_with_user(
+    class_id: int, user_id: int, db: AsyncSession
+) -> tuple[UsersTable, ClassMembersTable] | None:
+    """Участник + связанный юзер одним запросом — для DTO ответа на PATCH role."""
+    result = await db.execute(
+        select(UsersTable, ClassMembersTable)
+        .join(ClassMembersTable, ClassMembersTable.user_id == UsersTable.id)
+        .where(
+            ClassMembersTable.class_id == class_id,
+            ClassMembersTable.user_id == user_id,
+            _MEMBER_ACTIVE,
+        )
+    )
+    row = result.first()
+    return (row[0], row[1]) if row else None
+
+
+async def update_member_role(
+    member: ClassMembersTable, new_role: ClassRole, db: AsyncSession
+) -> ClassMembersTable:
+    member.role = new_role
+    db.add(member)
+    await db.commit()
+    await db.refresh(member)
+    return member
+
+
+async def soft_delete_member(
+    member: ClassMembersTable, db: AsyncSession
+) -> None:
+    """Помечаем участника удалённым. Запись остаётся, чтобы не сломать FK у оценок и решений."""
+    member.deleted_at = datetime.now(UTC)
+    db.add(member)
+    await db.commit()
+
+
 async def list_for_user(
     user_id: int, db: AsyncSession
 ) -> list[tuple[ClassesTable, ClassMembersTable]]:
@@ -75,7 +130,11 @@ async def list_for_user(
     result = await db.execute(
         select(ClassesTable, ClassMembersTable)
         .join(ClassMembersTable, ClassMembersTable.class_id == ClassesTable.id)
-        .where(ClassMembersTable.user_id == user_id, _NOT_DELETED)
+        .where(
+            ClassMembersTable.user_id == user_id,
+            _MEMBER_ACTIVE,
+            _NOT_DELETED,
+        )
         .order_by(ClassMembersTable.joined_at.desc())
     )
     return [(c, m) for c, m in result.all()]
@@ -91,7 +150,7 @@ async def list_members(
     result = await db.execute(
         select(UsersTable, ClassMembersTable)
         .join(ClassMembersTable, ClassMembersTable.user_id == UsersTable.id)
-        .where(ClassMembersTable.class_id == class_id)
+        .where(ClassMembersTable.class_id == class_id, _MEMBER_ACTIVE)
         .order_by(ClassMembersTable.role, ClassMembersTable.joined_at)
     )
     return [(u, m) for u, m in result.all()]
@@ -101,7 +160,7 @@ async def count_by_role(class_id: int, db: AsyncSession) -> dict[ClassRole, int]
     """Сколько участников каждой роли в классе. Используется для counts в DTO."""
     result = await db.execute(
         select(ClassMembersTable.role, func.count())
-        .where(ClassMembersTable.class_id == class_id)
+        .where(ClassMembersTable.class_id == class_id, _MEMBER_ACTIVE)
         .group_by(ClassMembersTable.role)
     )
     counts = {role: 0 for role in ClassRole}
@@ -133,6 +192,7 @@ async def get_member_class_ids(
         select(ClassMembersTable.class_id).where(
             ClassMembersTable.user_id == user_id,
             ClassMembersTable.class_id.in_(class_ids),
+            _MEMBER_ACTIVE,
         )
     )
     return set(result.scalars().all())

@@ -9,6 +9,7 @@ from app.database.models import (
     ClassMembersTable,
     ClassRole,
     ClassType,
+    UsersTable,
 )
 from app.database.repositories import class_repo
 from app.schemas.class_schemas import (
@@ -107,19 +108,22 @@ async def get_class_detail(
     )
 
 
+def _member_dto(u: UsersTable, m: ClassMembersTable) -> ClassMemberDTO:
+    """Сборка DTO участника. is_active=False для ушедших (нужно для gradebook)."""
+    return ClassMemberDTO(
+        user_id=u.id,
+        email=u.email,
+        first_name=u.first_name,
+        last_name=u.last_name,
+        role=m.role,
+        joined_at=m.joined_at,
+        is_active=m.deleted_at is None,
+    )
+
+
 async def list_class_members(class_id: int, db: AsyncSession) -> list[ClassMemberDTO]:
     rows = await class_repo.list_members(class_id, db)
-    return [
-        ClassMemberDTO(
-            user_id=u.id,
-            email=u.email,
-            first_name=u.first_name,
-            last_name=u.last_name,
-            role=m.role,
-            joined_at=m.joined_at,
-        )
-        for u, m in rows
-    ]
+    return [_member_dto(u, m) for u, m in rows]
 
 
 async def list_public_classes(
@@ -152,9 +156,15 @@ async def list_public_classes(
 async def _join(
     cls: ClassesTable, user_id: int, db: AsyncSession
 ) -> ClassMembersTable:
-    existing = await class_repo.get_member(cls.id, user_id, db)
-    if existing:
+    # Берём запись включая soft-deleted: UniqueConstraint(class_id, user_id) не даст
+    # insert-нуть повторно, плюс PM явно сказал — кикнутые в класс не возвращаются
+    existing = await class_repo.get_member_any(cls.id, user_id, db)
+    if existing and existing.deleted_at is None:
         raise ServiceError("Вы уже состоите в этом классе", 409)
+    if existing and existing.deleted_at is not None:
+        raise ServiceError(
+            "Вы были удалены из этого класса. Обратитесь к создателю.", 403
+        )
 
     member = await class_repo.add_member(cls.id, user_id, ClassRole.STUDENT, db)
     await db.commit()
@@ -209,5 +219,48 @@ async def update_class(
 async def delete_class(cls: ClassesTable, db: AsyncSession) -> None:
     """Soft delete: проставляем deleted_at, класс пропадает из всех выборок."""
     await class_repo.soft_delete(cls, db)
+
+
+async def update_member_role(
+    class_id: int, target_user_id: int, new_role: ClassRole, db: AsyncSession
+) -> ClassMemberDTO:
+    """Сменить роль участника. Вызывает только creator (проверено в роутере)."""
+    row = await class_repo.get_member_with_user(class_id, target_user_id, db)
+    if row is None:
+        raise ServiceError("Участник не найден", 404)
+    user, member = row
+
+    # creator-а нельзя ни понизить, ни передать его роль — она привязана к автору класса
+    if member.role == ClassRole.CREATOR:
+        raise ServiceError("Нельзя изменить роль создателя класса", 403)
+
+    if member.role == new_role:
+        # ничего не меняем, просто возвращаем актуальную запись
+        return _member_dto(user, member)
+
+    member = await class_repo.update_member_role(member, new_role, db)
+    return _member_dto(user, member)
+
+
+async def remove_member(
+    class_id: int, target_user_id: int, db: AsyncSession
+) -> None:
+    """Кик участника creator-ом. Удаление creator-а запрещено."""
+    member = await class_repo.get_member(class_id, target_user_id, db)
+    if member is None:
+        raise ServiceError("Участник не найден", 404)
+    if member.role == ClassRole.CREATOR:
+        # creator уходит только через delete_class
+        raise ServiceError("Создателя нельзя удалить из своего класса", 403)
+    await class_repo.soft_delete_member(member, db)
+
+
+async def leave_class(member: ClassMembersTable, db: AsyncSession) -> None:
+    """Самовыход. creator-у нельзя — у него только delete_class."""
+    if member.role == ClassRole.CREATOR:
+        raise ServiceError(
+            "Создатель не может выйти из своего класса — только удалить его", 403
+        )
+    await class_repo.soft_delete_member(member, db)
 
 

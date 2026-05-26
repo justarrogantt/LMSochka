@@ -57,6 +57,9 @@ SECRET_KEY=test-secret-key-that-is-long-enough-32bytes make test
 | GET | `/public` | каталог открытых классов с опц. `?search=` (ilike по name); возвращает `is_member` |
 | PATCH | `/{id}` | редактировать `name` и/или `type`. Только `creator`/`teacher`. Переход open→closed генерит код, обратный — убирает. |
 | DELETE | `/{id}` | soft delete (`deleted_at`). Только `creator`. Класс пропадает из всех выборок и недоступен по коду. |
+| PATCH | `/{id}/members/{userId}/role` | сменить роль участника на `student` или `teacher`. Только `creator`. Менять роль самого `creator` нельзя. |
+| DELETE | `/{id}/members/{userId}` | кикнуть участника (soft delete). Только `creator`. `creator` убрать нельзя. Решения и оценки ушедшего сохраняются. |
+| POST | `/{id}/leave` | самовыход из класса (soft delete своего членства). Для `student`/`teacher`. `creator` выйти не может — только удалить класс. |
 
 #### Permissions
 `GET /{id}` отдаёт объект `permissions` с булевыми флагами для UI:
