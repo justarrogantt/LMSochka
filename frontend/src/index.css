@@ -1,0 +1,38 @@
+@font-face {
+  font-family: "Inter";
+  src: url("./assets/fonts/Inter-VariableFont_opsz_wght.ttf") format("truetype");
+  font-weight: 200 900;
+  font-style: normal;
+}
+
+@font-face {
+  font-family: "Archivo";
+  src: url("./assets/fonts/Archivo-VariableFont_wdth_wght.ttf") format("truetype");
+  font-weight: 200 900;
+  font-style: normal;
+}
+
+:root {
+  --font-base: "Inter", sans-serif;
+  --font-heading: "Archivo", sans-serif;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  min-height: 100%;
+}
+
+body {
+  min-height: 100vh;
+  font-family: var(--font-base);
+}
+
+button,
+input {
+  font: inherit;
+}

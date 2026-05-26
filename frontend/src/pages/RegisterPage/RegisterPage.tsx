@@ -1,111 +1,202 @@
-﻿// Страница регистрации нового пользователя.
-import styles from "./RegisterPage.module.css"
-import { useState } from "react"
+// Страница регистрации нового пользователя.
+import { useNavigate } from "react-router-dom"
+import { useState, type ChangeEvent, type MouseEvent } from "react"
+import styles from "../AuthPage/AuthPage.module.css"
+import AuthLayout from "../AuthPage/AuthLayout"
+import { useAuth } from "../../contexts/AuthContext"
+import { ApiError, ApiSilentError } from "../../services/api"
+import { register as registerRequest } from "./services/register.api"
 
 type RegisterForm = {
-    email: string
-    password: string
-    repeatPassword: string
+  email: string
+  password: string
+  repeatPassword: string
 }
 
-const defaultForm = {
-    email: "",
-    password: "",
-    repeatPassword: ""
+type RegisterErrors = Partial<Record<keyof RegisterForm, string>>
+
+const defaultForm: RegisterForm = {
+  email: "",
+  password: "",
+  repeatPassword: ""
 }
 
 const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 const passwordRegex = /^(?=.*[A-Za-z])(?=.*\d)[A-Za-z\d]{8,}$/
+
 const validationErrors = {
-    emailRequired: "Введите электронную почту",
-    emailInvalid: "Введите корректную электронную почту",
-    passwordRequired: "Введите пароль",
-    passwordInvalid: "Пароль должен быть не короче 8 символов, содержать латинские буквы и хотя бы одну цифру",
-    repeatPasswordRequired: "Повторите пароль",
-    repeatPasswordMismatch: "Пароли не совпадают"
+  emailRequired: "Введите электронную почту.",
+  emailInvalid: "Введите корректную электронную почту.",
+  passwordRequired: "Введите пароль.",
+  passwordInvalid: "Пароль должен быть не короче 8 символов, содержать латинские буквы и хотя бы одну цифру.",
+  repeatPasswordRequired: "Повторите пароль.",
+  repeatPasswordMismatch: "Пароли не совпадают."
 }
 
 export default function RegisterPage() {
+  // Значения полей регистрации.
+  const [userData, setUserData] = useState<RegisterForm>(defaultForm)
 
-    const [userData, setUserData] = useState<RegisterForm>(defaultForm)
-    const [inputErrors, setInputErrors] = useState<RegisterForm>(defaultForm)
+  // Ошибки клиентской валидации под конкретные поля.
+  const [inputErrors, setInputErrors] = useState<RegisterErrors>({})
 
-    function updateForm(event: React.ChangeEvent<HTMLInputElement>) {
-        const { name, value } = event.target
+  // Ошибка от бэка или непредвиденная ошибка запроса.
+  const [serverError, setServerError] = useState("")
 
-        setUserData((prev) => ({
-            ...prev,
-            [name]: value.replace(/\s/g, "")
-        }))
+  // Блокирует кнопку, пока идет запрос на регистрацию.
+  const [isSubmitting, setIsSubmitting] = useState(false)
+  const { setUser } = useAuth()
+  const navigate = useNavigate()
+
+  // Обновляет поле и сразу очищает старые ошибки.
+  function updateForm(event: ChangeEvent<HTMLInputElement>) {
+    const { name, value } = event.target
+
+    setUserData((prev) => ({
+      ...prev,
+      [name]: value.replace(/\s/g, "")
+    }))
+
+    setInputErrors((prev) => ({
+      ...prev,
+      [name]: ""
+    }))
+    setServerError("")
+  }
+
+  // Проверяет поля до запроса, чтобы не дергать бэк пустыми данными.
+  function checkForm(formData: RegisterForm) {
+    const newErrors: RegisterErrors = {}
+
+    if (!formData.email.trim()) {
+      newErrors.email = validationErrors.emailRequired
+    } else if (!emailRegex.test(formData.email)) {
+      newErrors.email = validationErrors.emailInvalid
     }
 
-    function checkForm(userData: RegisterForm) {
-        const newErrors: RegisterForm = {
-            email: "",
-            password: "",
-            repeatPassword: "",
-        }
-
-        if (!userData.email.trim()) {
-            newErrors.email = validationErrors.emailRequired
-        } else if (!emailRegex.test(userData.email)) {
-            newErrors.email = validationErrors.emailInvalid
-        }
-
-        if (!userData.password) {
-            newErrors.password = validationErrors.passwordRequired
-        }
-        else if (!passwordRegex.test(userData.password)) {
-            newErrors.password = validationErrors.passwordInvalid
-        }
-
-        if (!userData.repeatPassword) {
-            newErrors.repeatPassword = validationErrors.repeatPasswordRequired
-        }
-        else if (userData.password !== userData.repeatPassword) {
-            newErrors.repeatPassword = validationErrors.repeatPasswordMismatch
-        }
-
-        setInputErrors(newErrors)
-
-        return !newErrors.email && !newErrors.password && !newErrors.repeatPassword
+    if (!formData.password) {
+      newErrors.password = validationErrors.passwordRequired
+    } else if (!passwordRegex.test(formData.password)) {
+      newErrors.password = validationErrors.passwordInvalid
     }
 
-
-    async function register() {
-        const isFormValid = checkForm(userData)
-        if (!isFormValid) {
-            return
-        }
-        console.log(userData)
+    if (!formData.repeatPassword) {
+      newErrors.repeatPassword = validationErrors.repeatPasswordRequired
+    } else if (formData.password !== formData.repeatPassword) {
+      newErrors.password = validationErrors.repeatPasswordMismatch
+      newErrors.repeatPassword = validationErrors.repeatPasswordMismatch
     }
 
-    return (
-        <main className={styles.page}>
-            <h1>Регистрация</h1>
+    setInputErrors(newErrors)
+    return Object.keys(newErrors).length === 0
+  }
 
-            <label htmlFor="email">Электронная почта</label><br />
-            <input id="email" name="email" placeholder="example@mail.ru"
-                type="email" autoComplete="email" value={userData.email} onChange={updateForm} />
-            {inputErrors.email && <><br /><div className={styles.errorPlace}>{inputErrors.email}</div></>}
-            <br /><br />
+  // Создает аккаунт, сохраняет пользователя и ведет в приложение.
+  async function register() {
+    setServerError("")
 
-            <label htmlFor="password">Пароль</label><br />
-            <input id="password" name="password" placeholder="Введите пароль"
-                type="password" autoComplete="new-password" value={userData.password} onChange={updateForm} />
-            {inputErrors.password && <><br /><div className={styles.errorPlace}>{inputErrors.password}</div></>}
-            <br /><br />
+    const isFormValid = checkForm(userData)
+    if (!isFormValid) return
 
-            <label htmlFor="repeatPassword">Подтверждение пароля</label><br />
-            <input id="repeatPassword" name="repeatPassword" placeholder="Повторите пароль"
-                type="password" autoComplete="new-password" value={userData.repeatPassword} onChange={updateForm} />
-            {inputErrors.repeatPassword && <><br /><div className={styles.errorPlace}>{inputErrors.repeatPassword}</div></>}
-            <br /><br />
+    try {
+      setIsSubmitting(true)
+      const authData = await registerRequest({
+        email: userData.email,
+        password: userData.password
+      })
 
-            <button onClick={register}>Зарегистрироваться</button>
-            <p>
-                Уже есть аккаунт? <a href="/login">Войти</a>
-            </p>
-        </main>
-    )
+      setUser(authData.user)
+      navigate("/classes", { replace: true })
+    } catch (error) {
+      if (error instanceof ApiSilentError) return
+
+      setServerError(error instanceof ApiError ? error.message : "Не удалось зарегистрироваться. Попробуйте позже")
+    } finally {
+      setIsSubmitting(false)
+    }
+  }
+
+  // Оставляем навигацию через router, но в разметке используем обычный a.
+  function goToLogin(event: MouseEvent<HTMLAnchorElement>) {
+    event.preventDefault()
+    navigate("/login")
+  }
+
+  const errors = Object.values(inputErrors).filter(Boolean)
+
+  return (
+    <AuthLayout title="Создать аккаунт" subtitle="Зарегистрируйся, чтобы получить доступ к учебной платформе.">
+      <div className={styles.form}>
+        <label className={`${styles.field} ${inputErrors.email ? styles.fieldError : ""}`} htmlFor="email">
+          <div className={styles.fieldTitle}>Электронная почта</div>
+          <input
+            className={styles.input}
+            id="email"
+            name="email"
+            placeholder="student@example.com"
+            type="email"
+            autoComplete="email"
+            value={userData.email}
+            onChange={updateForm}
+          />
+        </label>
+
+        <label className={`${styles.field} ${inputErrors.password ? styles.fieldError : ""}`} htmlFor="password">
+          <div className={styles.fieldTitle}>Пароль</div>
+          <input
+            className={styles.input}
+            id="password"
+            name="password"
+            placeholder="••••••••"
+            type="password"
+            autoComplete="new-password"
+            value={userData.password}
+            onChange={updateForm}
+          />
+        </label>
+
+        <label
+          className={`${styles.field} ${inputErrors.repeatPassword ? styles.fieldError : ""}`}
+          htmlFor="repeatPassword"
+        >
+          <div className={styles.fieldTitle}>Повторите пароль</div>
+          <input
+            className={styles.input}
+            id="repeatPassword"
+            name="repeatPassword"
+            placeholder="••••••••"
+            type="password"
+            autoComplete="new-password"
+            value={userData.repeatPassword}
+            onChange={updateForm}
+          />
+        </label>
+
+        {errors.length > 0 && (
+          <div className={styles.errorList}>
+            <ul>
+              {errors.map((error) => (
+                <li key={error}>{error}</li>
+              ))}
+            </ul>
+          </div>
+        )}
+
+        {serverError && <div className={styles.serverError}>{serverError}</div>}
+
+        <div className={styles.actions}>
+          <button className={styles.primaryButton} type="button" disabled={isSubmitting} onClick={register}>
+            {isSubmitting ? "Регистрируем..." : "Зарегистрироваться"}
+          </button>
+
+          <div className={styles.switch}>
+            <div>Уже есть аккаунт?</div>
+            <a className={styles.switchLink} href="/login" onClick={goToLogin}>
+              Войти
+            </a>
+          </div>
+        </div>
+      </div>
+    </AuthLayout>
+  )
 }

@@ -1,12 +1,18 @@
-﻿import type { Errors } from "../types/api.types"
+import type { Errors } from "../types/api.types"
 
 // Таймаут фронтового запроса (в миллисекундах).
 // Держи его не больше таймаута reverse proxy (Nginx/Traefik и т.д.),
 // чтобы UI завершал запрос контролируемо до того, как инфраструктура оборвет соединение.
 const REQUEST_TIMEOUT_MS = 120_000
+export const API_UNAUTHORIZED_EVENT = "api:unauthorized"
 
-// Флаг нужен, чтобы не показывать лишние ошибки в момент ухода со страницы/перезагрузки.
 let isPageUnloading = false
+
+type WebSocketDataHandler = (data: unknown) => void
+
+type WebSocketConnection = {
+  close: () => void
+}
 
 window.addEventListener("pagehide", () => {
   isPageUnloading = true
@@ -20,11 +26,6 @@ window.addEventListener("pageshow", () => {
   isPageUnloading = false
 })
 
-export const NETWORK_ERROR_MESSAGE =
-  "Не удалось связаться с сервером. Проверьте соединение с интернетом или попробуйте позже"
-
-// Единый тип ошибок для API-слоя.
-// Поле status опциональное, потому что сетевые ошибки могут приходить без HTTP-кода.
 export class ApiError extends Error {
   status?: number
 
@@ -35,10 +36,21 @@ export class ApiError extends Error {
   }
 }
 
+export class ApiSilentError extends Error {
+  constructor() {
+    super()
+    this.name = "ApiSilentError"
+  }
+}
+
 export class Api {
-  // Базовая карта сообщений: HTTP-статус -> текст для пользователя.
-  // При необходимости отдельные запросы могут переопределять эти тексты.
+  private static notifyUnauthorized() {
+    window.dispatchEvent(new CustomEvent(API_UNAUTHORIZED_EVENT))
+  }
+
   private static readonly defaultErrors: Errors = {
+    default: "Не удалось выполнить запрос. Попробуйте позже",
+    network: "Не удалось связаться с сервером. Проверьте соединение с интернетом или попробуйте позже",
     400: "Не удалось выполнить запрос. Проверьте данные и попробуйте снова",
     401: "Необходимо повторно войти в систему",
     403: "Недостаточно прав для выполнения этого действия",
@@ -54,16 +66,14 @@ export class Api {
   }
 
   private static getErrorMessage(
-    status: number,
+    status: number | "network",
     errors: Errors = {},
     errorsReplace: boolean = false
   ): string {
     const errorMessages = errorsReplace ? errors : { ...Api.defaultErrors, ...errors }
-    return errorMessages[status as keyof Errors] ?? "Не удалось выполнить запрос. Попробуйте позже"
+    return errorMessages[status as keyof Errors] ?? errorMessages.default ?? Api.defaultErrors.default!
   }
 
-  // Стабильный client/device id для аналитики и серверной идентификации устройства.
-  // Создаем один раз и сохраняем в localStorage.
   public static getDeviceId(): string {
     const key = "device_id"
     let deviceId = localStorage.getItem(key)
@@ -79,7 +89,6 @@ export class Api {
     return deviceId
   }
 
-  // Резервная генерация UUID для старых/небезопасных контекстов браузера.
   private static generateFallbackUuid(): string {
     return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, (char) => {
       const random = Math.floor(Math.random() * 16)
@@ -88,7 +97,6 @@ export class Api {
     })
   }
 
-  // Хелперы для токенов доступа/обновления.
   public static getTokens() {
     return {
       accessToken: localStorage.getItem("access_token"),
@@ -109,6 +117,7 @@ export class Api {
 
     if (withAuth) {
       const { accessToken } = Api.getTokens()
+
       if (accessToken) {
         headers.Authorization = `Bearer ${accessToken}`
       }
@@ -141,12 +150,9 @@ export class Api {
     const { refreshToken } = Api.getTokens()
 
     if (!refreshToken) {
-      window.location.replace("/register")
       return false
     }
 
-    // Refresh вызываем без Authorization.
-    // В body передаем только refresh_token из локального хранилища.
     const response = await Api.fetchWithTimeout(
       "/api/auth/refresh",
       {
@@ -163,8 +169,6 @@ export class Api {
       if (response.status !== 401) {
         throw new ApiError(Api.getErrorMessage(response.status), response.status)
       }
-
-      window.location.replace("/login")
       return false
     }
 
@@ -194,10 +198,6 @@ export class Api {
     return Api.refreshPromise
   }
 
-  // Универсальный пайплайн запроса:
-  // 1) выполняем запрос с таймаутом,
-  // 2) если 401 и запрос с авторизацией -> пробуем refresh токена один раз,
-  // 3) приводим типовые ошибки к ApiError.
   private static async request(
     path: string,
     init: RequestInit,
@@ -205,8 +205,15 @@ export class Api {
     errorsReplace: boolean = false,
     withAuth: boolean = true,
     timeoutMs: number = REQUEST_TIMEOUT_MS
-  ): Promise<Response | undefined> {
+  ): Promise<Response> {
     try {
+      const { accessToken, refreshToken } = Api.getTokens()
+
+      if (withAuth && (!refreshToken || !accessToken)) {
+        Api.notifyUnauthorized()
+        throw new ApiError(Api.getErrorMessage(401, errors, errorsReplace), 401)
+      }
+
       let response = await Api.fetchWithTimeout(
         path,
         {
@@ -218,7 +225,10 @@ export class Api {
 
       if (withAuth && response.status === 401) {
         const refreshed = await Api.fetchRefresh()
-        if (!refreshed) return
+        if (!refreshed) {
+          Api.notifyUnauthorized()
+          throw new ApiError(Api.getErrorMessage(401, errors, errorsReplace), 401)
+        }
 
         response = await Api.fetchWithTimeout(
           path,
@@ -231,13 +241,17 @@ export class Api {
       }
 
       if (!response.ok) {
+        if (withAuth && response.status === 401) {
+          Api.notifyUnauthorized()
+        }
         throw new ApiError(Api.getErrorMessage(response.status, errors, errorsReplace), response.status)
       }
 
       return response
     } catch (error: unknown) {
-      // Игнорируем шум fetch-ошибок при жесткой навигации/перезагрузке страницы.
-      if (isPageUnloading) return
+      if (isPageUnloading) {
+        throw new ApiSilentError()
+      }
 
       // Abort из-за таймаута мапим в 408 для единообразной обработки в UI.
       if (error instanceof DOMException && error.name === "AbortError") {
@@ -246,11 +260,107 @@ export class Api {
 
       // Ошибки транспорта: offline/DNS/CORS на сетевом уровне.
       if (error instanceof TypeError) {
-        throw new ApiError(NETWORK_ERROR_MESSAGE)
+        throw new ApiError(Api.getErrorMessage("network", errors, errorsReplace))
       }
 
       throw error
     }
+  }
+
+  // WebSocket-обертка с автоматическим переподключением.
+  static connectWebSocket(
+    path: string,
+    onData: WebSocketDataHandler,
+    reconnect: boolean = true
+  ): WebSocketConnection {
+    let websocket: WebSocket | null = null
+    let reconnectTimeoutId: number | null = null
+    let isClosedByClient = false
+
+    function getWebSocketUrl(): string {
+      const { accessToken } = Api.getTokens()
+
+      if (!accessToken) {
+        throw new ApiError("Нет access token для WebSocket")
+      }
+
+      const protocol = window.location.protocol === "https:" ? "wss" : "ws"
+      const token = encodeURIComponent(accessToken)
+      return `${protocol}://${window.location.host}${path}?token=${token}`
+    }
+
+    function clearReconnectTimeout() {
+      if (reconnectTimeoutId === null) return
+
+      window.clearTimeout(reconnectTimeoutId)
+      reconnectTimeoutId = null
+    }
+
+    function scheduleReconnect(shouldRefreshToken: boolean) {
+      if (isClosedByClient) return
+      if (reconnectTimeoutId !== null) return
+
+      reconnectTimeoutId = window.setTimeout(async () => {
+        reconnectTimeoutId = null
+
+        if (shouldRefreshToken) {
+          const refreshed = await Api.fetchRefresh()
+          if (!refreshed) return
+        }
+
+        connect()
+      }, 3000)
+    }
+
+    function onSocketMessage(event: MessageEvent) {
+      try {
+        const data = JSON.parse(event.data)
+        onData(data)
+      } catch {
+        return
+      }
+    }
+
+    function onSocketError() {
+      return
+    }
+
+    function onSocketClose(event: CloseEvent) {
+      websocket = null
+
+      if (isClosedByClient) return
+      if (!reconnect) return
+
+      scheduleReconnect(event.code === 1008)
+    }
+
+    function connect() {
+      clearReconnectTimeout()
+
+      try {
+        websocket = new WebSocket(getWebSocketUrl())
+      } catch {
+        scheduleReconnect(false)
+        return
+      }
+
+      websocket.onmessage = onSocketMessage
+      websocket.onerror = onSocketError
+      websocket.onclose = onSocketClose
+    }
+
+    function close() {
+      isClosedByClient = true
+      clearReconnectTimeout()
+
+      if (!websocket) return
+
+      websocket.close()
+      websocket = null
+    }
+
+    connect()
+    return { close }
   }
 
   static async fetchGet(
@@ -259,7 +369,7 @@ export class Api {
     errorsReplace: boolean = false,
     withAuth: boolean = true,
     timeoutMs: number = REQUEST_TIMEOUT_MS
-  ): Promise<Response | undefined> {
+  ): Promise<Response> {
     return Api.request(path, { method: "GET" }, errors, errorsReplace, withAuth, timeoutMs)
   }
 
@@ -270,7 +380,7 @@ export class Api {
     errorsReplace: boolean = false,
     withAuth: boolean = true,
     timeoutMs: number = REQUEST_TIMEOUT_MS
-  ): Promise<Response | undefined> {
+  ): Promise<Response> {
     return Api.request(
       path,
       {
@@ -290,7 +400,7 @@ export class Api {
     errorsReplace: boolean = false,
     withAuth: boolean = true,
     timeoutMs: number = REQUEST_TIMEOUT_MS
-  ): Promise<Response | undefined> {
+  ): Promise<Response> {
     return Api.request(path, { method: "DELETE" }, errors, errorsReplace, withAuth, timeoutMs)
   }
 
@@ -301,7 +411,7 @@ export class Api {
     errorsReplace: boolean = false,
     withAuth: boolean = true,
     timeoutMs: number = REQUEST_TIMEOUT_MS
-  ): Promise<Response | undefined> {
+  ): Promise<Response> {
     return Api.request(
       path,
       {
