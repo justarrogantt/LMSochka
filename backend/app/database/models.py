@@ -2,7 +2,7 @@ import enum
 import uuid
 from datetime import datetime
 
-from sqlalchemy import Enum, ForeignKey, String, UniqueConstraint, func
+from sqlalchemy import Enum, ForeignKey, String, Text, UniqueConstraint, func
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
 
@@ -86,4 +86,24 @@ class ClassMembersTable(Base):
     joined_at: Mapped[datetime] = mapped_column(server_default=func.now())
     # soft delete: запись остаётся в БД, чтобы оценки и сданные решения ушедшего
     # участника не потерялись (нужны для аудита и просмотра в gradebook)
+    deleted_at: Mapped[datetime | None] = mapped_column(default=None)
+
+
+class AnnouncementsTable(Base):
+    __tablename__ = "announcements"
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    # удалили класс — удаляем и его объявления, держать осиротевшие смысла нет
+    class_id: Mapped[int] = mapped_column(ForeignKey("classes.id", ondelete="CASCADE"))
+    # RESTRICT — пока автор не пересоздан/не очищен, юзера не удалить.
+    # На уровне продукта пользователя физически не удаляем, так что норм.
+    author_id: Mapped[int] = mapped_column(
+        ForeignKey("users.id", ondelete="RESTRICT")
+    )
+    title: Mapped[str] = mapped_column(String(200))
+    # Text без жёсткого лимита в БД, max_length 10000 валидируем в Pydantic
+    content: Mapped[str] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(server_default=func.now())
+    updated_at: Mapped[datetime | None] = mapped_column(onupdate=func.now())
+    # soft delete: объявление пропадает из выдачи, но запись остаётся для истории
     deleted_at: Mapped[datetime | None] = mapped_column(default=None)
