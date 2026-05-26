@@ -55,6 +55,8 @@ SECRET_KEY=test-secret-key-that-is-long-enough-32bytes make test
 | POST | `/join` | присоединение по коду (для закрытых классов) |
 | POST | `/{id}/join-open` | присоединение к открытому классу по id (закрытым отвечает 403) |
 | GET | `/public` | каталог открытых классов с опц. `?search=` (ilike по name); возвращает `is_member` |
+| PATCH | `/{id}` | редактировать `name` и/или `type`. Только `creator`/`teacher`. Переход open→closed генерит код, обратный — убирает. |
+| DELETE | `/{id}` | soft delete (`deleted_at`). Только `creator`. Класс пропадает из всех выборок и недоступен по коду. |
 
 #### Permissions
 `GET /{id}` отдаёт объект `permissions` с булевыми флагами для UI:
