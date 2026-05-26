@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from pydantic import BaseModel, ConfigDict, EmailStr, Field
+from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator
 
 from app.database.models import ClassRole, ClassType
 
@@ -19,6 +19,19 @@ class UpdateClassRequest(BaseModel):
 
 class JoinByCodeRequest(BaseModel):
     code: str = Field(min_length=1, max_length=16)
+
+
+class UpdateMemberRoleRequest(BaseModel):
+    """Назначение новой роли участнику. Создателя назначать нельзя — он один на класс."""
+
+    role: ClassRole
+
+    @field_validator("role")
+    @classmethod
+    def _no_creator(cls, v: ClassRole) -> ClassRole:
+        if v == ClassRole.CREATOR:
+            raise ValueError("Назначить роль creator нельзя — она привязана к автору класса")
+        return v
 
 
 class ClassDTO(BaseModel):
@@ -79,6 +92,9 @@ class ClassMemberDTO(BaseModel):
     last_name: str | None
     role: ClassRole
     joined_at: datetime
+    # пока всегда True (в обычных списках видим только активных). Появится false,
+    # когда gradebook начнёт показывать ушедших студентов с их прошлыми оценками
+    is_active: bool = True
 
 
 class PublicClassDTO(BaseModel):

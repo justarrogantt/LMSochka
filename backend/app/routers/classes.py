@@ -14,6 +14,7 @@ from app.schemas.class_schemas import (
     MyClassDTO,
     PublicClassDTO,
     UpdateClassRequest,
+    UpdateMemberRoleRequest,
 )
 from app.schemas.errors import ServiceError
 from app.services import class_service
@@ -148,4 +149,54 @@ async def delete_class(
     """Soft delete класса. Только creator."""
     _, cls, _ = ctx
     await class_service.delete_class(cls, db)
+    return Response(status_code=204)
+
+
+@classes_router.patch("/{class_id}/members/{user_id}/role")
+async def update_member_role(
+    user_id: int,
+    body: UpdateMemberRoleRequest,
+    ctx: tuple[UsersTable, ClassesTable, ClassMembersTable] = Depends(
+        require_class_role(ClassRole.CREATOR)
+    ),
+    db: AsyncSession = Depends(get_db),
+) -> ClassMemberDTO:
+    """Повысить/понизить участника. Только creator. Менять роль creator-а нельзя."""
+    _, cls, _ = ctx
+    try:
+        return await class_service.update_member_role(cls.id, user_id, body.role, db)
+    except ServiceError as e:
+        raise HTTPException(status_code=e.status_code, detail=str(e)) from e
+
+
+@classes_router.delete("/{class_id}/members/{user_id}", status_code=204)
+async def remove_member(
+    user_id: int,
+    ctx: tuple[UsersTable, ClassesTable, ClassMembersTable] = Depends(
+        require_class_role(ClassRole.CREATOR)
+    ),
+    db: AsyncSession = Depends(get_db),
+) -> Response:
+    """Кикнуть участника. Только creator. Кикнуть самого себя (creator-а) нельзя."""
+    _, cls, _ = ctx
+    try:
+        await class_service.remove_member(cls.id, user_id, db)
+    except ServiceError as e:
+        raise HTTPException(status_code=e.status_code, detail=str(e)) from e
+    return Response(status_code=204)
+
+
+@classes_router.post("/{class_id}/leave", status_code=204)
+async def leave_class(
+    ctx: tuple[UsersTable, ClassesTable, ClassMembersTable] = Depends(
+        require_class_member
+    ),
+    db: AsyncSession = Depends(get_db),
+) -> Response:
+    """Самовыход из класса. creator выйти не может — только удалить класс."""
+    _, _, member = ctx
+    try:
+        await class_service.leave_class(member, db)
+    except ServiceError as e:
+        raise HTTPException(status_code=e.status_code, detail=str(e)) from e
     return Response(status_code=204)
