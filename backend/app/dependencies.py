@@ -1,10 +1,10 @@
-from fastapi import Depends, HTTPException
+from fastapi import Depends, HTTPException, Path
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database.database import get_db
-from app.database.models import UsersTable
-from app.database.repositories import session_repo, user_repo
+from app.database.models import ClassesTable, ClassMembersTable, ClassRole, UsersTable
+from app.database.repositories import class_repo, session_repo, user_repo
 from app.services.token_service import decode_token
 
 security = HTTPBearer()
@@ -40,3 +40,40 @@ async def get_current_user(
 
     # jti возвращаем чтобы logout мог отозвать конкретно эту сессию
     return user, jti
+
+
+async def require_class_member(
+    class_id: int = Path(..., ge=1),
+    context: tuple[UsersTable, str] = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> tuple[UsersTable, ClassesTable, ClassMembersTable]:
+    """Гарантирует, что текущий юзер — участник класса. Возвращает (user, cls, membership)."""
+    user, _ = context
+
+    # сначала проверяем существование класса — иначе бы не отличили "класса нет"
+    # от "ты не в классе"
+    cls = await class_repo.get_by_id(class_id, db)
+    if not cls:
+        raise HTTPException(status_code=404, detail="Класс не найден")
+
+    member = await class_repo.get_member(class_id, user.id, db)
+    if not member:
+        raise HTTPException(status_code=403, detail="Вы не состоите в этом классе")
+
+    return user, cls, member
+
+
+def require_class_role(*allowed_roles: ClassRole):
+    """Фабрика зависимостей: проверяет, что роль юзера в классе входит в allowed_roles."""
+
+    async def dependency(
+        ctx: tuple[UsersTable, ClassesTable, ClassMembersTable] = Depends(
+            require_class_member
+        ),
+    ) -> tuple[UsersTable, ClassesTable, ClassMembersTable]:
+        user, cls, member = ctx
+        if member.role not in allowed_roles:
+            raise HTTPException(status_code=403, detail="Недостаточно прав")
+        return user, cls, member
+
+    return dependency

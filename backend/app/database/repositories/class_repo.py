@@ -1,4 +1,4 @@
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database.models import (
@@ -6,6 +6,7 @@ from app.database.models import (
     ClassMembersTable,
     ClassRole,
     ClassType,
+    UsersTable,
 )
 
 
@@ -70,3 +71,55 @@ async def list_for_user(
         .order_by(ClassMembersTable.joined_at.desc())
     )
     return [(c, m) for c, m in result.all()]
+
+
+async def list_members(
+    class_id: int, db: AsyncSession
+) -> list[tuple[UsersTable, ClassMembersTable]]:
+    """Все участники класса (юзер + запись членства). Сортируем: сначала роль (CREATOR→STUDENT), потом по дате."""
+    result = await db.execute(
+        select(UsersTable, ClassMembersTable)
+        .join(ClassMembersTable, ClassMembersTable.user_id == UsersTable.id)
+        .where(ClassMembersTable.class_id == class_id)
+        .order_by(ClassMembersTable.role, ClassMembersTable.joined_at)
+    )
+    return [(u, m) for u, m in result.all()]
+
+
+async def count_by_role(class_id: int, db: AsyncSession) -> dict[ClassRole, int]:
+    """Сколько участников каждой роли в классе. Используется для counts в DTO."""
+    result = await db.execute(
+        select(ClassMembersTable.role, func.count())
+        .where(ClassMembersTable.class_id == class_id)
+        .group_by(ClassMembersTable.role)
+    )
+    counts = {role: 0 for role in ClassRole}
+    for role, cnt in result.all():
+        counts[role] = cnt
+    return counts
+
+
+async def list_public(
+    search: str | None, db: AsyncSession
+) -> list[ClassesTable]:
+    """Открытые классы с опциональным поиском по name (case-insensitive подстрока)."""
+    query = select(ClassesTable).where(ClassesTable.type == ClassType.OPEN)
+    if search:
+        query = query.where(ClassesTable.name.ilike(f"%{search.strip()}%"))
+    result = await db.execute(query.order_by(ClassesTable.created_at.desc()))
+    return list(result.scalars().all())
+
+
+async def get_member_class_ids(
+    user_id: int, class_ids: list[int], db: AsyncSession
+) -> set[int]:
+    """Возвращает подмножество class_ids, в которых юзер уже состоит. Один запрос для всех."""
+    if not class_ids:
+        return set()
+    result = await db.execute(
+        select(ClassMembersTable.class_id).where(
+            ClassMembersTable.user_id == user_id,
+            ClassMembersTable.class_id.in_(class_ids),
+        )
+    )
+    return set(result.scalars().all())
