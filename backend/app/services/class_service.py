@@ -179,3 +179,32 @@ async def join_by_code(
     return await _join(cls, user_id, db)
 
 
+async def update_class(
+    cls: ClassesTable,
+    name: str | None,
+    new_type: ClassType | None,
+    db: AsyncSession,
+) -> ClassesTable:
+    """Меняем name и/или type. При переходе OPEN→CLOSED генерим join_code, обратный убираем."""
+    if name is not None:
+        cls.name = name.strip()
+
+    if new_type is not None and new_type != cls.type:
+        if new_type == ClassType.CLOSED and cls.join_code is None:
+            cls.join_code = await _generate_unique_code(db)
+        elif new_type == ClassType.OPEN:
+            # открытому коду делать нечего — для join используется id
+            cls.join_code = None
+        cls.type = new_type
+
+    db.add(cls)
+    await db.commit()
+    await db.refresh(cls)
+    return cls
+
+
+async def delete_class(cls: ClassesTable, db: AsyncSession) -> None:
+    """Soft delete: проставляем deleted_at, класс пропадает из всех выборок."""
+    await class_repo.soft_delete(cls, db)
+
+

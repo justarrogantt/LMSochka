@@ -70,6 +70,8 @@ class ClassesTable(Base):
     )
     created_at: Mapped[datetime] = mapped_column(server_default=func.now())
     updated_at: Mapped[datetime | None] = mapped_column(onupdate=func.now())
+    # soft delete: класс остаётся в БД (история заданий/оценок), но скрыт из всех выборок
+    deleted_at: Mapped[datetime | None] = mapped_column(default=None)
 
 
 class ClassMembersTable(Base):

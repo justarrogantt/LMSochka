@@ -1,9 +1,9 @@
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Response
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database.database import get_db
-from app.database.models import ClassesTable, ClassMembersTable, UsersTable
-from app.dependencies import get_current_user, require_class_member
+from app.database.models import ClassesTable, ClassMembersTable, ClassRole, UsersTable
+from app.dependencies import get_current_user, require_class_member, require_class_role
 from app.schemas.class_schemas import (
     ClassDetailDTO,
     ClassDTO,
@@ -13,6 +13,7 @@ from app.schemas.class_schemas import (
     JoinByCodeRequest,
     MyClassDTO,
     PublicClassDTO,
+    UpdateClassRequest,
 )
 from app.schemas.errors import ServiceError
 from app.services import class_service
@@ -118,3 +119,33 @@ async def get_my_role(
     """Роль текущего юзера в классе. 403 если не состоит, 404 если класса нет."""
     _, cls, member = ctx
     return ClassRoleDTO(class_id=cls.id, role=member.role)
+
+
+@classes_router.patch("/{class_id}")
+async def update_class(
+    body: UpdateClassRequest,
+    ctx: tuple[UsersTable, ClassesTable, ClassMembersTable] = Depends(
+        require_class_role(ClassRole.CREATOR, ClassRole.TEACHER)
+    ),
+    db: AsyncSession = Depends(get_db),
+) -> ClassDetailDTO:
+    """Редактировать класс (name, type). Только creator/teacher."""
+    _, cls, member = ctx
+    try:
+        cls = await class_service.update_class(cls, body.name, body.type, db)
+    except ServiceError as e:
+        raise HTTPException(status_code=e.status_code, detail=str(e))
+    return await class_service.get_class_detail(cls, member, db)
+
+
+@classes_router.delete("/{class_id}", status_code=204)
+async def delete_class(
+    ctx: tuple[UsersTable, ClassesTable, ClassMembersTable] = Depends(
+        require_class_role(ClassRole.CREATOR)
+    ),
+    db: AsyncSession = Depends(get_db),
+) -> Response:
+    """Soft delete класса. Только creator."""
+    _, cls, _ = ctx
+    await class_service.delete_class(cls, db)
+    return Response(status_code=204)

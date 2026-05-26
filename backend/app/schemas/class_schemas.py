@@ -10,6 +10,13 @@ class CreateClassRequest(BaseModel):
     type: ClassType
 
 
+class UpdateClassRequest(BaseModel):
+    """Все поля опциональны — PATCH-семантика."""
+
+    name: str | None = Field(default=None, min_length=1, max_length=100)
+    type: ClassType | None = None
+
+
 class JoinByCodeRequest(BaseModel):
     code: str = Field(min_length=1, max_length=16)
 
