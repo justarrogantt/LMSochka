@@ -1,15 +1,18 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database.database import get_db
-from app.database.models import UsersTable
-from app.dependencies import get_current_user
+from app.database.models import ClassesTable, ClassMembersTable, UsersTable
+from app.dependencies import get_current_user, require_class_member
 from app.schemas.class_schemas import (
+    ClassDetailDTO,
     ClassDTO,
+    ClassMemberDTO,
     ClassRoleDTO,
     CreateClassRequest,
     JoinByCodeRequest,
     MyClassDTO,
+    PublicClassDTO,
 )
 from app.schemas.errors import ServiceError
 from app.services import class_service
@@ -41,6 +44,17 @@ async def my_classes(
     return await class_service.list_my_classes(user.id, db)
 
 
+@classes_router.get("/public")
+async def public_classes(
+    search: str | None = Query(default=None, max_length=100),
+    context: tuple[UsersTable, str] = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> list[PublicClassDTO]:
+    """Каталог открытых классов с опциональным поиском по названию."""
+    user, _ = context
+    return await class_service.list_public_classes(search, user.id, db)
+
+
 @classes_router.post("/join", status_code=201)
 async def join_by_code(
     body: JoinByCodeRequest,
@@ -56,7 +70,7 @@ async def join_by_code(
         raise HTTPException(status_code=e.status_code, detail=str(e))
 
 
-@classes_router.post("/{class_id}/join", status_code=201)
+@classes_router.post("/{class_id}/join-open", status_code=201)
 async def join_open(
     class_id: int,
     context: tuple[UsersTable, str] = Depends(get_current_user),
@@ -71,16 +85,36 @@ async def join_open(
         raise HTTPException(status_code=e.status_code, detail=str(e))
 
 
+@classes_router.get("/{class_id}")
+async def get_class(
+    ctx: tuple[UsersTable, ClassesTable, ClassMembersTable] = Depends(
+        require_class_member
+    ),
+    db: AsyncSession = Depends(get_db),
+) -> ClassDetailDTO:
+    """Страница класса: данные + роль текущего юзера + permissions. Только для участников."""
+    _, cls, member = ctx
+    return await class_service.get_class_detail(cls, member, db)
+
+
+@classes_router.get("/{class_id}/members")
+async def get_members(
+    ctx: tuple[UsersTable, ClassesTable, ClassMembersTable] = Depends(
+        require_class_member
+    ),
+    db: AsyncSession = Depends(get_db),
+) -> list[ClassMemberDTO]:
+    """Список участников класса. Только для участников."""
+    _, cls, _ = ctx
+    return await class_service.list_class_members(cls.id, db)
+
+
 @classes_router.get("/{class_id}/role")
 async def get_my_role(
-    class_id: int,
-    context: tuple[UsersTable, str] = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
+    ctx: tuple[UsersTable, ClassesTable, ClassMembersTable] = Depends(
+        require_class_member
+    ),
 ) -> ClassRoleDTO:
-    """Роль текущего юзера в классе. 404 если не состоит."""
-    user, _ = context
-    try:
-        role = await class_service.get_user_role_in_class(class_id, user.id, db)
-        return ClassRoleDTO(class_id=class_id, role=role)
-    except ServiceError as e:
-        raise HTTPException(status_code=e.status_code, detail=str(e))
+    """Роль текущего юзера в классе. 403 если не состоит, 404 если класса нет."""
+    _, cls, member = ctx
+    return ClassRoleDTO(class_id=cls.id, role=member.role)

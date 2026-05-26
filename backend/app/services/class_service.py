@@ -11,8 +11,15 @@ from app.database.models import (
     ClassType,
 )
 from app.database.repositories import class_repo
-from app.schemas.class_schemas import ClassDTO, MyClassDTO
+from app.schemas.class_schemas import (
+    ClassDetailDTO,
+    ClassDTO,
+    ClassMemberDTO,
+    MyClassDTO,
+    PublicClassDTO,
+)
 from app.schemas.errors import ServiceError
+from app.services.permissions_service import build_permissions
 
 _CODE_ALPHABET = string.ascii_uppercase + string.digits
 
@@ -54,17 +61,89 @@ async def create_class(
 
 async def list_my_classes(user_id: int, db: AsyncSession) -> list[MyClassDTO]:
     rows = await class_repo.list_for_user(user_id, db)
+    # счётчики дёргаем по одному классу — нагрузка маленькая для MVP, не оптимизируем заранее
+    result: list[MyClassDTO] = []
+    for c, m in rows:
+        counts = await class_repo.count_by_role(c.id, db)
+        result.append(
+            MyClassDTO(
+                id=c.id,
+                name=c.name,
+                type=c.type,
+                creator_id=c.creator_id,
+                role=m.role,
+                joined_at=m.joined_at,
+                students_count=counts[ClassRole.STUDENT],
+                teachers_count=counts[ClassRole.TEACHER] + counts[ClassRole.CREATOR],
+            )
+        )
+    return result
+
+
+async def get_class_detail(
+    cls: ClassesTable, member: ClassMembersTable, db: AsyncSession
+) -> ClassDetailDTO:
+    """Страница класса для участника. Зависимость уже проверила членство — здесь только сборка DTO."""
+    perms = build_permissions(member.role)
+    counts = await class_repo.count_by_role(cls.id, db)
+
+    # join_code прячем от тех, кто не может управлять участниками — для студента это лишнее
+    visible_code = cls.join_code if perms["can_manage_members"] else None
+
+    return ClassDetailDTO(
+        id=cls.id,
+        name=cls.name,
+        type=cls.type,
+        join_code=visible_code,
+        creator_id=cls.creator_id,
+        created_at=cls.created_at,
+        user_role=member.role,
+        permissions=perms,
+        students_count=counts[ClassRole.STUDENT],
+        teachers_count=counts[ClassRole.TEACHER] + counts[ClassRole.CREATOR],
+    )
+
+
+async def list_class_members(class_id: int, db: AsyncSession) -> list[ClassMemberDTO]:
+    rows = await class_repo.list_members(class_id, db)
     return [
-        MyClassDTO(
-            id=c.id,
-            name=c.name,
-            type=c.type,
-            creator_id=c.creator_id,
+        ClassMemberDTO(
+            user_id=u.id,
+            email=u.email,
+            first_name=u.first_name,
+            last_name=u.last_name,
             role=m.role,
             joined_at=m.joined_at,
         )
-        for c, m in rows
+        for u, m in rows
     ]
+
+
+async def list_public_classes(
+    search: str | None, user_id: int, db: AsyncSession
+) -> list[PublicClassDTO]:
+    classes = await class_repo.list_public(search, db)
+    if not classes:
+        return []
+
+    # одним запросом узнаём в каких из найденных классов юзер уже участник
+    my_ids = await class_repo.get_member_class_ids(
+        user_id, [c.id for c in classes], db
+    )
+    result: list[PublicClassDTO] = []
+    for c in classes:
+        counts = await class_repo.count_by_role(c.id, db)
+        result.append(
+            PublicClassDTO(
+                id=c.id,
+                name=c.name,
+                creator_id=c.creator_id,
+                created_at=c.created_at,
+                students_count=counts[ClassRole.STUDENT],
+                is_member=c.id in my_ids,
+            )
+        )
+    return result
 
 
 async def _join(
@@ -100,13 +179,3 @@ async def join_by_code(
     return await _join(cls, user_id, db)
 
 
-async def get_user_role_in_class(
-    class_id: int, user_id: int, db: AsyncSession
-) -> ClassRole:
-    cls = await class_repo.get_by_id(class_id, db)
-    if not cls:
-        raise ServiceError("Класс не найден", 404)
-    member = await class_repo.get_member(class_id, user_id, db)
-    if not member:
-        raise ServiceError("Вы не состоите в этом классе", 404)
-    return member.role

@@ -10,16 +10,26 @@ Python 3.12+, FastAPI, SQLAlchemy (async) + SQLite, JWT (HS256), bcrypt.
 cp .env.example .env
 # отредактируй SECRET_KEY на длинную случайную строку (>= 32 байт)
 
-uv sync
-uv run uvicorn app.main:app --reload --port 8000
+make install   # uv sync
+make dev       # uvicorn с --reload на 0.0.0.0:8000
 ```
 
 OpenAPI: http://localhost:8000/docs
 
 ## Тесты
 ```bash
-SECRET_KEY=test-secret-key-that-is-long-enough-32bytes uv run pytest
+SECRET_KEY=test-secret-key-that-is-long-enough-32bytes make test
 ```
+
+## Make-команды
+| Команда | Что делает |
+|---|---|
+| `make install` | поставить зависимости (uv sync) |
+| `make dev` | dev-режим с reload |
+| `make start` | прод-режим без reload |
+| `make test` | прогнать pytest |
+| `make lint` | ruff check (если подключим) |
+| `make clean` | снести кеши и __pycache__ |
 
 ## Реализованные ручки
 
@@ -37,11 +47,34 @@ SECRET_KEY=test-secret-key-that-is-long-enough-32bytes uv run pytest
 ### Classes (`/api/classes`)
 | Метод | Путь | Описание |
 |---|---|---|
-| POST | `/` | создать класс (`name`, `type`: open/closed). Создатель → роль creator. Для closed автоматически генерится 8-символьный код. |
-| GET | `/my` | список классов, где состоит пользователь, с его ролью |
+| POST | `/` | создать класс (`name`, `type`: open/closed). Создатель → роль `creator`. Для closed автоматически генерится 8-символьный код. |
+| GET | `/my` | список классов, где состоит пользователь, с ролью и счётчиками участников |
+| GET | `/{id}` | страница класса: данные + `user_role` + `permissions` + счётчики. Только для участников. `join_code` отдаётся только тем, у кого `can_manage_members`. |
+| GET | `/{id}/members` | список участников (`user_id`, email, name, role). Только для участников. |
+| GET | `/{id}/role` | роль текущего юзера в классе (403 если не состоит, 404 если класса нет) |
 | POST | `/join` | присоединение по коду (для закрытых классов) |
-| POST | `/{id}/join` | присоединение к открытому классу по id |
-| GET | `/{id}/role` | роль текущего юзера в классе (404 если не состоит) |
+| POST | `/{id}/join-open` | присоединение к открытому классу по id (закрытым отвечает 403) |
+| GET | `/public` | каталог открытых классов с опц. `?search=` (ilike по name); возвращает `is_member` |
+
+#### Permissions
+`GET /{id}` отдаёт объект `permissions` с булевыми флагами для UI:
+
+| Флаг | STUDENT | TEACHER | CREATOR |
+|---|:---:|:---:|:---:|
+| `can_create_assignment` | ❌ | ✅ | ✅ |
+| `can_create_announcement` | ❌ | ✅ | ✅ |
+| `can_grade_submissions` | ❌ | ✅ | ✅ |
+| `can_submit_solution` | ✅ | ❌ | ❌ |
+| `can_view_gradebook` | ❌ | ✅ | ✅ |
+| `can_view_own_grades` | ✅ | ✅ | ✅ |
+| `can_edit_class` | ❌ | ✅ | ✅ |
+| `can_manage_members` | ❌ | ❌ | ✅ |
+| `can_delete_class` | ❌ | ❌ | ✅ |
+
+Реальная проверка прав всегда на бэке. Фронт берёт `permissions` только для отрисовки кнопок.
+
+#### Соглашения по неймингу
+Поля в API используют `snake_case` (`join_code`, `creator_id`, `students_count`). Енумы `type` и `role` — строки в нижнем регистре (`open`/`closed`, `creator`/`teacher`/`student`). См. Pydantic-схемы в `app/schemas/class_schemas.py`.
 
 ## Безопасность
 - Пароли хранятся как bcrypt-хеш (cost=12).
@@ -49,4 +82,5 @@ SECRET_KEY=test-secret-key-that-is-long-enough-32bytes uv run pytest
 - Refresh — одноразовый (rotation). При повторном использовании старого refresh все сессии юзера отзываются.
 - В БД хранится только sha256 от refresh-токена.
 - При логине одинаковая ошибка для неверного email и неверного пароля — не палим существование email.
-- `join_code` генерится через `secrets.token_urlsafe` (криптостойко) с проверкой уникальности.
+- `join_code` генерится через `secrets.choice` (криптостойко) с проверкой уникальности.
+- `join_code` закрытого класса отдаётся в `GET /{id}` только участникам с `can_manage_members` (сейчас — только creator). Остальные получают `null`.
