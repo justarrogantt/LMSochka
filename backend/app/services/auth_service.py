@@ -1,5 +1,5 @@
 import uuid
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -24,7 +24,7 @@ async def _create_session(
     jti = str(uuid.uuid4())
     access_token = generate_access_token(user_id, jti)
     refresh_token = generate_refresh_token(user_id, jti)
-    expires_at = datetime.now(timezone.utc) + timedelta(
+    expires_at = datetime.now(UTC) + timedelta(
         minutes=settings.REFRESH_TOKEN_TTL
     )
 
@@ -99,7 +99,7 @@ async def refresh_tokens(
     try:
         payload = decode_token(refresh_token)
     except ValueError as e:
-        raise ServiceError(str(e), 401)
+        raise ServiceError(str(e), 401) from e
 
     if payload.get("type") != "refresh":
         raise ServiceError("Неверный тип токена", 401)
@@ -122,7 +122,7 @@ async def refresh_tokens(
         raise ServiceError("Токен скомпрометирован, все сессии отозваны", 401)
 
     # SQLite возвращает naive datetime, добавляем UTC чтобы сравнить с aware now()
-    if session.expires_at.replace(tzinfo=timezone.utc) < datetime.now(timezone.utc):
+    if session.expires_at.replace(tzinfo=UTC) < datetime.now(UTC):
         raise ServiceError("Срок действия токена истёк", 401)
 
     # старую сессию закрываем; новая создастся ниже в _create_session

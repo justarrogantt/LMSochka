@@ -27,12 +27,12 @@ async def create_class(
     context: tuple[UsersTable, str] = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> ClassDTO:
-    """Создать класс. Создатель автоматически получает роль creator. Для closed генерится join_code."""
+    """Создать класс. Создатель → роль creator. Для closed автогенерится join_code."""
     user, _ = context
     try:
         return await class_service.create_class(body.name, body.type, user.id, db)
     except ServiceError as e:
-        raise HTTPException(status_code=e.status_code, detail=str(e))
+        raise HTTPException(status_code=e.status_code, detail=str(e)) from e
 
 
 @classes_router.get("/my")
@@ -68,7 +68,7 @@ async def join_by_code(
         member = await class_service.join_by_code(body.code, user.id, db)
         return ClassRoleDTO(class_id=member.class_id, role=member.role)
     except ServiceError as e:
-        raise HTTPException(status_code=e.status_code, detail=str(e))
+        raise HTTPException(status_code=e.status_code, detail=str(e)) from e
 
 
 @classes_router.post("/{class_id}/join-open", status_code=201)
@@ -83,7 +83,7 @@ async def join_open(
         member = await class_service.join_open_class(class_id, user.id, db)
         return ClassRoleDTO(class_id=member.class_id, role=member.role)
     except ServiceError as e:
-        raise HTTPException(status_code=e.status_code, detail=str(e))
+        raise HTTPException(status_code=e.status_code, detail=str(e)) from e
 
 
 @classes_router.get("/{class_id}")
@@ -134,7 +134,7 @@ async def update_class(
     try:
         cls = await class_service.update_class(cls, body.name, body.type, db)
     except ServiceError as e:
-        raise HTTPException(status_code=e.status_code, detail=str(e))
+        raise HTTPException(status_code=e.status_code, detail=str(e)) from e
     return await class_service.get_class_detail(cls, member, db)
 
 

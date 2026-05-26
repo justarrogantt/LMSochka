@@ -4,14 +4,12 @@ import os
 os.environ.setdefault("SECRET_KEY", "test-secret-key-do-not-use-in-prod")
 os.environ["DATABASE_NAME"] = "test_lms.db"
 
-import asyncio
 from pathlib import Path
 
-import pytest
 import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
 
-from app.database.database import AsyncSessionLocal, engine  # noqa: E402
+from app.database.database import engine  # noqa: E402
 from app.database.models import Base  # noqa: E402
 from app.main import app  # noqa: E402
 

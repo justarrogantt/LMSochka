@@ -1,5 +1,5 @@
 import hashlib
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 import jwt
 
@@ -7,7 +7,7 @@ from app.config import settings
 
 
 def _now() -> datetime:
-    return datetime.now(timezone.utc)
+    return datetime.now(UTC)
 
 
 def generate_access_token(user_id: int, jti: str) -> str:
@@ -36,10 +36,10 @@ def decode_token(token: str) -> dict:
     """Декодирует JWT. Бросает ValueError если невалиден или истёк."""
     try:
         return jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
-    except jwt.ExpiredSignatureError:
-        raise ValueError("Срок действия токена истёк")
-    except jwt.InvalidTokenError:
-        raise ValueError("Недействительный токен")
+    except jwt.ExpiredSignatureError as e:
+        raise ValueError("Срок действия токена истёк") from e
+    except jwt.InvalidTokenError as e:
+        raise ValueError("Недействительный токен") from e
 
 
 def hash_token(token: str) -> str:
