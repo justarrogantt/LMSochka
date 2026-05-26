@@ -61,6 +61,18 @@ SECRET_KEY=test-secret-key-that-is-long-enough-32bytes make test
 | DELETE | `/{id}/members/{userId}` | кикнуть участника (soft delete). Только `creator`. `creator` убрать нельзя. Решения и оценки ушедшего сохраняются. |
 | POST | `/{id}/leave` | самовыход из класса (soft delete своего членства). Для `student`/`teacher`. `creator` выйти не может — только удалить класс. |
 
+### Announcements (`/api/classes/{class_id}/announcements`)
+| Метод | Путь | Описание |
+|---|---|---|
+| POST | `/` | создать объявление (`title`, `content`). Только `teacher` или `creator`. |
+| GET | `/?page=&limit=` | список объявлений класса. Любой участник. Пагинация: `page≥1`, `limit≤100` (дефолт 20). Сортировка `created_at DESC`. |
+| GET | `/{aid}` | одно объявление. Любой участник. 404 если нет/удалено или из другого класса. |
+| PATCH | `/{aid}` | редактировать `title`/`content` (любой набор, минимум одно поле). Автор или `creator` класса. |
+| DELETE | `/{aid}` | soft delete. Автор или `creator`. |
+
+#### Пагинация
+Растущие списки оборачиваем в `{ items, total, page, limit }` (см. `app/schemas/pagination.py`). Дефолт `page=1, limit=20, max limit=100`. Маленькие списки (`/my`, `/members`) остаются массивом.
+
 #### Permissions
 `GET /{id}` отдаёт объект `permissions` с булевыми флагами для UI:
 
