@@ -34,7 +34,7 @@ async def register(
             device_info=request.headers.get("User-Agent"),
         )
     except ServiceError as e:
-        raise HTTPException(status_code=e.status_code, detail=str(e))
+        raise HTTPException(status_code=e.status_code, detail=str(e)) from e
 
 
 @auth_router.post("/login")
@@ -52,7 +52,7 @@ async def login(
             device_info=request.headers.get("User-Agent"),
         )
     except ServiceError as e:
-        raise HTTPException(status_code=e.status_code, detail=str(e))
+        raise HTTPException(status_code=e.status_code, detail=str(e)) from e
 
 
 @auth_router.post("/refresh")
@@ -69,7 +69,7 @@ async def refresh(
             device_info=request.headers.get("User-Agent"),
         )
     except ServiceError as e:
-        raise HTTPException(status_code=e.status_code, detail=str(e))
+        raise HTTPException(status_code=e.status_code, detail=str(e)) from e
 
 
 @auth_router.post("/logout", status_code=204)

@@ -83,7 +83,10 @@ async def list_my_classes(user_id: int, db: AsyncSession) -> list[MyClassDTO]:
 async def get_class_detail(
     cls: ClassesTable, member: ClassMembersTable, db: AsyncSession
 ) -> ClassDetailDTO:
-    """Страница класса для участника. Зависимость уже проверила членство — здесь только сборка DTO."""
+    """Страница класса для участника.
+
+    Зависимость уже проверила членство — здесь только сборка DTO.
+    """
     perms = build_permissions(member.role)
     counts = await class_repo.count_by_role(cls.id, db)
 

@@ -1,4 +1,4 @@
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -84,7 +84,10 @@ async def list_for_user(
 async def list_members(
     class_id: int, db: AsyncSession
 ) -> list[tuple[UsersTable, ClassMembersTable]]:
-    """Все участники класса (юзер + запись членства). Сортируем: сначала роль (CREATOR→STUDENT), потом по дате."""
+    """Все участники класса (юзер + запись членства).
+
+    Сортируем: сначала роль (CREATOR→STUDENT), потом по дате вступления.
+    """
     result = await db.execute(
         select(UsersTable, ClassMembersTable)
         .join(ClassMembersTable, ClassMembersTable.user_id == UsersTable.id)
@@ -136,7 +139,10 @@ async def get_member_class_ids(
 
 
 async def soft_delete(cls: ClassesTable, db: AsyncSession) -> None:
-    """Помечаем класс удалённым. Запись остаётся в БД, чтобы не сломать связанные сущности (задания, оценки)."""
-    cls.deleted_at = datetime.now(timezone.utc)
+    """Помечаем класс удалённым.
+
+    Запись остаётся в БД, чтобы не сломать связанные сущности (задания, оценки).
+    """
+    cls.deleted_at = datetime.now(UTC)
     db.add(cls)
     await db.commit()

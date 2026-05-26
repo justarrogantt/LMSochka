@@ -1,4 +1,4 @@
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -15,14 +15,17 @@ async def get_active_by_jti(
             SessionsTable.id == jti,
             SessionsTable.user_id == user_id,
             SessionsTable.revoked.is_(False),
-            SessionsTable.expires_at > datetime.now(timezone.utc),
+            SessionsTable.expires_at > datetime.now(UTC),
         )
     )
     return result.scalar_one_or_none()
 
 
 async def get_by_jti(jti: str, db: AsyncSession) -> SessionsTable | None:
-    """Сессия без фильтров — нужно для refresh, чтобы увидеть revoked/refresh_used и сработала reuse detection."""
+    """Сессия без фильтров — нужна для refresh.
+
+    Геттер видит revoked/refresh_used сессии, чтобы сработала reuse detection.
+    """
     result = await db.execute(select(SessionsTable).where(SessionsTable.id == jti))
     return result.scalar_one_or_none()
 

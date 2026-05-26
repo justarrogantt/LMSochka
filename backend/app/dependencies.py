@@ -20,7 +20,7 @@ async def get_current_user(
     try:
         payload = decode_token(token)
     except ValueError as e:
-        raise HTTPException(status_code=401, detail=str(e))
+        raise HTTPException(status_code=401, detail=str(e)) from e
 
     # отдельная проверка: refresh-токен сюда подсунуть нельзя
     if payload.get("type") != "access":
