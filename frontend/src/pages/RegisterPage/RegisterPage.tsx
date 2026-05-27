@@ -1,8 +1,8 @@
 // Страница регистрации нового пользователя.
 import { useNavigate } from "react-router-dom"
 import { useState, type ChangeEvent, type MouseEvent } from "react"
-import styles from "../AuthPage/AuthPage.module.css"
-import AuthLayout from "../AuthPage/AuthLayout"
+import AuthLayout from "../../components/AuthLayout/AuthLayout"
+import styles from "../../components/AuthLayout/AuthLayout.module.css"
 import { useAuth } from "../../contexts/AuthContext"
 import { ApiError, ApiSilentError } from "../../services/api"
 import { register as registerRequest } from "./services/register.api"

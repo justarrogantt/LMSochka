@@ -1,7 +1,7 @@
 import type { ReactNode } from "react"
 import logo from "../../assets/logo.svg"
 import mascot from "../../assets/mascot.png"
-import styles from "./AuthPage.module.css"
+import styles from "./AuthLayout.module.css"
 
 type AuthLayoutProps = {
   title: string
@@ -13,16 +13,16 @@ type AuthLayoutProps = {
 export default function AuthLayout({ title, subtitle, children }: AuthLayoutProps) {
   return (
     <div className={styles.page}>
-      <header className={styles.header}>
+      <div className={styles.header}>
         <div className={styles.container}>
           <div className={styles.brand}>
             <img className={styles.brandLogo} src={logo} alt="4LMS logo" />
             <div className={styles.brandText}>LMS</div>
           </div>
         </div>
-      </header>
+      </div>
 
-      <div className={`${styles.main} ${styles.container}`}>
+      <main className={`${styles.main} ${styles.container}`}>
         <section className={styles.authCard}>
           <div className={styles.title}>{title}</div>
           <div className={styles.subtitle}>{subtitle}</div>
@@ -31,7 +31,7 @@ export default function AuthLayout({ title, subtitle, children }: AuthLayoutProp
         </section>
 
         <img className={styles.mascotImage} src={mascot} alt="Маскот проекта" />
-      </div>
+      </main>
 
       <div className={styles.footer}>
         <div className={`${styles.container} ${styles.footerInner}`}>

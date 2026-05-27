@@ -15,6 +15,21 @@
 :root {
   --font-base: "Inter", sans-serif;
   --font-heading: "Archivo", sans-serif;
+  --color-page: #f7f9fa;
+  --color-surface: #ffffff;
+  --color-text: #151719;
+  --color-muted: #777d84;
+  --color-muted-light: #a7adb4;
+  --color-line: #e7e9ec;
+  --color-line-strong: #d9dee3;
+  --color-soft: #f2f3f4;
+  --color-soft-hover: #eceeef;
+  --color-accent: #0086bf;
+  --color-accent-hover: #0078ac;
+  --color-accent-soft: #eef8fc;
+  --color-danger: #c73535;
+  --shadow-soft: 0 14px 34px rgba(20, 30, 40, 0.08);
+  --shadow-medium: 0 18px 46px rgba(20, 30, 40, 0.12);
 }
 
 * {
@@ -30,6 +45,8 @@ body {
 body {
   min-height: 100vh;
   font-family: var(--font-base);
+  color: var(--color-text);
+  background: var(--color-page);
 }
 
 button,

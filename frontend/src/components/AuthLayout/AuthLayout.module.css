@@ -118,6 +118,11 @@
     background 0.18s ease;
 }
 
+.input[type="password"]:not(:placeholder-shown) {
+  font-family: Arial, sans-serif;
+  letter-spacing: 1px;
+}
+
 .input::placeholder {
   color: var(--auth-muted-light, #a7adb4);
 }

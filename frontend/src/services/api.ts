@@ -109,6 +109,11 @@ export class Api {
     localStorage.setItem("refresh_token", refreshToken)
   }
 
+  public static clearTokens(): void {
+    localStorage.removeItem("access_token")
+    localStorage.removeItem("refresh_token")
+  }
+
   private static getHeaders(withAuth: boolean = true): Record<string, string> {
     const headers: Record<string, string> = {
       "Content-Type": "application/json",
