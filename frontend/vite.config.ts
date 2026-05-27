@@ -1,5 +1,6 @@
-﻿import { defineConfig, loadEnv } from "vite"
+import { defineConfig, loadEnv } from "vite"
 import react from "@vitejs/plugin-react"
+import { viteSingleFile } from "vite-plugin-singlefile"
 import svgr from "vite-plugin-svgr"
 
 // Конфиг в виде функции дает доступ к текущему mode (development/production).
@@ -12,7 +13,8 @@ export default defineConfig(({ mode }) => {
   return {
     // react(): React Fast Refresh + JSX-трансформация
     // svgr(): позволяет импортировать SVG как React-компоненты
-    plugins: [react(), svgr()],
+    // viteSingleFile(): собирает bundle в один HTML.
+    plugins: [react(), svgr(), viteSingleFile()],
     server: {
       proxy: {
         // Пример: если VITE_API_PREFIX=/api и VITE_API_URL=http://localhost:8000,

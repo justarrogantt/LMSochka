@@ -1,5 +1,5 @@
 import { useNavigate } from "react-router-dom"
-import { useState, type ChangeEvent, type MouseEvent } from "react"
+import { useState, type ChangeEvent, type FormEvent, type MouseEvent } from "react"
 import AuthLayout from "../../components/AuthLayout/AuthLayout"
 import styles from "../../components/AuthLayout/AuthLayout.module.css"
 import { useAuth } from "../../contexts/AuthContext"
@@ -97,6 +97,12 @@ export default function LoginPage() {
     }
   }
 
+  // Нативная отправка формы: клик по кнопке и Enter в полях.
+  function onSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    void login()
+  }
+
   // Оставляем навигацию через router, но в разметке используем обычный a.
   function goToRegister(event: MouseEvent<HTMLAnchorElement>) {
     event.preventDefault()
@@ -110,7 +116,7 @@ export default function LoginPage() {
       title="Войти в аккаунт"
       subtitle="Войди, чтобы продолжить работу с учебными материалами, заданиями и своим профилем."
     >
-      <div className={styles.form}>
+      <form className={styles.form} onSubmit={onSubmit}>
         <label className={`${styles.field} ${inputErrors.email ? styles.fieldError : ""}`} htmlFor="email">
           <div className={styles.fieldTitle}>Электронная почта</div>
           <input
@@ -152,7 +158,7 @@ export default function LoginPage() {
         {serverError && <div className={styles.serverError}>{serverError}</div>}
 
         <div className={styles.actions}>
-          <button className={styles.primaryButton} type="button" disabled={isSubmitting} onClick={login}>
+          <button className={styles.primaryButton} type="submit" disabled={isSubmitting}>
             {isSubmitting ? "Входим..." : "Войти"}
           </button>
 
@@ -163,7 +169,7 @@ export default function LoginPage() {
             </a>
           </div>
         </div>
-      </div>
+      </form>
     </AuthLayout>
   )
 }
