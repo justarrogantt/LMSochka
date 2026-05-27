@@ -14,8 +14,9 @@ from app.database.models import (
 from app.database.repositories import class_repo
 from app.schemas.class_schemas import (
     ClassDetailDTO,
-    ClassDTO,
     ClassMemberDTO,
+    ClassMembersDTO,
+    LeaveClassResponseDTO,
     MyClassDTO,
     PublicClassDTO,
 )
@@ -37,9 +38,41 @@ async def _generate_unique_code(db: AsyncSession) -> str:
     raise ServiceError("Не удалось сгенерировать уникальный код", 500)
 
 
+def _counts_split(counts: dict[ClassRole, int]) -> tuple[int, int]:
+    """students_count и teachers_count (creator считаем за teacher в UI-смысле)."""
+    return counts[ClassRole.STUDENT], counts[ClassRole.TEACHER] + counts[ClassRole.CREATOR]
+
+
+def _my_class_dto(
+    cls: ClassesTable,
+    member: ClassMembersTable,
+    counts: dict[ClassRole, int],
+) -> MyClassDTO:
+    """Карточка «Мой курс» с учётом прав текущего юзера на join_code."""
+    perms = build_permissions(member.role)
+    students_count, teachers_count = _counts_split(counts)
+    return MyClassDTO(
+        id=cls.id,
+        name=cls.name,
+        type=cls.type,
+        creator_id=cls.creator_id,
+        role=member.role,
+        joined_at=member.joined_at,
+        students_count=students_count,
+        teachers_count=teachers_count,
+        # код видно только тем, кто управляет участниками (creator)
+        join_code=cls.join_code if perms["can_manage_members"] else None,
+    )
+
+
 async def create_class(
     name: str, class_type: ClassType, creator_id: int, db: AsyncSession
-) -> ClassDTO:
+) -> MyClassDTO:
+    """Создаёт класс + сразу записывает создателя в участники.
+
+    Возвращает MyClassDTO, чтобы фронт мог вставить карточку в /classes/my
+    без отдельного GET. join_code creator-у виден сразу.
+    """
     # код приглашения нужен только закрытым классам, открытые ищутся по id
     join_code = (
         await _generate_unique_code(db) if class_type == ClassType.CLOSED else None
@@ -52,32 +85,23 @@ async def create_class(
         creator_id=creator_id,
         db=db,
     )
-    # сразу записываем создателя в участники с ролью creator,
-    # чтобы /my и /role работали для него без отдельной логики
-    await class_repo.add_member(cls.id, creator_id, ClassRole.CREATOR, db)
+    member = await class_repo.add_member(cls.id, creator_id, ClassRole.CREATOR, db)
     await db.commit()
     await db.refresh(cls)
-    return ClassDTO.model_validate(cls)
+    await db.refresh(member)
+
+    # creator только что создал класс — других участников ещё нет
+    counts = {ClassRole.CREATOR: 1, ClassRole.TEACHER: 0, ClassRole.STUDENT: 0}
+    return _my_class_dto(cls, member, counts)
 
 
 async def list_my_classes(user_id: int, db: AsyncSession) -> list[MyClassDTO]:
     rows = await class_repo.list_for_user(user_id, db)
-    # счётчики дёргаем по одному классу — нагрузка маленькая для MVP, не оптимизируем заранее
+    # счётчики дёргаем по одному классу — для MVP норм, оптимизируем когда понадобится
     result: list[MyClassDTO] = []
     for c, m in rows:
         counts = await class_repo.count_by_role(c.id, db)
-        result.append(
-            MyClassDTO(
-                id=c.id,
-                name=c.name,
-                type=c.type,
-                creator_id=c.creator_id,
-                role=m.role,
-                joined_at=m.joined_at,
-                students_count=counts[ClassRole.STUDENT],
-                teachers_count=counts[ClassRole.TEACHER] + counts[ClassRole.CREATOR],
-            )
-        )
+        result.append(_my_class_dto(c, m, counts))
     return result
 
 
@@ -90,6 +114,7 @@ async def get_class_detail(
     """
     perms = build_permissions(member.role)
     counts = await class_repo.count_by_role(cls.id, db)
+    students_count, teachers_count = _counts_split(counts)
 
     # join_code прячем от тех, кто не может управлять участниками — для студента это лишнее
     visible_code = cls.join_code if perms["can_manage_members"] else None
@@ -103,8 +128,8 @@ async def get_class_detail(
         created_at=cls.created_at,
         user_role=member.role,
         permissions=perms,
-        students_count=counts[ClassRole.STUDENT],
-        teachers_count=counts[ClassRole.TEACHER] + counts[ClassRole.CREATOR],
+        students_count=students_count,
+        teachers_count=teachers_count,
     )
 
 
@@ -121,9 +146,23 @@ def _member_dto(u: UsersTable, m: ClassMembersTable) -> ClassMemberDTO:
     )
 
 
-async def list_class_members(class_id: int, db: AsyncSession) -> list[ClassMemberDTO]:
+async def _build_members_dto(class_id: int, db: AsyncSession) -> ClassMembersDTO:
+    """Полная секция «Участники» — список активных + счётчики ролей.
+
+    Используется для синхронной отдачи фронту после promote/demote/kick.
+    """
     rows = await class_repo.list_members(class_id, db)
-    return [_member_dto(u, m) for u, m in rows]
+    counts = await class_repo.count_by_role(class_id, db)
+    students_count, teachers_count = _counts_split(counts)
+    return ClassMembersDTO(
+        items=[_member_dto(u, m) for u, m in rows],
+        students_count=students_count,
+        teachers_count=teachers_count,
+    )
+
+
+async def list_class_members(class_id: int, db: AsyncSession) -> ClassMembersDTO:
+    return await _build_members_dto(class_id, db)
 
 
 async def list_public_classes(
@@ -168,28 +207,40 @@ async def _join(
 
     member = await class_repo.add_member(cls.id, user_id, ClassRole.STUDENT, db)
     await db.commit()
+    await db.refresh(member)
     return member
+
+
+async def _join_response(
+    cls: ClassesTable, member: ClassMembersTable, db: AsyncSession
+) -> MyClassDTO:
+    """Собрать MyClassDTO для ответа на /join* — фронт сразу добавит карточку
+    в список «Мои курсы» без дополнительного GET /my."""
+    counts = await class_repo.count_by_role(cls.id, db)
+    return _my_class_dto(cls, member, counts)
 
 
 async def join_open_class(
     class_id: int, user_id: int, db: AsyncSession
-) -> ClassMembersTable:
+) -> MyClassDTO:
     cls = await class_repo.get_by_id(class_id, db)
     if not cls:
         raise ServiceError("Класс не найден", 404)
     if cls.type != ClassType.OPEN:
         raise ServiceError("Этот класс закрытый, нужен код приглашения", 403)
-    return await _join(cls, user_id, db)
+    member = await _join(cls, user_id, db)
+    return await _join_response(cls, member, db)
 
 
 async def join_by_code(
     code: str, user_id: int, db: AsyncSession
-) -> ClassMembersTable:
+) -> MyClassDTO:
     # код мог прийти с пробелами или в нижнем регистре — приводим к канону
     cls = await class_repo.get_by_code(code.strip().upper(), db)
     if not cls:
         raise ServiceError("Неверный код приглашения", 404)
-    return await _join(cls, user_id, db)
+    member = await _join(cls, user_id, db)
+    return await _join_response(cls, member, db)
 
 
 async def update_class(
@@ -223,28 +274,27 @@ async def delete_class(cls: ClassesTable, db: AsyncSession) -> None:
 
 async def update_member_role(
     class_id: int, target_user_id: int, new_role: ClassRole, db: AsyncSession
-) -> ClassMemberDTO:
-    """Сменить роль участника. Вызывает только creator (проверено в роутере)."""
+) -> ClassMembersDTO:
+    """Сменить роль участника. Возвращает обновлённый список участников + counts."""
     row = await class_repo.get_member_with_user(class_id, target_user_id, db)
     if row is None:
         raise ServiceError("Участник не найден", 404)
-    user, member = row
+    _, member = row
 
     # creator-а нельзя ни понизить, ни передать его роль — она привязана к автору класса
     if member.role == ClassRole.CREATOR:
         raise ServiceError("Нельзя изменить роль создателя класса", 403)
 
-    if member.role == new_role:
-        # ничего не меняем, просто возвращаем актуальную запись
-        return _member_dto(user, member)
+    if member.role != new_role:
+        await class_repo.update_member_role(member, new_role, db)
 
-    member = await class_repo.update_member_role(member, new_role, db)
-    return _member_dto(user, member)
+    # отдаём актуальную полную секцию: фронт обновит и карточки, и счётчики
+    return await _build_members_dto(class_id, db)
 
 
 async def remove_member(
     class_id: int, target_user_id: int, db: AsyncSession
-) -> None:
+) -> ClassMembersDTO:
     """Кик участника creator-ом. Удаление creator-а запрещено."""
     member = await class_repo.get_member(class_id, target_user_id, db)
     if member is None:
@@ -253,14 +303,16 @@ async def remove_member(
         # creator уходит только через delete_class
         raise ServiceError("Создателя нельзя удалить из своего класса", 403)
     await class_repo.soft_delete_member(member, db)
+    return await _build_members_dto(class_id, db)
 
 
-async def leave_class(member: ClassMembersTable, db: AsyncSession) -> None:
+async def leave_class(
+    cls: ClassesTable, member: ClassMembersTable, db: AsyncSession
+) -> LeaveClassResponseDTO:
     """Самовыход. creator-у нельзя — у него только delete_class."""
     if member.role == ClassRole.CREATOR:
         raise ServiceError(
             "Создатель не может выйти из своего класса — только удалить его", 403
         )
     await class_repo.soft_delete_member(member, db)
-
-
+    return LeaveClassResponseDTO(class_id=cls.id, status="left")
