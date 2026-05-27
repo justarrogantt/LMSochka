@@ -25,6 +25,29 @@ const CREATE_ANNOUNCEMENT_ERRORS: Errors = {
   422: "Проверьте поля объявления"
 }
 
+const LIST_ANNOUNCEMENTS_ERRORS: Errors = {
+  default: "Не удалось загрузить объявления"
+}
+
+export type PageDto<T> = {
+  items: T[]
+  total: number
+  page: number
+  limit: number
+}
+
+export async function listAnnouncements(classId: number, page: number = 1, limit: number = 20): Promise<PageDto<AnnouncementDto>> {
+  try {
+    const response = await Api.fetchGet(
+      `/api/classes/${classId}/announcements?page=${page}&limit=${limit}`,
+      LIST_ANNOUNCEMENTS_ERRORS
+    )
+    return (await response.json()) as PageDto<AnnouncementDto>
+  } catch (error) {
+    throwApiResponseError(error)
+  }
+}
+
 export async function createAnnouncement(
   classId: number,
   body: { title: string; content: string }

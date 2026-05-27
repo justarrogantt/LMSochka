@@ -31,8 +31,7 @@
   line-height: 1.5;
 }
 
-.actions,
-.emptyActions {
+.actions {
   display: flex;
   align-items: center;
   gap: 10px;
@@ -46,6 +45,7 @@
   display: flex;
   align-items: center;
   justify-content: flex-start;
+  text-align: left;
   gap: 6px;
   font-size: 14px;
   font-weight: 600;
@@ -171,34 +171,18 @@
 .statLabel {
   color: var(--color-muted);
   font-size: 12px;
+  overflow: hidden;
 }
 
-.emptyState {
+.emptyMessage {
   min-height: 320px;
-  padding: 32px;
-  border: 1px solid var(--color-line);
-  border-radius: 8px;
-  background: var(--color-surface);
-  box-shadow: var(--shadow-soft);
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  justify-content: center;
-  gap: 14px;
-}
-
-.emptyTitle {
-  font-family: var(--font-heading);
-  font-size: 26px;
-  line-height: 1.1;
-  font-weight: 700;
-}
-
-.emptyText {
-  max-width: 390px;
   color: var(--color-muted);
-  font-size: 15px;
-  line-height: 1.5;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  font-size: 18px;
+  font-weight: 700;
 }
 
 .modalOverlay {
@@ -349,8 +333,7 @@
     flex-direction: column;
   }
 
-  .actions,
-  .emptyActions {
+  .actions {
     width: 100%;
     flex-direction: column;
     align-items: stretch;

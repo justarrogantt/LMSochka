@@ -1,43 +1,37 @@
-import { type ReactNode, useState } from "react"
+import { type ReactNode, useEffect, useState } from "react"
 import { createPortal } from "react-dom"
 import { NavLink, Outlet, useNavigate, useParams } from "react-router-dom"
 import ArrowIcon from "../../assets/icons/classes/arrow.svg?react"
 import CloseIcon from "../../assets/icons/classes/close.svg?react"
 import { useToast } from "../../components/Toast/ToastProvider"
+import { ApiError, ApiSilentError } from "../../services/api"
+import { deleteClass, getClassDetail, updateClass, type ClassDetailDto } from "../../services/classes.api"
 import styles from "./ClassLayout.module.css"
 
-const classInfo = {
-  name: "Математика 10А",
-  join_code: "AB12CD34"
-}
-
 const tabs = [
-  {
-    title: "Обзор",
-    path: ""
-  },
-  {
-    title: "Участники",
-    path: "members"
-  },
-  {
-    title: "Задания",
-    path: "assignments"
-  },
-  {
-    title: "Оцени",
-    path: "grades"
-  },
-  {
-    title: "Объявления",
-    path: "announcements"
-  }
+  { title: "Обзор", path: "" },
+  { title: "Участники", path: "members" },
+  { title: "Задания", path: "assignments" },
+  { title: "Оцени", path: "grades" },
+  { title: "Объявления", path: "announcements" }
 ]
+
+type ClassLayoutState = {
+  detail: ClassDetailDto | null
+  isLoading: boolean
+  isDeleteModalOpen: boolean
+  isEditModalOpen: boolean
+  editedClassName: string
+}
 
 type ModalShellProps = {
   title: string
   onClose: () => void
   children: ReactNode
+}
+
+export type ClassLayoutContext = {
+  classDetail: ClassDetailDto | null
 }
 
 function ModalShell({ title, onClose, children }: ModalShellProps) {
@@ -59,19 +53,103 @@ function ModalShell({ title, onClose, children }: ModalShellProps) {
 
 export default function ClassLayout() {
   const { classId } = useParams<{ classId: string }>()
+  const parsedClassId = Number(classId)
   const navigate = useNavigate()
   const showToast = useToast()
-  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false)
-  const [isEditModalOpen, setIsEditModalOpen] = useState(false)
-  const [editedClassName, setEditedClassName] = useState(classInfo.name)
+  const [state, setState] = useState<ClassLayoutState>({
+    detail: null,
+    isLoading: true,
+    isDeleteModalOpen: false,
+    isEditModalOpen: false,
+    editedClassName: ""
+  })
   const basePath = `/classes/${classId}`
 
+  useEffect(() => {
+    async function loadClass() {
+      if (!Number.isFinite(parsedClassId)) {
+        setState((prev) => ({ ...prev, isLoading: false }))
+        return
+      }
+
+      try {
+        const detail = await getClassDetail(parsedClassId)
+        setState((prev) => ({
+          ...prev,
+          detail,
+          editedClassName: detail.name,
+          isLoading: false
+        }))
+      } catch (error) {
+        setState((prev) => ({ ...prev, isLoading: false }))
+        if (error instanceof ApiSilentError) return
+        showToast({
+          type: "error",
+          message: error instanceof ApiError ? error.message : "Не удалось загрузить курс",
+          offsetBottom: 30
+        })
+      }
+    }
+
+    void loadClass()
+  }, [classId])
+
   async function copyJoinCode() {
+    if (!state.detail?.join_code) return
+
     try {
-      await navigator.clipboard.writeText(classInfo.join_code)
+      await navigator.clipboard.writeText(state.detail.join_code)
       showToast({ type: "neutral", message: "Код скопирован", offsetBottom: 30 })
     } catch {
       showToast({ type: "error", message: "Не удалось скопировать код", offsetBottom: 30 })
+    }
+  }
+
+  async function submitEditClass() {
+    if (!state.detail) return
+    const nextName = state.editedClassName.trim()
+    if (!nextName || nextName === state.detail.name) {
+      setState((prev) => ({ ...prev, isEditModalOpen: false }))
+      return
+    }
+
+    const prevDetail = state.detail
+    setState((prev) => ({
+      ...prev,
+      detail: prev.detail ? { ...prev.detail, name: nextName } : prev.detail,
+      isEditModalOpen: false
+    }))
+
+    try {
+      const updated = await updateClass(state.detail.id, { name: nextName })
+      setState((prev) => ({ ...prev, detail: updated, editedClassName: updated.name }))
+      showToast({ type: "neutral", message: "Курс обновлен", offsetBottom: 30 })
+    } catch (error) {
+      setState((prev) => ({ ...prev, detail: prevDetail, editedClassName: prevDetail.name }))
+      if (error instanceof ApiSilentError) return
+      showToast({
+        type: "error",
+        message: error instanceof ApiError ? error.message : "Не удалось обновить курс",
+        offsetBottom: 30
+      })
+    }
+  }
+
+  async function submitDeleteClass() {
+    if (!state.detail) return
+    const deletedClassId = state.detail.id
+
+    try {
+      await deleteClass(deletedClassId)
+      showToast({ type: "neutral", message: "Курс удален", offsetBottom: 30 })
+      navigate("/classes", { replace: true })
+    } catch (error) {
+      if (error instanceof ApiSilentError) return
+      showToast({
+        type: "error",
+        message: error instanceof ApiError ? error.message : "Не удалось удалить курс",
+        offsetBottom: 30
+      })
     }
   }
 
@@ -83,17 +161,17 @@ export default function ClassLayout() {
             <ArrowIcon className={styles.backIcon} />
             <div>Мои курсы</div>
           </button>
-          <div className={styles.title}>{classInfo.name}</div>
+          <div className={styles.title}>{state.detail?.name ?? "Курс"}</div>
         </div>
 
         <div className={styles.actions}>
           <button className={styles.secondaryButton} type="button" onClick={copyJoinCode}>
-            Код приглашения: {classInfo.join_code}
+            Код приглашения: {state.detail?.join_code ?? "—"}
           </button>
-          <button className={styles.secondaryButton} type="button" onClick={() => setIsEditModalOpen(true)}>
+          <button className={styles.secondaryButton} type="button" onClick={() => setState((prev) => ({ ...prev, isEditModalOpen: true }))}>
             Редактировать
           </button>
-          <button className={styles.dangerButton} type="button" onClick={() => setIsDeleteModalOpen(true)}>
+          <button className={styles.dangerButton} type="button" onClick={() => setState((prev) => ({ ...prev, isDeleteModalOpen: true }))}>
             Удалить
           </button>
         </div>
@@ -112,38 +190,38 @@ export default function ClassLayout() {
         ))}
       </div>
 
-      <Outlet />
+      {!state.isLoading && <Outlet context={{ classDetail: state.detail } satisfies ClassLayoutContext} />}
 
-      {isDeleteModalOpen && (
-        <ModalShell title="Удалить курс" onClose={() => setIsDeleteModalOpen(false)}>
+      {state.isDeleteModalOpen && (
+        <ModalShell title="Удалить курс" onClose={() => setState((prev) => ({ ...prev, isDeleteModalOpen: false }))}>
           <div className={styles.modalText}>Вы точно хотите удалить курс? Это действие нельзя отменить.</div>
           <div className={styles.modalActions}>
-            <button className={styles.secondaryButton} type="button" onClick={() => setIsDeleteModalOpen(false)}>
+            <button className={styles.secondaryButton} type="button" onClick={() => setState((prev) => ({ ...prev, isDeleteModalOpen: false }))}>
               Отмена
             </button>
-            <button className={styles.dangerButton} type="button" onClick={() => setIsDeleteModalOpen(false)}>
+            <button className={styles.dangerButton} type="button" onClick={() => void submitDeleteClass()}>
               Да, удалить
             </button>
           </div>
         </ModalShell>
       )}
 
-      {isEditModalOpen && (
-        <ModalShell title="Редактировать курс" onClose={() => setIsEditModalOpen(false)}>
+      {state.isEditModalOpen && (
+        <ModalShell title="Редактировать курс" onClose={() => setState((prev) => ({ ...prev, isEditModalOpen: false }))}>
           <label className={styles.field}>
             <div className={styles.fieldLabel}>Название курса</div>
             <input
               className={styles.input}
               type="text"
-              value={editedClassName}
-              onChange={(event) => setEditedClassName(event.target.value)}
+              value={state.editedClassName}
+              onChange={(event) => setState((prev) => ({ ...prev, editedClassName: event.target.value }))}
             />
           </label>
           <div className={styles.modalActions}>
-            <button className={styles.secondaryButton} type="button" onClick={() => setIsEditModalOpen(false)}>
+            <button className={styles.secondaryButton} type="button" onClick={() => setState((prev) => ({ ...prev, isEditModalOpen: false }))}>
               Отмена
             </button>
-            <button className={styles.primaryButton} type="button" onClick={() => setIsEditModalOpen(false)}>
+            <button className={styles.primaryButton} type="button" onClick={() => void submitEditClass()}>
               Сохранить
             </button>
           </div>

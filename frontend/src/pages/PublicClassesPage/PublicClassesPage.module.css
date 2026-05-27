@@ -138,6 +138,7 @@
   font-size: 14px;
   font-weight: 600;
   white-space: nowrap;
+  text-align: left;
   cursor: pointer;
   transition:
     background 0.16s ease,
@@ -164,6 +165,17 @@
 
 .secondaryButton:hover {
   background: var(--color-soft-hover);
+}
+
+.emptyMessage {
+  min-height: 220px;
+  color: var(--color-muted);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  font-size: 18px;
+  font-weight: 700;
 }
 
 @media (max-width: 760px) {

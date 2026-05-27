@@ -429,4 +429,25 @@ export class Api {
       timeoutMs
     )
   }
+
+  static async fetchPatch(
+    path: string,
+    body: unknown,
+    errors: Errors = {},
+    errorsReplace: boolean = false,
+    withAuth: boolean = true,
+    timeoutMs: number = REQUEST_TIMEOUT_MS
+  ): Promise<Response> {
+    return Api.request(
+      path,
+      {
+        method: "PATCH",
+        body: JSON.stringify(body)
+      },
+      errors,
+      errorsReplace,
+      withAuth,
+      timeoutMs
+    )
+  }
 }
