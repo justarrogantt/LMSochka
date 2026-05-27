@@ -22,13 +22,13 @@ const defaultForm: RegisterForm = {
 }
 
 const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
-const passwordRegex = /^(?=.*[A-Za-z])(?=.*\d)[A-Za-z\d]{8,}$/
+const passwordMinLength = 8
 
 const validationErrors = {
   emailRequired: "Введите электронную почту.",
   emailInvalid: "Введите корректную электронную почту.",
   passwordRequired: "Введите пароль.",
-  passwordInvalid: "Пароль должен быть не короче 8 символов, содержать латинские буквы и хотя бы одну цифру.",
+  passwordInvalid: "Пароль должен быть не короче 8 символов.",
   repeatPasswordRequired: "Повторите пароль.",
   repeatPasswordMismatch: "Пароли не совпадают."
 }
@@ -76,7 +76,7 @@ export default function RegisterPage() {
 
     if (!formData.password) {
       newErrors.password = validationErrors.passwordRequired
-    } else if (!passwordRegex.test(formData.password)) {
+    } else if (formData.password.length < passwordMinLength) {
       newErrors.password = validationErrors.passwordInvalid
     }
 
