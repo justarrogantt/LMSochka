@@ -91,8 +91,12 @@ async def test_join_closed_class_by_code(client):
         "/api/classes/join", json={"code": code}, headers=_auth(student_token)
     )
     assert r.status_code == 201
-    assert r.json()["class_id"] == class_id
-    assert r.json()["role"] == "student"
+    # join возвращает MyClassDTO: id вместо class_id, и сразу видна роль/counts
+    body = r.json()
+    assert body["id"] == class_id
+    assert body["role"] == "student"
+    assert body["students_count"] == 1
+    assert body["join_code"] is None  # код студенту не показываем
 
     # неверный код
     r = await client.post(
@@ -251,9 +255,12 @@ async def test_get_members(client):
         f"/api/classes/{class_id}/members", headers=_auth(creator_token)
     )
     assert r.status_code == 200
-    members = r.json()
-    assert len(members) == 2
-    roles = {m["role"] for m in members}
+    body = r.json()
+    assert body["students_count"] == 1
+    assert body["teachers_count"] == 1  # creator считается за teacher для UI
+    items = body["items"]
+    assert len(items) == 2
+    roles = {m["role"] for m in items}
     assert roles == {"creator", "student"}
 
     # outsider не видит участников

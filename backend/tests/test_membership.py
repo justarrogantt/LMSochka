@@ -52,11 +52,14 @@ async def test_creator_can_promote_student_to_teacher(client):
     )
     assert r.status_code == 200, r.text
     body = r.json()
-    assert body["user_id"] == student_id
-    assert body["role"] == "teacher"
-    assert body["is_active"] is True
+    # ответ — полная секция участников + актуальные counts
+    assert body["students_count"] == 0
+    assert body["teachers_count"] == 2  # creator + новый teacher
+    promoted = next(m for m in body["items"] if m["user_id"] == student_id)
+    assert promoted["role"] == "teacher"
+    assert promoted["is_active"] is True
 
-    # students_count теперь 0, teachers_count = 2 (creator + новый teacher)
+    # на GET /classes/{id} тоже актуальные счётчики
     r = await client.get(f"/api/classes/{class_id}", headers=_auth(creator_token))
     detail = r.json()
     assert detail["students_count"] == 0
@@ -84,7 +87,11 @@ async def test_creator_can_demote_teacher_to_student(client):
         headers=_auth(creator_token),
     )
     assert r.status_code == 200
-    assert r.json()["role"] == "student"
+    body = r.json()
+    demoted = next(m for m in body["items"] if m["user_id"] == student_id)
+    assert demoted["role"] == "student"
+    assert body["students_count"] == 1
+    assert body["teachers_count"] == 1
 
 
 @pytest.mark.asyncio
@@ -201,7 +208,12 @@ async def test_change_role_same_role_noop(client):
         headers=_auth(creator_token),
     )
     assert r.status_code == 200
-    assert r.json()["role"] == "student"
+    body = r.json()
+    target = next(m for m in body["items"] if m["user_id"] == student_id)
+    assert target["role"] == "student"
+    # counts не изменились
+    assert body["students_count"] == 1
+    assert body["teachers_count"] == 1
 
 
 # --- DELETE member (kick) -----------------------------------------------------
@@ -219,14 +231,18 @@ async def test_creator_can_kick_student(client):
         f"/api/classes/{class_id}/members/{student_id}",
         headers=_auth(creator_token),
     )
-    assert r.status_code == 204
+    # 200 + актуальная секция участников — фронту не нужен повторный GET
+    assert r.status_code == 200, r.text
+    body = r.json()
+    assert all(m["user_id"] != student_id for m in body["items"])
+    assert body["students_count"] == 0
+    assert body["teachers_count"] == 1
 
-    # студент пропал из /members
+    # параллельный запрос на GET тоже отдаёт корректное состояние
     r = await client.get(
         f"/api/classes/{class_id}/members", headers=_auth(creator_token)
     )
-    assert r.status_code == 200
-    assert all(m["user_id"] != student_id for m in r.json())
+    assert all(m["user_id"] != student_id for m in r.json()["items"])
 
     # студент больше не видит класс
     r = await client.get(
@@ -320,7 +336,11 @@ async def test_student_can_leave(client):
     r = await client.post(
         f"/api/classes/{class_id}/leave", headers=_auth(student_token)
     )
-    assert r.status_code == 204
+    # 200 + {class_id, status} — фронт сразу удалит карточку из «Мои курсы»
+    assert r.status_code == 200, r.text
+    body = r.json()
+    assert body["class_id"] == class_id
+    assert body["status"] == "left"
 
     r = await client.get("/api/classes/my", headers=_auth(student_token))
     assert r.json() == []
@@ -342,7 +362,8 @@ async def test_teacher_can_leave(client):
     r = await client.post(
         f"/api/classes/{class_id}/leave", headers=_auth(teacher_token)
     )
-    assert r.status_code == 204
+    assert r.status_code == 200
+    assert r.json()["class_id"] == class_id
 
 
 @pytest.mark.asyncio
