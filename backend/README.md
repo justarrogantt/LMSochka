@@ -45,21 +45,23 @@ SECRET_KEY=test-secret-key-that-is-long-enough-32bytes make test
 Все защищённые ручки требуют заголовок `Authorization: Bearer <access_token>`.
 
 ### Classes (`/api/classes`)
-| Метод | Путь | Описание |
-|---|---|---|
-| POST | `/` | создать класс (`name`, `type`: open/closed). Создатель → роль `creator`. Для closed автоматически генерится 8-символьный код. |
-| GET | `/my` | список классов, где состоит пользователь, с ролью и счётчиками участников |
-| GET | `/{id}` | страница класса: данные + `user_role` + `permissions` + счётчики. Только для участников. `join_code` отдаётся только тем, у кого `can_manage_members`. |
-| GET | `/{id}/members` | список участников (`user_id`, email, name, role). Только для участников. |
-| GET | `/{id}/role` | роль текущего юзера в классе (403 если не состоит, 404 если класса нет) |
-| POST | `/join` | присоединение по коду (для закрытых классов) |
-| POST | `/{id}/join-open` | присоединение к открытому классу по id (закрытым отвечает 403) |
-| GET | `/public` | каталог открытых классов с опц. `?search=` (ilike по name); возвращает `is_member` |
-| PATCH | `/{id}` | редактировать `name` и/или `type`. Только `creator`/`teacher`. Переход open→closed генерит код, обратный — убирает. |
-| DELETE | `/{id}` | soft delete (`deleted_at`). Только `creator`. Класс пропадает из всех выборок и недоступен по коду. |
-| PATCH | `/{id}/members/{userId}/role` | сменить роль участника на `student` или `teacher`. Только `creator`. Менять роль самого `creator` нельзя. |
-| DELETE | `/{id}/members/{userId}` | кикнуть участника (soft delete). Только `creator`. `creator` убрать нельзя. Решения и оценки ушедшего сохраняются. |
-| POST | `/{id}/leave` | самовыход из класса (soft delete своего членства). Для `student`/`teacher`. `creator` выйти не может — только удалить класс. |
+| Метод | Путь | Ответ | Описание |
+|---|---|---|---|
+| POST | `/` | `MyClassDTO` | создать класс (`name`, `type`). `creator` сразу получает карточку с counts и `join_code` (для closed). |
+| GET | `/my` | `MyClassDTO[]` | список моих курсов с ролью и счётчиками. |
+| GET | `/{id}` | `ClassDetailDTO` | страница класса: данные + `user_role` + `permissions` + counts. Только для участников. `join_code` виден только при `can_manage_members`. |
+| GET | `/{id}/members` | `ClassMembersDTO` | `{ items: ClassMemberDTO[], students_count, teachers_count }`. Только для участников. |
+| GET | `/{id}/role` | `ClassRoleDTO` | роль текущего юзера в классе (403 если не состоит, 404 если класса нет). |
+| POST | `/join` | `MyClassDTO` | присоединение по коду (для закрытых). Возвращает карточку «Мои курсы». |
+| POST | `/{id}/join-open` | `MyClassDTO` | присоединение к открытому классу. Закрытым — 403. Ответ как у `/join`. |
+| GET | `/public` | `PublicClassDTO[]` | каталог открытых классов с опц. `?search=` (ilike); включает `is_member`. |
+| PATCH | `/{id}` | `ClassDetailDTO` | редактировать `name`/`type`. `creator`/`teacher`. Переход open→closed генерит код, обратный — убирает. Ответ — свежий DetailDTO с пересчитанными counts/permissions. |
+| DELETE | `/{id}` | `204` | soft delete класса. Только `creator`. |
+| PATCH | `/{id}/members/{userId}/role` | `ClassMembersDTO` | сменить роль на `student`/`teacher`. Только `creator`. Менять `creator` нельзя. Ответ — обновлённая секция участников + counts. |
+| DELETE | `/{id}/members/{userId}` | `ClassMembersDTO` | кикнуть участника (soft delete). Только `creator`. `creator` убрать нельзя. **200 OK** с актуальным списком. |
+| POST | `/{id}/leave` | `{class_id, status}` | самовыход. `student`/`teacher`. `creator` — 403 (только delete класса). **200 OK** с `{class_id, status: "left"}`. |
+
+> **Контракт для оптимистичных обновлений на фронте:** все mutation-ручки (`POST`/`PATCH`/`DELETE`, где есть смысл) возвращают тот же DTO, что использует фронт для отрисовки соответствующего экрана. После любой мутации фронту не нужен дополнительный `GET` — он сразу обновляет state. Исключение: `DELETE /classes/{id}` остаётся `204` (класс пропал, обновлять нечего — фронт сам удалит карточку).
 
 ### Announcements (`/api/classes/{class_id}/announcements`)
 | Метод | Путь | Описание |
@@ -69,6 +71,17 @@ SECRET_KEY=test-secret-key-that-is-long-enough-32bytes make test
 | GET | `/{aid}` | одно объявление. Любой участник. 404 если нет/удалено или из другого класса. |
 | PATCH | `/{aid}` | редактировать `title`/`content` (любой набор, минимум одно поле). Автор или `creator` класса. |
 | DELETE | `/{aid}` | soft delete. Автор или `creator`. |
+
+### Assignments (`/api/classes/{class_id}/assignments`)
+| Метод | Путь | Описание |
+|---|---|---|
+| POST | `/` | создать задание (`title`, `description` опц., `material_url` опц., `due_at` опц., `max_grade > 0`). Только `teacher`/`creator`. |
+| GET | `/?page=&limit=` | список заданий класса. Любой участник. Пагинация и сортировка как у объявлений. |
+| GET | `/{aid}` | одно задание. Любой участник. 404 если нет/удалено/из другого класса. |
+| PATCH | `/{aid}` | редактировать `title`/`description`/`material_url`/`due_at`/`max_grade`. `teacher`/`creator`. `material_url=null` и `due_at=null` сбрасывают поле. |
+| DELETE | `/{aid}` | soft delete. `teacher`/`creator`. Решения и оценки остаются в БД для аудита. |
+
+> `max_grade` после первой оценки менять будет нельзя — проверка зайдёт вместе с модулем оценок.
 
 #### Пагинация
 Растущие списки оборачиваем в `{ items, total, page, limit }` (см. `app/schemas/pagination.py`). Дефолт `page=1, limit=20, max limit=100`. Маленькие списки (`/my`, `/members`) остаются массивом.

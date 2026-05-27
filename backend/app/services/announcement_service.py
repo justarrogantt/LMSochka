@@ -7,19 +7,17 @@ from app.database.models import (
     UsersTable,
 )
 from app.database.repositories import announcement_repo
-from app.schemas.announcement_schemas import (
-    AnnouncementDTO,
-    AuthorDTO,
-)
+from app.schemas.announcement_schemas import AnnouncementDTO
 from app.schemas.errors import ServiceError
 from app.schemas.pagination import PageDTO
+from app.schemas.user_schemas import UserBriefDTO
 
 
 def _dto(ann: AnnouncementsTable, author: UsersTable) -> AnnouncementDTO:
     return AnnouncementDTO(
         id=ann.id,
         class_id=ann.class_id,
-        author=AuthorDTO.model_validate(author),
+        author=UserBriefDTO.model_validate(author),
         title=ann.title,
         content=ann.content,
         created_at=ann.created_at,

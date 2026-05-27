@@ -48,7 +48,11 @@ class ClassDTO(BaseModel):
 
 
 class MyClassDTO(BaseModel):
-    """Класс + роль текущего юзера в нём (для /my)."""
+    """Класс + роль текущего юзера в нём.
+
+    Этот же DTO возвращают mutation-ручки (POST /classes, /join, /join-open),
+    чтобы фронт мог сразу обновить список «Мои курсы» без отдельного GET /my.
+    """
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -60,11 +64,22 @@ class MyClassDTO(BaseModel):
     joined_at: datetime
     students_count: int
     teachers_count: int
+    # join_code отдаём только тем, у кого есть can_manage_members (creator).
+    # Для student/teacher всегда None, чтобы код не разлетался по ученикам.
+    join_code: str | None = None
 
 
 class ClassRoleDTO(BaseModel):
     class_id: int
     role: ClassRole
+
+
+class LeaveClassResponseDTO(BaseModel):
+    """Ответ на POST /classes/{id}/leave. Возвращаем именно `class_id`+`status`,
+    чтобы фронт мог сразу удалить карточку из локального списка."""
+
+    class_id: int
+    status: str = "left"
 
 
 class ClassDetailDTO(BaseModel):
@@ -95,6 +110,18 @@ class ClassMemberDTO(BaseModel):
     # пока всегда True (в обычных списках видим только активных). Появится false,
     # когда gradebook начнёт показывать ушедших студентов с их прошлыми оценками
     is_active: bool = True
+
+
+class ClassMembersDTO(BaseModel):
+    """Полная секция «Участники» — список + счётчики ролей.
+
+    Используется как ответ на PATCH/DELETE по /members, чтобы фронт мог
+    атомарно обновить весь блок: и список карточек, и цифры в шапке класса.
+    """
+
+    items: list[ClassMemberDTO]
+    students_count: int
+    teachers_count: int
 
 
 class PublicClassDTO(BaseModel):
