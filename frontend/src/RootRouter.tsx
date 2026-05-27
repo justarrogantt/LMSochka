@@ -4,7 +4,11 @@ import LoginPage from "./pages/LoginPage/LoginPage"
 import RegisterPage from "./pages/RegisterPage/RegisterPage"
 import HomePage from "./pages/HomePage/HomePage"
 import ClassesPage from "./pages/ClassesPage/ClassesPage"
+import PublicClassesPage from "./pages/PublicClassesPage/PublicClassesPage"
+import ClassLayout from "./pages/ClassLayout/ClassLayout"
 import ClassPage from "./pages/ClassPage/ClassPage"
+import ClassAnnouncementsPage from "./pages/ClassAnnouncementsPage/ClassAnnouncementsPage"
+import ClassMembersPage from "./pages/ClassMembersPage/ClassMembersPage"
 import AssignmentsPage from "./pages/AssignmentsPage/AssignmentsPage"
 import AssignmentPage from "./pages/AssignmentPage/AssignmentPage"
 import GradesPage from "./pages/GradesPage/GradesPage"
@@ -27,10 +31,15 @@ export default function RootRouter() {
           <Route path="/" element={<HomePage />} />
           <Route path="/assignments" element={<HomePage />} />
           <Route path="/classes" element={<ClassesPage />} />
-          <Route path="/classes/:classId" element={<ClassPage />} />
-          <Route path="/classes/:classId/assignments" element={<AssignmentsPage />} />
-          <Route path="/classes/:classId/assignments/:assignmentId" element={<AssignmentPage />} />
-          <Route path="/classes/:classId/grades" element={<GradesPage />} />
+          <Route path="/classes/public" element={<PublicClassesPage />} />
+          <Route path="/classes/:classId" element={<ClassLayout />}>
+            <Route index element={<ClassPage />} />
+            <Route path="announcements" element={<ClassAnnouncementsPage />} />
+            <Route path="assignments" element={<AssignmentsPage />} />
+            <Route path="assignments/:assignmentId" element={<AssignmentPage />} />
+            <Route path="members" element={<ClassMembersPage />} />
+            <Route path="grades" element={<GradesPage />} />
+          </Route>
           <Route path="/grades" element={<GradesOverviewPage />} />
           <Route path="/profile" element={<ProfilePage />} />
         </Route>

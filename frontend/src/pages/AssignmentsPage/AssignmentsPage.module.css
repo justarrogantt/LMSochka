@@ -1,1 +1,47 @@
-/* Стили для страницы заданий (заглушка). */
+.page {
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+}
+
+.titleBlock {
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+}
+
+.title {
+  font-family: var(--font-heading);
+  font-size: 30px;
+  line-height: 1.1;
+  font-weight: 700;
+}
+
+.text {
+  color: var(--color-muted);
+  font-size: 15px;
+  line-height: 1.5;
+}
+
+.placeholder {
+  min-height: 220px;
+  padding: 24px;
+  border: 1px solid var(--color-line);
+  border-radius: 8px;
+  background: var(--color-surface);
+  box-shadow: var(--shadow-soft);
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 10px;
+}
+
+.placeholderTitle {
+  font-size: 18px;
+  font-weight: 700;
+}
+
+.placeholderText {
+  color: var(--color-muted);
+  font-size: 15px;
+}

@@ -1,1 +1,80 @@
-/* Стили для страницы класса (заглушка). */
+.overview {
+  display: flex;
+  align-items: stretch;
+  gap: 14px;
+}
+
+.infoCard,
+.statCard {
+  border: 1px solid var(--color-line);
+  border-radius: 8px;
+  background: var(--color-surface);
+  box-shadow: var(--shadow-soft);
+}
+
+.infoCard {
+  min-width: 280px;
+  flex: 1;
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.cardTitle {
+  font-size: 18px;
+  font-weight: 700;
+}
+
+.infoRows {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.infoRow {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.infoLabel {
+  color: var(--color-muted);
+  font-size: 14px;
+}
+
+.infoValue {
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.statCard {
+  width: 210px;
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 8px;
+}
+
+.statValue {
+  font-family: var(--font-heading);
+  font-size: 34px;
+  line-height: 1;
+  font-weight: 700;
+}
+
+.statLabel {
+  color: var(--color-muted);
+  font-size: 14px;
+}
+
+@media (max-width: 900px) {
+  .overview {
+    flex-direction: column;
+  }
+
+  .statCard {
+    width: 100%;
+  }
+}

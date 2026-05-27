@@ -1,16 +1,18 @@
 .app {
-  min-height: 100vh;
+  height: 100vh;
   display: flex;
+  overflow: hidden;
   background: var(--color-page);
 }
 
 .main {
   order: 2;
   min-width: 0;
-  min-height: 100vh;
+  height: 100vh;
   flex: 1;
   display: flex;
   flex-direction: column;
+  overflow: hidden;
 }
 
 .header {
@@ -24,12 +26,15 @@
 }
 
 .brand {
-  flex: 0 0 auto;
+  min-width: 0;
+  flex: 1 1 auto;
   display: flex;
   align-items: center;
   gap: 4px;
   color: var(--color-text);
   text-decoration: none;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .brandLogo {
@@ -37,55 +42,23 @@
   height: 44px;
   object-fit: contain;
   display: block;
+  
 }
 
 .brandText {
-  height: 44px;
+  min-width: 0;
   display: flex;
   align-items: center;
   font-family: var(--font-heading);
-  font-size: 39px;
-  line-height: 1;
+  font-size: 32px;
   font-weight: 700;
+  white-space: nowrap;
 }
 
-.search {
-  width: min(100%, 430px);
-  height: 42px;
-  padding: 0 15px;
-  border-radius: 999px;
-  background: var(--color-soft);
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  color: var(--color-muted-light);
-  transition: background 0.16s ease;
-}
-
-.search:focus-within {
-  background: var(--color-surface);
-  box-shadow: 0 0 0 1px var(--color-line-strong);
-}
-
-.searchIcon {
-  flex: 0 0 auto;
-  width: 18px;
-  height: 18px;
-  color: currentColor;
-}
-
-.searchInput {
-  width: 100%;
-  min-width: 0;
-  border: 0;
-  outline: none;
-  background: transparent;
-  color: var(--color-text);
-  font-size: 14px;
-}
-
-.searchInput::placeholder {
-  color: var(--color-muted-light);
+.scrollArea {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
 }
 
 .userActions {
@@ -211,7 +184,7 @@
   order: 1;
   width: 250px;
   flex: 0 0 250px;
-  min-height: 100vh;
+  height: 100vh;
   padding: 24px 16px 16px 16px;
   border-right: 1px solid var(--color-line);
   background: var(--color-surface);
