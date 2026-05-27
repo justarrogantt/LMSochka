@@ -1,6 +1,8 @@
 from datetime import datetime
 
-from pydantic import BaseModel, ConfigDict, EmailStr, Field, model_validator
+from pydantic import BaseModel, Field, model_validator
+
+from app.schemas.user_schemas import UserBriefDTO
 
 
 class CreateAnnouncementRequest(BaseModel):
@@ -22,21 +24,10 @@ class UpdateAnnouncementRequest(BaseModel):
         return self
 
 
-class AuthorDTO(BaseModel):
-    """Краткая карточка автора для встраивания в DTO. Не отдаём пароль/служебные поля."""
-
-    model_config = ConfigDict(from_attributes=True)
-
-    id: int
-    email: EmailStr
-    first_name: str | None
-    last_name: str | None
-
-
 class AnnouncementDTO(BaseModel):
     id: int
     class_id: int
-    author: AuthorDTO
+    author: UserBriefDTO
     title: str
     content: str
     created_at: datetime

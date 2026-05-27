@@ -1,0 +1,132 @@
+from datetime import UTC, datetime
+
+from sqlalchemy import func, select
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.database.models import AssignmentsTable, UsersTable
+
+# Скрываем soft-deleted во всех выборках. Для аудита позже добавим include_deleted=True.
+_NOT_DELETED = AssignmentsTable.deleted_at.is_(None)
+
+
+async def create(
+    class_id: int,
+    author_id: int,
+    title: str,
+    description: str,
+    material_url: str | None,
+    due_at: datetime | None,
+    max_grade: float,
+    db: AsyncSession,
+) -> AssignmentsTable:
+    asg = AssignmentsTable(
+        class_id=class_id,
+        author_id=author_id,
+        title=title,
+        description=description,
+        material_url=material_url,
+        due_at=due_at,
+        max_grade=max_grade,
+    )
+    db.add(asg)
+    await db.flush()
+    return asg
+
+
+async def get_by_id(
+    aid: int, class_id: int, db: AsyncSession
+) -> AssignmentsTable | None:
+    """Задание по id с привязкой к классу. Это защищает от случайного достукивания
+    задания одного класса через путь другого класса."""
+    result = await db.execute(
+        select(AssignmentsTable).where(
+            AssignmentsTable.id == aid,
+            AssignmentsTable.class_id == class_id,
+            _NOT_DELETED,
+        )
+    )
+    return result.scalar_one_or_none()
+
+
+async def get_with_author(
+    aid: int, class_id: int, db: AsyncSession
+) -> tuple[AssignmentsTable, UsersTable] | None:
+    """Задание + автор одним запросом для сборки DTO."""
+    result = await db.execute(
+        select(AssignmentsTable, UsersTable)
+        .join(UsersTable, UsersTable.id == AssignmentsTable.author_id)
+        .where(
+            AssignmentsTable.id == aid,
+            AssignmentsTable.class_id == class_id,
+            _NOT_DELETED,
+        )
+    )
+    row = result.first()
+    return (row[0], row[1]) if row else None
+
+
+async def list_for_class(
+    class_id: int, limit: int, offset: int, db: AsyncSession
+) -> list[tuple[AssignmentsTable, UsersTable]]:
+    """Страница заданий с авторами, свежие сверху."""
+    result = await db.execute(
+        select(AssignmentsTable, UsersTable)
+        .join(UsersTable, UsersTable.id == AssignmentsTable.author_id)
+        .where(AssignmentsTable.class_id == class_id, _NOT_DELETED)
+        .order_by(AssignmentsTable.created_at.desc(), AssignmentsTable.id.desc())
+        .limit(limit)
+        .offset(offset)
+    )
+    return [(a, u) for a, u in result.all()]
+
+
+async def count_for_class(class_id: int, db: AsyncSession) -> int:
+    """Total для PageDTO. Отдельным запросом — count и фетч не на одном узле."""
+    result = await db.execute(
+        select(func.count(AssignmentsTable.id)).where(
+            AssignmentsTable.class_id == class_id, _NOT_DELETED
+        )
+    )
+    return int(result.scalar_one())
+
+
+async def update(
+    asg: AssignmentsTable,
+    *,
+    title: str | None,
+    description: str | None,
+    material_url: str | None,
+    due_at: datetime | None,
+    max_grade: float | None,
+    clear_material_url: bool,
+    clear_due_at: bool,
+    db: AsyncSession,
+) -> AssignmentsTable:
+    """Частичное обновление. Флаги clear_* отделяют «не передали поле» от «передали null»."""
+    if title is not None:
+        asg.title = title
+    if description is not None:
+        asg.description = description
+    if material_url is not None:
+        asg.material_url = material_url
+    elif clear_material_url:
+        asg.material_url = None
+    if due_at is not None:
+        asg.due_at = due_at
+    elif clear_due_at:
+        asg.due_at = None
+    if max_grade is not None:
+        asg.max_grade = max_grade
+
+    db.add(asg)
+    await db.commit()
+    await db.refresh(asg)
+    return asg
+
+
+async def soft_delete(asg: AssignmentsTable, db: AsyncSession) -> None:
+    """Помечаем удалённым. Решения и оценки в БД остаются для аудита,
+    но недоступны через API после фильтра _NOT_DELETED."""
+    asg.deleted_at = datetime.now(UTC)
+    db.add(asg)
+    await db.commit()

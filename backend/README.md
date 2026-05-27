@@ -70,6 +70,17 @@ SECRET_KEY=test-secret-key-that-is-long-enough-32bytes make test
 | PATCH | `/{aid}` | редактировать `title`/`content` (любой набор, минимум одно поле). Автор или `creator` класса. |
 | DELETE | `/{aid}` | soft delete. Автор или `creator`. |
 
+### Assignments (`/api/classes/{class_id}/assignments`)
+| Метод | Путь | Описание |
+|---|---|---|
+| POST | `/` | создать задание (`title`, `description` опц., `material_url` опц., `due_at` опц., `max_grade > 0`). Только `teacher`/`creator`. |
+| GET | `/?page=&limit=` | список заданий класса. Любой участник. Пагинация и сортировка как у объявлений. |
+| GET | `/{aid}` | одно задание. Любой участник. 404 если нет/удалено/из другого класса. |
+| PATCH | `/{aid}` | редактировать `title`/`description`/`material_url`/`due_at`/`max_grade`. `teacher`/`creator`. `material_url=null` и `due_at=null` сбрасывают поле. |
+| DELETE | `/{aid}` | soft delete. `teacher`/`creator`. Решения и оценки остаются в БД для аудита. |
+
+> `max_grade` после первой оценки менять будет нельзя — проверка зайдёт вместе с модулем оценок.
+
 #### Пагинация
 Растущие списки оборачиваем в `{ items, total, page, limit }` (см. `app/schemas/pagination.py`). Дефолт `page=1, limit=20, max limit=100`. Маленькие списки (`/my`, `/members`) остаются массивом.
 

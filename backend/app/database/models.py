@@ -2,7 +2,7 @@ import enum
 import uuid
 from datetime import datetime
 
-from sqlalchemy import Enum, ForeignKey, String, Text, UniqueConstraint, func
+from sqlalchemy import Enum, Float, ForeignKey, String, Text, UniqueConstraint, func
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
 
@@ -106,4 +106,31 @@ class AnnouncementsTable(Base):
     created_at: Mapped[datetime] = mapped_column(server_default=func.now())
     updated_at: Mapped[datetime | None] = mapped_column(onupdate=func.now())
     # soft delete: объявление пропадает из выдачи, но запись остаётся для истории
+    deleted_at: Mapped[datetime | None] = mapped_column(default=None)
+
+
+class AssignmentsTable(Base):
+    __tablename__ = "assignments"
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    # удалили класс — задания тоже не нужны
+    class_id: Mapped[int] = mapped_column(ForeignKey("classes.id", ondelete="CASCADE"))
+    # RESTRICT: пока есть задания автора, его юзер-запись не удалить
+    author_id: Mapped[int] = mapped_column(
+        ForeignKey("users.id", ondelete="RESTRICT")
+    )
+    title: Mapped[str] = mapped_column(String(200))
+    # description допускается пустым — задание может быть только в материале/файле
+    description: Mapped[str] = mapped_column(Text, default="")
+    # ссылка на материал (Drive/Notion/etc), валидируем как HttpUrl в Pydantic
+    material_url: Mapped[str | None] = mapped_column(String(2048), default=None)
+    # дедлайн опциональный — задание без срока тоже допустимо
+    due_at: Mapped[datetime | None] = mapped_column(default=None)
+    # максимальный балл, обязательно > 0; шкала фиксируется при создании.
+    # Менять можно только пока нет ни одной оценки по заданию (см. сервис)
+    max_grade: Mapped[float] = mapped_column(Float)
+    created_at: Mapped[datetime] = mapped_column(server_default=func.now())
+    updated_at: Mapped[datetime | None] = mapped_column(onupdate=func.now())
+    # soft delete: задание уходит из выдачи, но связанные решения и оценки
+    # сохраняются в БД для аудита
     deleted_at: Mapped[datetime | None] = mapped_column(default=None)
