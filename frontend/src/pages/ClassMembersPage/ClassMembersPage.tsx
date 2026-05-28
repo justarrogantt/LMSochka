@@ -48,16 +48,17 @@ type ModalShellProps = {
   title: string
   onClose: () => void
   children: ReactNode
+  disabled?: boolean
 }
 
 // Базовая обертка модального окна
-function ModalShell({ title, onClose, children }: ModalShellProps) {
+function ModalShell({ title, onClose, children, disabled }: ModalShellProps) {
   return createPortal(
     <div className={styles.modalOverlay} onClick={onClose}>
       <div className={styles.modal} onClick={(event) => event.stopPropagation()}>
         <div className={styles.modalHead}>
           <div className={styles.modalTitle}>{title}</div>
-          <button className={styles.closeButton} type="button" onClick={onClose} aria-label="Закрыть окно">
+          <button className={styles.closeButton} type="button" onClick={onClose} aria-label="Закрыть окно" disabled={disabled}>
             <CloseIcon className={styles.closeIcon} />
           </button>
         </div>
@@ -291,7 +292,7 @@ export default function ClassMembersPage() {
       {!isLoading && !hasMembers && <div className={styles.emptyMessage}>Участников пока нет</div>}
 
       {selectedMember && (
-        <ModalShell title="Изменить роль участника" onClose={closeRoleModal}>
+        <ModalShell title="Изменить роль участника" onClose={closeRoleModal} disabled={isSubmitting}>
           <div className={styles.modalText}>{getMemberName(selectedMember)}</div>
 
           <div className={styles.typeButtons}>
@@ -325,7 +326,7 @@ export default function ClassMembersPage() {
       )}
 
       {memberToDelete && (
-        <ModalShell title="Удалить участника" onClose={closeDeleteMemberModal}>
+        <ModalShell title="Удалить участника" onClose={closeDeleteMemberModal} disabled={isSubmitting}>
           <div className={styles.modalText}>Вы точно хотите удалить участника из курса?</div>
           <div className={styles.modalText}>{getMemberName(memberToDelete)}</div>
           <div className={styles.modalActions}>

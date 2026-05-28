@@ -1,19 +1,17 @@
-﻿import { type ReactNode, useEffect, useRef, useState } from "react"
+﻿import { type ReactNode, useEffect, useState } from "react"
 import { createPortal } from "react-dom"
-import { useLocation, useNavigate } from "react-router-dom"
+import { useNavigate } from "react-router-dom"
 import CloseIcon from "../../assets/icons/classes/close.svg?react"
 import CreateCourseIcon from "../../assets/icons/classes/create-course.svg?react"
 import FindCourseIcon from "../../assets/icons/classes/find-course.svg?react"
 import KeyIcon from "../../assets/icons/classes/key.svg?react"
 import Loading from "../../components/Loading/Loading"
 import { useToast } from "../../components/Toast/ToastProvider"
-import { ApiError, ApiSilentError } from "../../services/api"
+import { ApiSilentError } from "../../services/api"
 import {
   createClass,
-  deleteClass,
   getMyClasses,
   joinClassByCode,
-  leaveClass,
   type ClassType,
   type MyClassDto
 } from "../../services/classes.api"
@@ -40,19 +38,11 @@ type JoinFormState = {
   joinCode: string
 }
 
-type ClassMutationAction = "delete" | "leave"
-
-type ClassMutationState = {
-  classMutation?: {
-    action: ClassMutationAction
-    item: MyClassDto
-  }
-}
-
 type ModalShellProps = {
   title: string
   onClose: () => void
   children: ReactNode
+  disabled?: boolean
 }
 
 type CreateClassModalProps = {
@@ -79,13 +69,13 @@ type ClassCardProps = {
 }
 
 // Базовая обертка модального окна
-function ModalShell({ title, onClose, children }: ModalShellProps) {
+function ModalShell({ title, onClose, children, disabled }: ModalShellProps) {
   return createPortal(
     <div className={styles.modalOverlay} onClick={onClose}>
       <div className={styles.modal} onClick={(event) => event.stopPropagation()}>
         <div className={styles.modalHead}>
           <div className={styles.modalTitle}>{title}</div>
-          <button className={styles.closeButton} type="button" onClick={onClose} aria-label="Закрыть окно">
+          <button className={styles.closeButton} type="button" onClick={onClose} aria-label="Закрыть окно" disabled={disabled}>
             <CloseIcon className={styles.closeIcon} />
           </button>
         </div>
@@ -99,7 +89,7 @@ function ModalShell({ title, onClose, children }: ModalShellProps) {
 // Модалка создания курса
 function CreateClassModal({ newClassName, newClassType, isSubmitting, onNameChange, onTypeChange, onSubmit, onClose }: CreateClassModalProps) {
   return (
-    <ModalShell title="Создать курс" onClose={onClose}>
+    <ModalShell title="Создать курс" onClose={onClose} disabled={isSubmitting}>
       <label className={styles.field}>
         <div className={styles.fieldLabel}>Название курса</div>
         <input
@@ -149,7 +139,7 @@ function CreateClassModal({ newClassName, newClassType, isSubmitting, onNameChan
 // Модалка вступления в курс по коду
 function JoinClassModal({ joinCode, isSubmitting, onCodeChange, onSubmit, onClose }: JoinClassModalProps) {
   return (
-    <ModalShell title="Вступить по коду" onClose={onClose}>
+    <ModalShell title="Вступить по коду" onClose={onClose} disabled={isSubmitting}>
       <label className={styles.field}>
         <div className={styles.fieldLabel}>Код приглашения</div>
         <input
@@ -203,7 +193,6 @@ function ClassCard({ item, onOpen }: ClassCardProps) {
 }
 
 export default function ClassesPage() {
-  const location = useLocation()
   const navigate = useNavigate()
   const showToast = useToast()
 
@@ -230,51 +219,11 @@ export default function ClassesPage() {
     joinCode: ""
   })
 
-  // Действие после возврата с экрана курса
-  const pendingClassMutationRef = useRef<ClassMutationState["classMutation"] | null>(
-    (location.state as ClassMutationState | null | undefined)?.classMutation ?? null
-  )
-
   // Загрузка списка курсов
   useEffect(() => {
     async function loadClasses() {
       try {
         const nextClasses = await getMyClasses()
-        const classMutation = pendingClassMutationRef.current
-
-        if (classMutation) {
-          pendingClassMutationRef.current = null
-          navigate("/classes", { replace: true, state: null })
-
-          const optimisticClasses = nextClasses.filter((item) => item.id !== classMutation.item.id)
-          setClasses(optimisticClasses)
-
-          void (async () => {
-            try {
-              if (classMutation.action === "delete") {
-                await deleteClass(classMutation.item.id)
-                showToast({ type: "neutral", message: "Курс удален" })
-              } else {
-                await leaveClass(classMutation.item.id)
-                showToast({ type: "neutral", message: "Вы покинули курс" })
-              }
-            } catch (error) {
-              setClasses(nextClasses)
-              showToast({
-                type: "error",
-                message:
-                  error instanceof ApiError
-                    ? error.message
-                    : classMutation.action === "delete"
-                      ? "Не удалось удалить курс"
-                      : "Не удалось покинуть курс"
-              })
-            }
-          })()
-
-          return
-        }
-
         setClasses(nextClasses)
       } catch (error) {
         if (error instanceof ApiSilentError) return
@@ -288,7 +237,7 @@ export default function ClassesPage() {
     }
 
     void loadClasses()
-  }, [navigate, showToast])
+  }, [showToast])
 
   // Закрытие модалок
   function closeModal() {
@@ -305,12 +254,12 @@ export default function ClassesPage() {
     if (!name) return
 
     setIsSubmitting(true)
-    setActiveModal(null)
 
     try {
       const createdClass = await createClass({ name, type: createForm.newClassType })
       setClasses((prev) => [createdClass, ...prev])
       setCreateForm((prev) => ({ ...prev, newClassName: "" }))
+      setActiveModal(null)
       showToast({ type: "neutral", message: "Курс создан" })
     } catch (error) {
       showToast({
@@ -329,12 +278,12 @@ export default function ClassesPage() {
     if (!code) return
 
     setIsSubmitting(true)
-    setActiveModal(null)
 
     try {
       const joinedClass = await joinClassByCode(code)
       setClasses((prev) => [joinedClass, ...prev])
       setJoinForm({ joinCode: "" })
+      setActiveModal(null)
       showToast({ type: "neutral", message: "Вы вступили в курс" })
     } catch (error) {
       showToast({

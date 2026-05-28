@@ -1,10 +1,11 @@
-﻿import { type ReactNode, useEffect, useState } from "react"
+import { type ReactNode, useEffect, useState } from "react"
 import { createPortal } from "react-dom"
 import { useOutletContext } from "react-router-dom"
 import ActionsIcon from "../../assets/icons/classes/actions.svg?react"
 import CloseIcon from "../../assets/icons/classes/close.svg?react"
 import TrashIcon from "../../assets/icons/classes/trash.svg?react"
 import Loading from "../../components/Loading/Loading"
+import Pagination from "../../components/Pagination/Pagination"
 import { useToast } from "../../components/Toast/ToastProvider"
 import { useAuth } from "../../contexts/AuthContext"
 import { ApiError, ApiSilentError } from "../../services/api"
@@ -18,6 +19,8 @@ import {
 import { formatDateTime } from "../../services/helpers"
 import type { ClassLayoutContext } from "../ClassLayout/ClassLayout"
 import styles from "./ClassAnnouncementsPage.module.css"
+
+const LIMIT = 10
 
 type AnnouncementCard = {
   id: number
@@ -36,16 +39,17 @@ type ModalShellProps = {
   title: string
   onClose: () => void
   children: ReactNode
+  disabled?: boolean
 }
 
 // Базовая обертка модального окна
-function ModalShell({ title, onClose, children }: ModalShellProps) {
+function ModalShell({ title, onClose, children, disabled }: ModalShellProps) {
   return createPortal(
     <div className={styles.modalOverlay} onClick={onClose}>
       <div className={styles.modal} onClick={(event) => event.stopPropagation()}>
         <div className={styles.modalHead}>
           <div className={styles.modalTitle}>{title}</div>
-          <button className={styles.closeButton} type="button" onClick={onClose} aria-label="Закрыть окно">
+          <button className={styles.closeButton} type="button" onClick={onClose} aria-label="Закрыть окно" disabled={disabled}>
             <CloseIcon className={styles.closeIcon} />
           </button>
         </div>
@@ -78,6 +82,10 @@ export default function ClassAnnouncementsPage() {
   // Лоадер страницы
   const [isLoading, setIsLoading] = useState(true)
 
+  // Пагинация
+  const [currentPage, setCurrentPage] = useState(1)
+  const [totalItems, setTotalItems] = useState(0)
+
   // Состояние модалки
   const [activeModal, setActiveModal] = useState<"create" | "edit" | null>(null)
   const [editingId, setEditingId] = useState<number | null>(null)
@@ -92,29 +100,30 @@ export default function ClassAnnouncementsPage() {
     content: ""
   })
 
-  // Загрузка объявлений курса
-  useEffect(() => {
-    async function loadAnnouncements() {
-      if (!classDetail?.id) {
-        setIsLoading(false)
-        return
-      }
-
-      try {
-        const page = await listAnnouncements(classDetail.id)
-        setItems(page.items.map(mapServerAnnouncement))
-      } catch (error) {
-        if (error instanceof ApiSilentError) return
-        showToast({ type: "error", message: error instanceof ApiError ? error.message : "Не удалось загрузить объявления" })
-      } finally {
-        setIsLoading(false)
-      }
+  // Загрузка страницы объявлений
+  async function loadPage(page: number) {
+    if (!classDetail?.id) return
+    setIsLoading(true)
+    try {
+      const data = await listAnnouncements(classDetail.id, page, LIMIT)
+      setItems(data.items.map(mapServerAnnouncement))
+      setTotalItems(data.total)
+      setCurrentPage(page)
+    } catch (error) {
+      if (error instanceof ApiSilentError) return
+      showToast({ type: "error", message: error instanceof ApiError ? error.message : "Не удалось загрузить объявления" })
+    } finally {
+      setIsLoading(false)
     }
+  }
 
-    void loadAnnouncements()
-  }, [classDetail?.id, showToast])
+  // Начальная загрузка при смене класса
+  useEffect(() => {
+    void loadPage(1)
+    
+  }, [classDetail?.id])
 
-  // Закрытие модалки создания объявления
+  // Закрытие модалки создания/редактирования
   function closeCreateModal() {
     if (isSubmitting) return
     setActiveModal(null)
@@ -122,20 +131,20 @@ export default function ClassAnnouncementsPage() {
     setForm({ title: "", content: "" })
   }
 
-  // Закрытие модалки удаления объявления
+  // Закрытие модалки удаления
   function closeDeleteModal() {
     if (isSubmitting) return
     setDeletingId(null)
   }
 
-  // Открытие модалки создания объявления
+  // Открытие модалки создания
   function openCreateModal() {
     setForm({ title: "", content: "" })
     setEditingId(null)
     setActiveModal("create")
   }
 
-  // Открытие модалки редактирования объявления
+  // Открытие модалки редактирования
   function openEditModal(item: AnnouncementCard) {
     setForm({ title: item.title, content: item.content })
     setEditingId(item.id)
@@ -151,43 +160,24 @@ export default function ClassAnnouncementsPage() {
     if (!nextTitle || !nextContent) return
 
     setIsSubmitting(true)
-    setActiveModal(null)
-    let prevItemsSnapshot: AnnouncementCard[] | null = null
 
     try {
       if (editingId) {
-        prevItemsSnapshot = items
-        const prevItem = prevItemsSnapshot.find((item) => item.id === editingId)
-        if (!prevItem) {
-          setIsSubmitting(false)
-          return
-        }
-
-        const optimisticItem: AnnouncementCard = {
-          ...prevItem,
-          title: nextTitle,
-          content: nextContent
-        }
-        setItems((prev) => prev.map((item) => (item.id === editingId ? optimisticItem : item)))
-
-        const updated = await updateAnnouncement(classDetail.id, editingId, { title: nextTitle, content: nextContent })
-        const updatedCard = mapServerAnnouncement(updated)
-        setItems((prev) => prev.map((item) => (item.id === editingId ? updatedCard : item)))
+        await updateAnnouncement(classDetail.id, editingId, { title: nextTitle, content: nextContent })
         showToast({ type: "neutral", message: "Объявление обновлено" })
-        
+        void loadPage(currentPage)
       } else {
-        const created = await createAnnouncement(classDetail.id, { title: nextTitle, content: nextContent })
-        setItems((prev) => [mapServerAnnouncement(created), ...prev])
+        await createAnnouncement(classDetail.id, { title: nextTitle, content: nextContent })
         showToast({ type: "neutral", message: "Объявление создано" })
+        void loadPage(1)
       }
-    } catch (error) {
-      if (prevItemsSnapshot) {
-        setItems(prevItemsSnapshot)
-      }
-      showToast({ type: "error", message: error instanceof ApiError ? error.message : "Не удалось сохранить объявление" })
-    } finally {
+
+      setActiveModal(null)
       setEditingId(null)
       setForm({ title: "", content: "" })
+    } catch (error) {
+      showToast({ type: "error", message: error instanceof ApiError ? error.message : "Не удалось сохранить объявление" })
+    } finally {
       setIsSubmitting(false)
     }
   }
@@ -196,18 +186,15 @@ export default function ClassAnnouncementsPage() {
   async function submitDeleteAnnouncement() {
     if (!classDetail?.id || !deletingId || isSubmitting) return
 
-    const prevItems = items
     setIsSubmitting(true)
-    setDeletingId(null)
-
-    // Оптимистично убираем карточку объявления
-    setItems((prev) => prev.filter((item) => item.id !== deletingId))
 
     try {
       await deleteAnnouncement(classDetail.id, deletingId)
+      setDeletingId(null)
       showToast({ type: "neutral", message: "Объявление удалено" })
+      const nextPage = items.length === 1 && currentPage > 1 ? currentPage - 1 : currentPage
+      void loadPage(nextPage)
     } catch (error) {
-      setItems(prevItems)
       showToast({ type: "error", message: error instanceof ApiError ? error.message : "Не удалось удалить объявление" })
     } finally {
       setIsSubmitting(false)
@@ -262,12 +249,12 @@ export default function ClassAnnouncementsPage() {
                 )}
               </div>
 
+              <div className={styles.content}>{item.content}</div>
+
               <div className={styles.meta}>
                 <div>{item.author}</div>
                 <div>{item.date}</div>
               </div>
-
-              <div className={styles.content}>{item.content}</div>
             </div>
           ))}
         </div>
@@ -275,8 +262,10 @@ export default function ClassAnnouncementsPage() {
 
       {!isLoading && items.length === 0 && <div className={styles.emptyMessage}>Объявлений пока нет</div>}
 
+      <Pagination page={currentPage} total={totalItems} limit={LIMIT} onChange={(p) => void loadPage(p)} />
+
       {canManageAnnouncements && activeModal && (
-        <ModalShell title={activeModal === "create" ? "Создать объявление" : "Редактировать объявление"} onClose={closeCreateModal}>
+        <ModalShell title={activeModal === "create" ? "Создать объявление" : "Редактировать объявление"} onClose={closeCreateModal} disabled={isSubmitting}>
           <label className={styles.field}>
             <div className={styles.fieldLabel}>Заголовок</div>
             <input
@@ -285,6 +274,7 @@ export default function ClassAnnouncementsPage() {
               value={form.title}
               onChange={(event) => setForm((prev) => ({ ...prev, title: event.target.value }))}
               placeholder="Например, Изменение дедлайна"
+              disabled={isSubmitting}
             />
           </label>
 
@@ -295,6 +285,7 @@ export default function ClassAnnouncementsPage() {
               value={form.content}
               onChange={(event) => setForm((prev) => ({ ...prev, content: event.target.value }))}
               placeholder={`Текст от ${user?.email ?? "преподавателя"}`}
+              disabled={isSubmitting}
             />
           </label>
 
@@ -310,7 +301,7 @@ export default function ClassAnnouncementsPage() {
       )}
 
       {canManageAnnouncements && deletingId && (
-        <ModalShell title="Удалить объявление" onClose={closeDeleteModal}>
+        <ModalShell title="Удалить объявление" onClose={closeDeleteModal} disabled={isSubmitting}>
           <div className={styles.modalText}>Вы точно хотите удалить объявление? Это действие нельзя отменить.</div>
           <div className={styles.modalActions}>
             <button className={styles.secondaryButton} type="button" onClick={closeDeleteModal} disabled={isSubmitting}>

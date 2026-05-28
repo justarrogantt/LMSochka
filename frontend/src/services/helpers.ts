@@ -14,5 +14,5 @@ export function formatDateTime(value: string) {
 }
 
 export async function wait() {
-  await new Promise((resolve) => setTimeout(resolve, 500))
+  await new Promise((resolve) => setTimeout(resolve, 1500))
 }

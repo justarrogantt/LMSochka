@@ -6,7 +6,7 @@ import CloseIcon from "../../assets/icons/classes/close.svg?react"
 import Loading from "../../components/Loading/Loading"
 import { useToast } from "../../components/Toast/ToastProvider"
 import { ApiSilentError } from "../../services/api"
-import { getClassDetail, updateClass, type ClassDetailDto, type ClassType } from "../../services/classes.api"
+import { deleteClass, getClassDetail, leaveClass, updateClass, type ClassDetailDto, type ClassType } from "../../services/classes.api"
 import styles from "./ClassLayout.module.css"
 
 const tabs = [
@@ -26,6 +26,7 @@ type ModalShellProps = {
   title: string
   onClose: () => void
   children: ReactNode
+  disabled?: boolean
 }
 
 export type ClassLayoutContext = {
@@ -33,13 +34,13 @@ export type ClassLayoutContext = {
 }
 
 // Базовая обертка модального окна
-function ModalShell({ title, onClose, children }: ModalShellProps) {
+function ModalShell({ title, onClose, children, disabled }: ModalShellProps) {
   return createPortal(
     <div className={styles.modalOverlay} onClick={onClose}>
       <div className={styles.modal} onClick={(event) => event.stopPropagation()}>
         <div className={styles.modalHead}>
           <div className={styles.modalTitle}>{title}</div>
-          <button className={styles.closeButton} type="button" onClick={onClose} aria-label="Закрыть окно">
+          <button className={styles.closeButton} type="button" onClick={onClose} aria-label="Закрыть окно" disabled={disabled}>
             <CloseIcon className={styles.closeIcon} />
           </button>
         </div>
@@ -165,23 +166,15 @@ export default function ClassLayout() {
     if (!classDetail || isSubmitting) return
 
     setIsSubmitting(true)
-    navigate("/classes", {
-      replace: true,
-      state: {
-        classMutation: {
-          action: "delete",
-          item: {
-            id: classDetail.id,
-            name: classDetail.name,
-            type: classDetail.type,
-            role: classDetail.user_role,
-            students_count: classDetail.students_count,
-            teachers_count: classDetail.teachers_count,
-            join_code: classDetail.join_code
-          }
-        }
-      }
-    })
+
+    try {
+      await deleteClass(classDetail.id)
+      navigate("/classes", { replace: true })
+    } catch (error) {
+      showToast({ type: "error", message: error instanceof Error ? error.message : "Не удалось удалить курс" })
+    } finally {
+      setIsSubmitting(false)
+    }
   }
 
   // Выход из курса (для не-создателя)
@@ -189,23 +182,15 @@ export default function ClassLayout() {
     if (!classDetail || isSubmitting) return
 
     setIsSubmitting(true)
-    navigate("/classes", {
-      replace: true,
-      state: {
-        classMutation: {
-          action: "leave",
-          item: {
-            id: classDetail.id,
-            name: classDetail.name,
-            type: classDetail.type,
-            role: classDetail.user_role,
-            students_count: classDetail.students_count,
-            teachers_count: classDetail.teachers_count,
-            join_code: classDetail.join_code
-          }
-        }
-      }
-    })
+
+    try {
+      await leaveClass(classDetail.id)
+      navigate("/classes", { replace: true })
+    } catch (error) {
+      showToast({ type: "error", message: error instanceof Error ? error.message : "Не удалось покинуть курс" })
+    } finally {
+      setIsSubmitting(false)
+    }
   }
 
   const isCreator = classDetail?.user_role === "creator"
@@ -267,7 +252,7 @@ export default function ClassLayout() {
       {!isLoading && <Outlet context={{ classDetail } satisfies ClassLayoutContext} />}
 
       {isDeleteModalOpen && (
-        <ModalShell title={isCreator ? "Удалить курс" : "Покинуть курс"} onClose={() => !isSubmitting && setIsDeleteModalOpen(false)}>
+        <ModalShell title={isCreator ? "Удалить курс" : "Покинуть курс"} onClose={() => !isSubmitting && setIsDeleteModalOpen(false)} disabled={isSubmitting}>
           <div className={styles.modalText}>
             {isCreator ? "Вы точно хотите удалить курс? Это действие нельзя отменить." : "Вы точно хотите покинуть курс?"}
           </div>
@@ -290,7 +275,7 @@ export default function ClassLayout() {
       )}
 
       {isEditModalOpen && (
-        <ModalShell title="Редактировать курс" onClose={() => !isSubmitting && setIsEditModalOpen(false)}>
+        <ModalShell title="Редактировать курс" onClose={() => !isSubmitting && setIsEditModalOpen(false)} disabled={isSubmitting}>
           <label className={styles.field}>
             <div className={styles.fieldLabel}>Название курса</div>
             <input
