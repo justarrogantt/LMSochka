@@ -115,12 +115,35 @@ async def update_member_role(
 
 
 async def soft_delete_member(
-    member: ClassMembersTable, db: AsyncSession
+    member: ClassMembersTable, reason: str, db: AsyncSession
 ) -> None:
-    """Помечаем участника удалённым. Запись остаётся, чтобы не сломать FK у оценок и решений."""
+    """Помечаем участника удалённым. Запись остаётся, чтобы не сломать FK у оценок и решений.
+
+    reason: 'left' (само-выход) или 'kicked' (creator выгнал) — нужно, чтобы
+    отличить «можно вернуться» от «обратно нельзя» при повторном /join.
+    """
     member.deleted_at = datetime.now(UTC)
+    member.removal_reason = reason
     db.add(member)
     await db.commit()
+
+
+async def reactivate_member(
+    member: ClassMembersTable, db: AsyncSession
+) -> ClassMembersTable:
+    """Возвращаем ушедшего юзера в класс (после само-выхода).
+
+    Снимаем soft-delete, сбрасываем роль до student и обновляем joined_at —
+    это новое вхождение, прошлые привилегии и дата теряются.
+    """
+    member.deleted_at = None
+    member.removal_reason = None
+    member.role = ClassRole.STUDENT
+    member.joined_at = datetime.now(UTC)
+    db.add(member)
+    await db.commit()
+    await db.refresh(member)
+    return member
 
 
 async def list_for_user(

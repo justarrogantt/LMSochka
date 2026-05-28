@@ -378,13 +378,23 @@ async def test_creator_cannot_leave(client):
 
 
 @pytest.mark.asyncio
-async def test_left_user_cannot_rejoin(client):
-    """Самовыход — это тот же soft delete, повторный join тоже запрещён."""
+async def test_left_user_can_rejoin_open(client):
+    """После само-выхода юзер может вернуться в открытый класс — UX-вменяемо.
+
+    Сбрасывается до student (даже если был teacher), joined_at обновляется.
+    Кикнутых это не касается — для них отдельный тест.
+    """
     creator_token, _ = await _register(client, "creator@example.com")
     class_id = await _create_open_class(client, creator_token)
 
-    student_token, _ = await _register(client, "student@example.com")
+    # юзер заходит teacher-ом, выходит, потом возвращается — должен стать снова student-ом
+    student_token, student_id = await _register(client, "student@example.com")
     await _join_open(client, student_token, class_id)
+    await client.patch(
+        f"/api/classes/{class_id}/members/{student_id}/role",
+        json={"role": "teacher"},
+        headers=_auth(creator_token),
+    )
     await client.post(
         f"/api/classes/{class_id}/leave", headers=_auth(student_token)
     )
@@ -392,7 +402,43 @@ async def test_left_user_cannot_rejoin(client):
     r = await client.post(
         f"/api/classes/{class_id}/join-open", headers=_auth(student_token)
     )
-    assert r.status_code == 403
+    assert r.status_code == 201, r.text
+    body = r.json()
+    # реактивированы как student, прошлый teacher не сохраняется
+    assert body["role"] == "student"
+    assert body["students_count"] == 1
+    assert body["teachers_count"] == 1  # только creator
+
+    # класс снова появился в «Мои курсы»
+    r = await client.get("/api/classes/my", headers=_auth(student_token))
+    assert len(r.json()) == 1
+
+
+@pytest.mark.asyncio
+async def test_left_user_can_rejoin_closed_by_code(client):
+    """Для закрытых классов тот же UX: вышел сам — можешь вернуться по коду."""
+    creator_token, _ = await _register(client, "creator@example.com")
+    r = await client.post(
+        "/api/classes",
+        json={"name": "Closed", "type": "closed"},
+        headers=_auth(creator_token),
+    )
+    code = r.json()["join_code"]
+    class_id = r.json()["id"]
+
+    student_token, _ = await _register(client, "student@example.com")
+    await client.post(
+        "/api/classes/join", json={"code": code}, headers=_auth(student_token)
+    )
+    await client.post(
+        f"/api/classes/{class_id}/leave", headers=_auth(student_token)
+    )
+
+    r = await client.post(
+        "/api/classes/join", json={"code": code}, headers=_auth(student_token)
+    )
+    assert r.status_code == 201, r.text
+    assert r.json()["role"] == "student"
 
 
 @pytest.mark.asyncio

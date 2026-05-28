@@ -195,15 +195,21 @@ async def list_public_classes(
 async def _join(
     cls: ClassesTable, user_id: int, db: AsyncSession
 ) -> ClassMembersTable:
-    # Берём запись включая soft-deleted: UniqueConstraint(class_id, user_id) не даст
-    # insert-нуть повторно, плюс PM явно сказал — кикнутые в класс не возвращаются
+    # Берём запись включая soft-deleted: UniqueConstraint(class_id, user_id)
+    # не даст вставить вторую строку, поэтому либо реактивируем существующую,
+    # либо отказываем (если был kick).
     existing = await class_repo.get_member_any(cls.id, user_id, db)
     if existing and existing.deleted_at is None:
         raise ServiceError("Вы уже состоите в этом классе", 409)
     if existing and existing.deleted_at is not None:
-        raise ServiceError(
-            "Вы были удалены из этого класса. Обратитесь к создателю.", 403
-        )
+        # kicked — обратно не пускаем; left — спокойно возвращаем как студента.
+        # Старые записи без removal_reason (до правки) тоже считаем kicked —
+        # безопаснее по умолчанию запретить, creator может перезвать вручную.
+        if existing.removal_reason != "left":
+            raise ServiceError(
+                "Вы были удалены из этого класса. Обратитесь к создателю.", 403
+            )
+        return await class_repo.reactivate_member(existing, db)
 
     member = await class_repo.add_member(cls.id, user_id, ClassRole.STUDENT, db)
     await db.commit()
@@ -302,7 +308,7 @@ async def remove_member(
     if member.role == ClassRole.CREATOR:
         # creator уходит только через delete_class
         raise ServiceError("Создателя нельзя удалить из своего класса", 403)
-    await class_repo.soft_delete_member(member, db)
+    await class_repo.soft_delete_member(member, "kicked", db)
     return await _build_members_dto(class_id, db)
 
 
@@ -314,5 +320,5 @@ async def leave_class(
         raise ServiceError(
             "Создатель не может выйти из своего класса — только удалить его", 403
         )
-    await class_repo.soft_delete_member(member, db)
+    await class_repo.soft_delete_member(member, "left", db)
     return LeaveClassResponseDTO(class_id=cls.id, status="left")
