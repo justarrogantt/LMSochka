@@ -3,11 +3,18 @@ import { createPortal } from "react-dom"
 import { useOutletContext } from "react-router-dom"
 import ActionsIcon from "../../assets/icons/classes/actions.svg?react"
 import CloseIcon from "../../assets/icons/classes/close.svg?react"
+import TrashIcon from "../../assets/icons/classes/trash.svg?react"
 import Loading from "../../components/Loading/Loading"
 import { useToast } from "../../components/Toast/ToastProvider"
 import { useAuth } from "../../contexts/AuthContext"
-import { ApiSilentError } from "../../services/api"
-import { createAnnouncement, listAnnouncements, updateAnnouncement, type AnnouncementDto } from "../../services/announcement.api"
+import { ApiError, ApiSilentError } from "../../services/api"
+import {
+  createAnnouncement,
+  deleteAnnouncement,
+  listAnnouncements,
+  updateAnnouncement,
+  type AnnouncementDto
+} from "../../services/announcement.api"
 import { formatDateTime } from "../../services/helpers"
 import type { ClassLayoutContext } from "../ClassLayout/ClassLayout"
 import styles from "./ClassAnnouncementsPage.module.css"
@@ -74,6 +81,7 @@ export default function ClassAnnouncementsPage() {
   // Состояние модалки
   const [activeModal, setActiveModal] = useState<"create" | "edit" | null>(null)
   const [editingId, setEditingId] = useState<number | null>(null)
+  const [deletingId, setDeletingId] = useState<number | null>(null)
 
   // Флаг публикации
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -97,7 +105,7 @@ export default function ClassAnnouncementsPage() {
         setItems(page.items.map(mapServerAnnouncement))
       } catch (error) {
         if (error instanceof ApiSilentError) return
-        showToast({ type: "error", message: error instanceof Error ? error.message : "Не удалось загрузить объявления" })
+        showToast({ type: "error", message: error instanceof ApiError ? error.message : "Не удалось загрузить объявления" })
       } finally {
         setIsLoading(false)
       }
@@ -112,6 +120,12 @@ export default function ClassAnnouncementsPage() {
     setActiveModal(null)
     setEditingId(null)
     setForm({ title: "", content: "" })
+  }
+
+  // Закрытие модалки удаления объявления
+  function closeDeleteModal() {
+    if (isSubmitting) return
+    setDeletingId(null)
   }
 
   // Открытие модалки создания объявления
@@ -138,23 +152,63 @@ export default function ClassAnnouncementsPage() {
 
     setIsSubmitting(true)
     setActiveModal(null)
+    let prevItemsSnapshot: AnnouncementCard[] | null = null
 
     try {
       if (editingId) {
+        prevItemsSnapshot = items
+        const prevItem = prevItemsSnapshot.find((item) => item.id === editingId)
+        if (!prevItem) {
+          setIsSubmitting(false)
+          return
+        }
+
+        const optimisticItem: AnnouncementCard = {
+          ...prevItem,
+          title: nextTitle,
+          content: nextContent
+        }
+        setItems((prev) => prev.map((item) => (item.id === editingId ? optimisticItem : item)))
+
         const updated = await updateAnnouncement(classDetail.id, editingId, { title: nextTitle, content: nextContent })
         const updatedCard = mapServerAnnouncement(updated)
         setItems((prev) => prev.map((item) => (item.id === editingId ? updatedCard : item)))
         showToast({ type: "neutral", message: "Объявление обновлено" })
+        
       } else {
         const created = await createAnnouncement(classDetail.id, { title: nextTitle, content: nextContent })
         setItems((prev) => [mapServerAnnouncement(created), ...prev])
         showToast({ type: "neutral", message: "Объявление создано" })
       }
-
+    } catch (error) {
+      if (prevItemsSnapshot) {
+        setItems(prevItemsSnapshot)
+      }
+      showToast({ type: "error", message: error instanceof ApiError ? error.message : "Не удалось сохранить объявление" })
+    } finally {
       setEditingId(null)
       setForm({ title: "", content: "" })
+      setIsSubmitting(false)
+    }
+  }
+
+  // Удаление объявления
+  async function submitDeleteAnnouncement() {
+    if (!classDetail?.id || !deletingId || isSubmitting) return
+
+    const prevItems = items
+    setIsSubmitting(true)
+    setDeletingId(null)
+
+    // Оптимистично убираем карточку объявления
+    setItems((prev) => prev.filter((item) => item.id !== deletingId))
+
+    try {
+      await deleteAnnouncement(classDetail.id, deletingId)
+      showToast({ type: "neutral", message: "Объявление удалено" })
     } catch (error) {
-      showToast({ type: "error", message: error instanceof Error ? error.message : "Не удалось сохранить объявление" })
+      setItems(prevItems)
+      showToast({ type: "error", message: error instanceof ApiError ? error.message : "Не удалось удалить объявление" })
     } finally {
       setIsSubmitting(false)
     }
@@ -187,14 +241,24 @@ export default function ClassAnnouncementsPage() {
               <div className={styles.cardHead}>
                 <div className={styles.cardTitle}>{item.title}</div>
                 {canManageAnnouncements && (
-                  <button
-                    className={styles.iconButton}
-                    type="button"
-                    aria-label="Редактировать объявление"
-                    onClick={() => openEditModal(item)}
-                  >
-                    <ActionsIcon className={styles.icon} />
-                  </button>
+                  <div className={styles.cardActions}>
+                    <button
+                      className={styles.iconButton}
+                      type="button"
+                      aria-label="Редактировать объявление"
+                      onClick={() => openEditModal(item)}
+                    >
+                      <ActionsIcon className={styles.icon} />
+                    </button>
+                    <button
+                      className={styles.iconButton}
+                      type="button"
+                      aria-label="Удалить объявление"
+                      onClick={() => setDeletingId(item.id)}
+                    >
+                      <TrashIcon className={styles.icon} />
+                    </button>
+                  </div>
                 )}
               </div>
 
@@ -240,6 +304,20 @@ export default function ClassAnnouncementsPage() {
             </button>
             <button className={styles.primaryButton} type="button" onClick={() => void submitAnnouncement()} disabled={!canSubmit}>
               {isSubmitting ? "Сохраняем..." : activeModal === "create" ? "Опубликовать" : "Сохранить"}
+            </button>
+          </div>
+        </ModalShell>
+      )}
+
+      {canManageAnnouncements && deletingId && (
+        <ModalShell title="Удалить объявление" onClose={closeDeleteModal}>
+          <div className={styles.modalText}>Вы точно хотите удалить объявление? Это действие нельзя отменить.</div>
+          <div className={styles.modalActions}>
+            <button className={styles.secondaryButton} type="button" onClick={closeDeleteModal} disabled={isSubmitting}>
+              Отмена
+            </button>
+            <button className={styles.dangerButton} type="button" onClick={() => void submitDeleteAnnouncement()} disabled={isSubmitting}>
+              {isSubmitting ? "Удаляем..." : "Удалить"}
             </button>
           </div>
         </ModalShell>

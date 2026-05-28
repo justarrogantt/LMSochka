@@ -6,7 +6,7 @@ import CloseIcon from "../../assets/icons/classes/close.svg?react"
 import Loading from "../../components/Loading/Loading"
 import { useToast } from "../../components/Toast/ToastProvider"
 import { ApiSilentError } from "../../services/api"
-import { deleteClass, getClassDetail, leaveClass, updateClass, type ClassDetailDto, type ClassType } from "../../services/classes.api"
+import { getClassDetail, updateClass, type ClassDetailDto, type ClassType } from "../../services/classes.api"
 import styles from "./ClassLayout.module.css"
 
 const tabs = [
@@ -133,11 +133,18 @@ export default function ClassLayout() {
     }
 
     const prevDetail = classDetail
+    const optimisticDetail: ClassDetailDto = {
+      ...classDetail,
+      name: isNameChanged ? nextName : classDetail.name,
+      type: isTypeChanged ? nextType : classDetail.type
+    }
     setIsSubmitting(true)
     setIsEditModalOpen(false)
+    setClassDetail(optimisticDetail)
+    setEditForm({ name: optimisticDetail.name, type: optimisticDetail.type })
 
     try {
-      const updated = await updateClass(classDetail.id, {
+      const updated = await updateClass(prevDetail.id, {
         ...(isNameChanged ? { name: nextName } : {}),
         ...(isTypeChanged ? { type: nextType } : {})
       })
@@ -158,16 +165,23 @@ export default function ClassLayout() {
     if (!classDetail || isSubmitting) return
 
     setIsSubmitting(true)
-    try {
-      await deleteClass(classDetail.id)
-      showToast({ type: "neutral", message: "Курс удален" })
-      navigate("/classes", { replace: true })
-    } catch (error) {
-      if (error instanceof ApiSilentError) return
-      showToast({ type: "error", message: error instanceof Error ? error.message : "Не удалось удалить курс" })
-    } finally {
-      setIsSubmitting(false)
-    }
+    navigate("/classes", {
+      replace: true,
+      state: {
+        classMutation: {
+          action: "delete",
+          item: {
+            id: classDetail.id,
+            name: classDetail.name,
+            type: classDetail.type,
+            role: classDetail.user_role,
+            students_count: classDetail.students_count,
+            teachers_count: classDetail.teachers_count,
+            join_code: classDetail.join_code
+          }
+        }
+      }
+    })
   }
 
   // Выход из курса (для не-создателя)
@@ -175,16 +189,23 @@ export default function ClassLayout() {
     if (!classDetail || isSubmitting) return
 
     setIsSubmitting(true)
-    try {
-      await leaveClass(classDetail.id)
-      showToast({ type: "neutral", message: "Вы покинули курс" })
-      navigate("/classes", { replace: true })
-    } catch (error) {
-      if (error instanceof ApiSilentError) return
-      showToast({ type: "error", message: error instanceof Error ? error.message : "Не удалось покинуть курс" })
-    } finally {
-      setIsSubmitting(false)
-    }
+    navigate("/classes", {
+      replace: true,
+      state: {
+        classMutation: {
+          action: "leave",
+          item: {
+            id: classDetail.id,
+            name: classDetail.name,
+            type: classDetail.type,
+            role: classDetail.user_role,
+            students_count: classDetail.students_count,
+            teachers_count: classDetail.teachers_count,
+            join_code: classDetail.join_code
+          }
+        }
+      }
+    })
   }
 
   const isCreator = classDetail?.user_role === "creator"

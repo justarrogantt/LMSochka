@@ -1,14 +1,22 @@
-﻿import { type ReactNode, useEffect, useState } from "react"
+﻿import { type ReactNode, useEffect, useRef, useState } from "react"
 import { createPortal } from "react-dom"
-import { useNavigate } from "react-router-dom"
+import { useLocation, useNavigate } from "react-router-dom"
 import CloseIcon from "../../assets/icons/classes/close.svg?react"
 import CreateCourseIcon from "../../assets/icons/classes/create-course.svg?react"
 import FindCourseIcon from "../../assets/icons/classes/find-course.svg?react"
 import KeyIcon from "../../assets/icons/classes/key.svg?react"
 import Loading from "../../components/Loading/Loading"
 import { useToast } from "../../components/Toast/ToastProvider"
-import { ApiSilentError } from "../../services/api"
-import { createClass, getMyClasses, joinClassByCode, type ClassType, type MyClassDto } from "../../services/classes.api"
+import { ApiError, ApiSilentError } from "../../services/api"
+import {
+  createClass,
+  deleteClass,
+  getMyClasses,
+  joinClassByCode,
+  leaveClass,
+  type ClassType,
+  type MyClassDto
+} from "../../services/classes.api"
 import styles from "./ClassesPage.module.css"
 
 const classTypeLabels = {
@@ -30,6 +38,15 @@ type CreateFormState = {
 
 type JoinFormState = {
   joinCode: string
+}
+
+type ClassMutationAction = "delete" | "leave"
+
+type ClassMutationState = {
+  classMutation?: {
+    action: ClassMutationAction
+    item: MyClassDto
+  }
 }
 
 type ModalShellProps = {
@@ -186,6 +203,7 @@ function ClassCard({ item, onOpen }: ClassCardProps) {
 }
 
 export default function ClassesPage() {
+  const location = useLocation()
   const navigate = useNavigate()
   const showToast = useToast()
 
@@ -212,11 +230,51 @@ export default function ClassesPage() {
     joinCode: ""
   })
 
+  // Действие после возврата с экрана курса
+  const pendingClassMutationRef = useRef<ClassMutationState["classMutation"] | null>(
+    (location.state as ClassMutationState | null | undefined)?.classMutation ?? null
+  )
+
   // Загрузка списка курсов
   useEffect(() => {
     async function loadClasses() {
       try {
         const nextClasses = await getMyClasses()
+        const classMutation = pendingClassMutationRef.current
+
+        if (classMutation) {
+          pendingClassMutationRef.current = null
+          navigate("/classes", { replace: true, state: null })
+
+          const optimisticClasses = nextClasses.filter((item) => item.id !== classMutation.item.id)
+          setClasses(optimisticClasses)
+
+          void (async () => {
+            try {
+              if (classMutation.action === "delete") {
+                await deleteClass(classMutation.item.id)
+                showToast({ type: "neutral", message: "Курс удален" })
+              } else {
+                await leaveClass(classMutation.item.id)
+                showToast({ type: "neutral", message: "Вы покинули курс" })
+              }
+            } catch (error) {
+              setClasses(nextClasses)
+              showToast({
+                type: "error",
+                message:
+                  error instanceof ApiError
+                    ? error.message
+                    : classMutation.action === "delete"
+                      ? "Не удалось удалить курс"
+                      : "Не удалось покинуть курс"
+              })
+            }
+          })()
+
+          return
+        }
+
         setClasses(nextClasses)
       } catch (error) {
         if (error instanceof ApiSilentError) return
@@ -230,7 +288,7 @@ export default function ClassesPage() {
     }
 
     void loadClasses()
-  }, [showToast])
+  }, [navigate, showToast])
 
   // Закрытие модалок
   function closeModal() {

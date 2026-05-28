@@ -16,7 +16,7 @@
   border: 6px solid var(--color-line-strong);
   border-top: 6px solid var(--color-accent);
   border-radius: 50%;
-  animation: spin 1s linear infinite;
+  animation: spin 0.8s linear infinite;
 }
 
 

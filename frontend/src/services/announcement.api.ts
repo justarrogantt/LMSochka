@@ -32,6 +32,12 @@ const UPDATE_ANNOUNCEMENT_ERRORS: Errors = {
   422: "Проверьте поля объявления"
 }
 
+const DELETE_ANNOUNCEMENT_ERRORS: Errors = {
+  default: "Не удалось удалить объявление",
+  403: "Недостаточно прав для удаления объявления",
+  404: "Объявление не найдено"
+}
+
 const LIST_ANNOUNCEMENTS_ERRORS: Errors = {
   default: "Не удалось загрузить объявления"
 }
@@ -79,6 +85,14 @@ export async function updateAnnouncement(
       UPDATE_ANNOUNCEMENT_ERRORS
     )
     return (await response.json()) as AnnouncementDto
+  } catch (error) {
+    throwApiResponseError(error)
+  }
+}
+
+export async function deleteAnnouncement(classId: number, announcementId: number): Promise<void> {
+  try {
+    await Api.fetchDelete(`/api/classes/${classId}/announcements/${announcementId}`, DELETE_ANNOUNCEMENT_ERRORS)
   } catch (error) {
     throwApiResponseError(error)
   }

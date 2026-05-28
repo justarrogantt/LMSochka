@@ -80,6 +80,14 @@ const CLASS_MEMBERS_ERRORS: Errors = {
   default: "Не удалось загрузить участников"
 }
 
+const UPDATE_CLASS_MEMBER_ROLE_ERRORS: Errors = {
+  default: "Не удалось изменить роль участника"
+}
+
+const REMOVE_CLASS_MEMBER_ERRORS: Errors = {
+  default: "Не удалось удалить участника из курса"
+}
+
 const UPDATE_CLASS_ERRORS: Errors = {
   default: "Не удалось обновить курс"
 }
@@ -156,6 +164,31 @@ export async function getClassMembers(classId: number): Promise<ClassMembersDto>
   try {
     const response = await Api.fetchGet(`/api/classes/${classId}/members`, CLASS_MEMBERS_ERRORS)
     return (await response.json()) as ClassMembersDto
+  } catch (error) {
+    throwApiResponseError(error)
+  }
+}
+
+export async function updateClassMemberRole(
+  classId: number,
+  userId: number,
+  role: Extract<ClassRole, "teacher" | "student">
+): Promise<ClassMembersDto> {
+  try {
+    const response = await Api.fetchPatch(
+      `/api/classes/${classId}/members/${userId}/role`,
+      { role },
+      UPDATE_CLASS_MEMBER_ROLE_ERRORS
+    )
+    return (await response.json()) as ClassMembersDto
+  } catch (error) {
+    throwApiResponseError(error)
+  }
+}
+
+export async function removeClassMember(classId: number, userId: number): Promise<void> {
+  try {
+    await Api.fetchDelete(`/api/classes/${classId}/members/${userId}`, REMOVE_CLASS_MEMBER_ERRORS)
   } catch (error) {
     throwApiResponseError(error)
   }
