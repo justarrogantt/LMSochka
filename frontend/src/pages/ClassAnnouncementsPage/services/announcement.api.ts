@@ -1,6 +1,6 @@
-﻿import { Api } from "./api"
-import { throwApiResponseError } from "./response"
-import type { Errors } from "../types/api.types"
+import { Api } from "../../../services/api"
+import { throwApiResponseError } from "../../../services/response"
+import type { Errors, PageDto } from "../../../types/api.types"
 
 export type AnnouncementAuthor = {
   id: number
@@ -15,6 +15,15 @@ export type AnnouncementDto = {
   author: AnnouncementAuthor
   created_at: string
   updated_at: string
+}
+
+const GET_ANNOUNCEMENT_ERRORS: Errors = {
+  default: "Не удалось загрузить объявление",
+  404: "Объявление не найдено"
+}
+
+const LIST_ANNOUNCEMENTS_ERRORS: Errors = {
+  default: "Не удалось загрузить объявления"
 }
 
 const CREATE_ANNOUNCEMENT_ERRORS: Errors = {
@@ -38,15 +47,16 @@ const DELETE_ANNOUNCEMENT_ERRORS: Errors = {
   404: "Объявление не найдено"
 }
 
-const LIST_ANNOUNCEMENTS_ERRORS: Errors = {
-  default: "Не удалось загрузить объявления"
-}
-
-export type PageDto<T> = {
-  items: T[]
-  total: number
-  page: number
-  limit: number
+export async function getAnnouncement(classId: number, announcementId: number): Promise<AnnouncementDto> {
+  try {
+    const response = await Api.fetchGet(
+      `/api/classes/${classId}/announcements/${announcementId}`,
+      GET_ANNOUNCEMENT_ERRORS
+    )
+    return (await response.json()) as AnnouncementDto
+  } catch (error) {
+    throwApiResponseError(error)
+  }
 }
 
 export async function listAnnouncements(classId: number, page: number = 1, limit: number = 20): Promise<PageDto<AnnouncementDto>> {

@@ -1,6 +1,6 @@
 import { type ReactNode, useEffect, useState } from "react"
 import { createPortal } from "react-dom"
-import { useOutletContext } from "react-router-dom"
+import { useOutletContext, useNavigate, useParams } from "react-router-dom"
 import ActionsIcon from "../../assets/icons/classes/actions.svg?react"
 import CloseIcon from "../../assets/icons/classes/close.svg?react"
 import TrashIcon from "../../assets/icons/classes/trash.svg?react"
@@ -8,15 +8,15 @@ import Loading from "../../components/Loading/Loading"
 import Pagination from "../../components/Pagination/Pagination"
 import { useToast } from "../../components/Toast/ToastProvider"
 import { useAuth } from "../../contexts/AuthContext"
-import { ApiError, ApiSilentError } from "../../services/api"
+import { ApiSilentError } from "../../services/api"
 import {
   createAnnouncement,
   deleteAnnouncement,
   listAnnouncements,
   updateAnnouncement,
   type AnnouncementDto
-} from "../../services/announcement.api"
-import { formatDateTime } from "../../services/helpers"
+} from "./services/announcement.api"
+import { formatDateTime, truncate } from "../../services/helpers"
 import type { ClassLayoutContext } from "../ClassLayout/ClassLayout"
 import styles from "./ClassAnnouncementsPage.module.css"
 
@@ -43,6 +43,7 @@ type ModalShellProps = {
 }
 
 // Базовая обертка модального окна
+// Базовая обёртка модального окна
 function ModalShell({ title, onClose, children, disabled }: ModalShellProps) {
   return createPortal(
     <div className={styles.modalOverlay} onClick={onClose}>
@@ -73,6 +74,8 @@ function mapServerAnnouncement(dto: AnnouncementDto): AnnouncementCard {
 
 export default function ClassAnnouncementsPage() {
   const { classDetail } = useOutletContext<ClassLayoutContext>()
+  const { classId } = useParams<{ classId: string }>()
+  const navigate = useNavigate()
   const { user } = useAuth()
   const showToast = useToast()
 
@@ -94,11 +97,9 @@ export default function ClassAnnouncementsPage() {
   // Флаг публикации
   const [isSubmitting, setIsSubmitting] = useState(false)
 
-  // Поля формы
-  const [form, setForm] = useState<FormState>({
-    title: "",
-    content: ""
-  })
+  // Поля формы и начальное состояние для сравнения при редактировании
+  const [form, setForm] = useState<FormState>({ title: "", content: "" })
+  const [initialForm, setInitialForm] = useState<FormState>({ title: "", content: "" })
 
   // Загрузка страницы объявлений
   async function loadPage(page: number) {
@@ -111,7 +112,7 @@ export default function ClassAnnouncementsPage() {
       setCurrentPage(page)
     } catch (error) {
       if (error instanceof ApiSilentError) return
-      showToast({ type: "error", message: error instanceof ApiError ? error.message : "Не удалось загрузить объявления" })
+      showToast({ type: "error", message: (error as Error).message })
     } finally {
       setIsLoading(false)
     }
@@ -129,6 +130,7 @@ export default function ClassAnnouncementsPage() {
     setActiveModal(null)
     setEditingId(null)
     setForm({ title: "", content: "" })
+    setInitialForm({ title: "", content: "" })
   }
 
   // Закрытие модалки удаления
@@ -146,7 +148,9 @@ export default function ClassAnnouncementsPage() {
 
   // Открытие модалки редактирования
   function openEditModal(item: AnnouncementCard) {
-    setForm({ title: item.title, content: item.content })
+    const saved = { title: item.title, content: item.content }
+    setForm(saved)
+    setInitialForm(saved)
     setEditingId(item.id)
     setActiveModal("edit")
   }
@@ -176,7 +180,7 @@ export default function ClassAnnouncementsPage() {
       setEditingId(null)
       setForm({ title: "", content: "" })
     } catch (error) {
-      showToast({ type: "error", message: error instanceof ApiError ? error.message : "Не удалось сохранить объявление" })
+      showToast({ type: "error", message: (error as Error).message })
     } finally {
       setIsSubmitting(false)
     }
@@ -195,13 +199,15 @@ export default function ClassAnnouncementsPage() {
       const nextPage = items.length === 1 && currentPage > 1 ? currentPage - 1 : currentPage
       void loadPage(nextPage)
     } catch (error) {
-      showToast({ type: "error", message: error instanceof ApiError ? error.message : "Не удалось удалить объявление" })
+      showToast({ type: "error", message: (error as Error).message })
     } finally {
       setIsSubmitting(false)
     }
   }
 
-  const canSubmit = form.title.trim().length > 0 && form.content.trim().length > 0 && !isSubmitting
+  const isFormFilled = form.title.trim().length > 0 && form.content.trim().length > 0
+  const isFormChanged = form.title.trim() !== initialForm.title.trim() || form.content.trim() !== initialForm.content.trim()
+  const canSubmit = !isSubmitting && isFormFilled && (editingId === null || isFormChanged)
   const canManageAnnouncements = classDetail?.user_role !== "student"
 
   return (
@@ -224,11 +230,15 @@ export default function ClassAnnouncementsPage() {
       {!isLoading && items.length > 0 && (
         <div className={styles.cards}>
           {items.map((item) => (
-            <div className={styles.card} key={item.id}>
+            <div
+              className={styles.card}
+              key={item.id}
+              onClick={() => navigate(`/classes/${classId}/announcements/${item.id}`)}
+            >
               <div className={styles.cardHead}>
-                <div className={styles.cardTitle}>{item.title}</div>
+                <div className={styles.cardTitle}>{truncate(item.title, 80)}</div>
                 {canManageAnnouncements && (
-                  <div className={styles.cardActions}>
+                  <div className={styles.cardActions} onClick={(e) => e.stopPropagation()}>
                     <button
                       className={styles.iconButton}
                       type="button"
@@ -249,13 +259,14 @@ export default function ClassAnnouncementsPage() {
                 )}
               </div>
 
-              <div className={styles.content}>{item.content}</div>
+              <div className={styles.content}>{truncate(item.content, 200)}</div>
 
               <div className={styles.meta}>
                 <div>{item.author}</div>
                 <div>{item.date}</div>
               </div>
             </div>
+
           ))}
         </div>
       )}

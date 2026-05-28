@@ -13,7 +13,7 @@ import {
   updateClassMemberRole,
   type ClassMemberDto,
   type ClassMembersDto
-} from "../../services/classes.api"
+} from "./services/classMembers.api"
 import type { ClassLayoutContext } from "../ClassLayout/ClassLayout"
 import styles from "./ClassMembersPage.module.css"
 

@@ -11,6 +11,7 @@ import ClassAnnouncementsPage from "./pages/ClassAnnouncementsPage/ClassAnnounce
 import ClassMembersPage from "./pages/ClassMembersPage/ClassMembersPage"
 import AssignmentsPage from "./pages/AssignmentsPage/AssignmentsPage"
 import AssignmentPage from "./pages/AssignmentPage/AssignmentPage"
+import AnnouncementPage from "./pages/AnnouncementPage/AnnouncementPage"
 import GradesPage from "./pages/GradesPage/GradesPage"
 import GradesOverviewPage from "./pages/GradesOverviewPage/GradesOverviewPage"
 import ProfilePage from "./pages/ProfilePage/ProfilePage"
@@ -35,6 +36,7 @@ export default function RootRouter() {
           <Route path="/classes/:classId" element={<ClassLayout />}>
             <Route index element={<ClassPage />} />
             <Route path="announcements" element={<ClassAnnouncementsPage />} />
+            <Route path="announcements/:announcementId" element={<AnnouncementPage />} />
             <Route path="assignments" element={<AssignmentsPage />} />
             <Route path="assignments/:assignmentId" element={<AssignmentPage />} />
             <Route path="members" element={<ClassMembersPage />} />

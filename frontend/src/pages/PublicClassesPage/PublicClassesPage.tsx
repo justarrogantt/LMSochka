@@ -4,8 +4,8 @@ import ArrowIcon from "../../assets/icons/classes/arrow.svg?react"
 import Loading from "../../components/Loading/Loading"
 import { useToast } from "../../components/Toast/ToastProvider"
 import { ApiSilentError } from "../../services/api"
-import { getPublicClasses, joinOpenClass, type PublicClassDto } from "../../services/classes.api"
-import { formatDateTime } from "../../services/helpers"
+import { getPublicClasses, joinOpenClass, type PublicClassDto } from "./services/publicClasses.api"
+import { formatDateTime, truncate } from "../../services/helpers"
 import styles from "./PublicClassesPage.module.css"
 
 export default function PublicClassesPage() {
@@ -34,7 +34,7 @@ export default function PublicClassesPage() {
         if (error instanceof ApiSilentError) return
         showToast({
           type: "error",
-          message: error instanceof Error ? error.message : "Не удалось загрузить каталог"
+          message: (error as Error).message
         })
       } finally {
         setIsLoading(false)
@@ -58,7 +58,7 @@ export default function PublicClassesPage() {
     } catch (error) {
       showToast({
         type: "error",
-        message: error instanceof Error ? error.message : "Не удалось вступить в курс"
+        message: (error as Error).message
       })
     } finally {
       setSubmittingIds((prev) => {
@@ -95,7 +95,7 @@ export default function PublicClassesPage() {
           filteredClasses.map((item) => (
             <div className={styles.card} key={item.id}>
               <div className={styles.cardInfo}>
-                <div className={styles.cardTitle}>{item.name}</div>
+                <div className={styles.cardTitle}>{truncate(item.name, 60)}</div>
                 <div className={styles.cardMeta}>
                   <div>{item.students_count} студентов</div>
                   <div>Создан {formatDateTime(item.created_at)}</div>

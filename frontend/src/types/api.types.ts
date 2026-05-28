@@ -8,3 +8,10 @@ export type Errors = Partial<Record<ErrorCode, string>> & {
   default?: string
   network?: string
 }
+
+export type PageDto<T> = {
+  items: T[]
+  total: number
+  page: number
+  limit: number
+}

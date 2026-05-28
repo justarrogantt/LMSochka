@@ -129,6 +129,9 @@
   background: var(--color-surface);
   color: var(--color-muted);
   cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .iconButton:hover {
@@ -187,6 +190,9 @@
   background: var(--color-surface);
   color: var(--color-muted);
   cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .closeButton:hover {

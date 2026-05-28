@@ -8,21 +8,23 @@ import KeyIcon from "../../assets/icons/classes/key.svg?react"
 import Loading from "../../components/Loading/Loading"
 import { useToast } from "../../components/Toast/ToastProvider"
 import { ApiSilentError } from "../../services/api"
+import { truncate } from "../../services/helpers"
 import {
   createClass,
   getMyClasses,
   joinClassByCode,
   type ClassType,
+  type ClassRole,
   type MyClassDto
-} from "../../services/classes.api"
+} from "./services/classes.api"
 import styles from "./ClassesPage.module.css"
 
-const classTypeLabels = {
+const classTypeLabels: Record<ClassType, string> = {
   open: "Открытый",
   closed: "Закрытый"
 }
 
-const roleLabels = {
+const roleLabels: Record<ClassRole, string> = {
   creator: "Создатель",
   teacher: "Преподаватель",
   student: "Студент"
@@ -171,7 +173,7 @@ function ClassCard({ item, onOpen }: ClassCardProps) {
   return (
     <button className={styles.card} type="button" onClick={() => onOpen(item.id)}>
       <div className={styles.cardTop}>
-        <div className={styles.cardTitle}>{item.name}</div>
+        <div className={styles.cardTitle}>{truncate(item.name, 50)}</div>
         <div className={styles.badges}>
           <div className={styles.badge}>{classTypeLabels[item.type]}</div>
           <div className={styles.badge}>{roleLabels[item.role]}</div>
@@ -229,7 +231,7 @@ export default function ClassesPage() {
         if (error instanceof ApiSilentError) return
         showToast({
           type: "error",
-          message: error instanceof Error ? error.message : "Не удалось загрузить мои курсы"
+          message: (error as Error).message
         })
       } finally {
         setIsLoading(false)
@@ -264,7 +266,7 @@ export default function ClassesPage() {
     } catch (error) {
       showToast({
         type: "error",
-        message: error instanceof Error ? error.message : "Не удалось создать курс"
+        message: (error as Error).message
       })
     } finally {
       setIsSubmitting(false)
@@ -288,7 +290,7 @@ export default function ClassesPage() {
     } catch (error) {
       showToast({
         type: "error",
-        message: error instanceof Error ? error.message : "Не удалось вступить по коду"
+        message: (error as Error).message
       })
     } finally {
       setIsSubmitting(false)

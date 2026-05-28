@@ -17,6 +17,9 @@
   font-size: 14px;
   font-weight: 500;
   cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   transition:
     background 0.16s ease,
     border-color 0.16s ease;

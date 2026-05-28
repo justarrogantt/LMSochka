@@ -6,7 +6,7 @@ import CloseIcon from "../../assets/icons/classes/close.svg?react"
 import Loading from "../../components/Loading/Loading"
 import { useToast } from "../../components/Toast/ToastProvider"
 import { ApiSilentError } from "../../services/api"
-import { deleteClass, getClassDetail, leaveClass, updateClass, type ClassDetailDto, type ClassType } from "../../services/classes.api"
+import { deleteClass, getClassDetail, leaveClass, updateClass, type ClassDetailDto, type ClassType } from "./services/class.api"
 import styles from "./ClassLayout.module.css"
 
 const tabs = [
@@ -91,7 +91,7 @@ export default function ClassLayout() {
         setEditForm({ name: detail.name, type: detail.type })
       } catch (error) {
         if (error instanceof ApiSilentError) return
-        showToast({ type: "error", message: error instanceof Error ? error.message : "Не удалось загрузить курс" })
+        showToast({ type: "error", message: (error as Error).message })
       } finally {
         setIsLoading(false)
       }
@@ -155,7 +155,7 @@ export default function ClassLayout() {
     } catch (error) {
       setClassDetail(prevDetail)
       setEditForm({ name: prevDetail.name, type: prevDetail.type })
-      showToast({ type: "error", message: error instanceof Error ? error.message : "Не удалось обновить курс" })
+      showToast({ type: "error", message: (error as Error).message })
     } finally {
       setIsSubmitting(false)
     }
@@ -171,7 +171,7 @@ export default function ClassLayout() {
       await deleteClass(classDetail.id)
       navigate("/classes", { replace: true })
     } catch (error) {
-      showToast({ type: "error", message: error instanceof Error ? error.message : "Не удалось удалить курс" })
+      showToast({ type: "error", message: (error as Error).message })
     } finally {
       setIsSubmitting(false)
     }
@@ -187,13 +187,17 @@ export default function ClassLayout() {
       await leaveClass(classDetail.id)
       navigate("/classes", { replace: true })
     } catch (error) {
-      showToast({ type: "error", message: error instanceof Error ? error.message : "Не удалось покинуть курс" })
+      showToast({ type: "error", message: (error as Error).message })
     } finally {
       setIsSubmitting(false)
     }
   }
 
   const isCreator = classDetail?.user_role === "creator"
+  const isEditChanged =
+    editForm.name.trim() !== (classDetail?.name ?? "").trim() ||
+    editForm.type !== classDetail?.type
+  const canSaveEdit = editForm.name.trim().length > 0 && isEditChanged && !isSubmitting
 
   return (
     <div className={styles.page}>
@@ -313,7 +317,7 @@ export default function ClassLayout() {
             <button className={styles.secondaryButton} type="button" onClick={() => setIsEditModalOpen(false)} disabled={isSubmitting}>
               Отмена
             </button>
-            <button className={styles.primaryButton} type="button" onClick={() => void submitEditClass()} disabled={isSubmitting}>
+            <button className={styles.primaryButton} type="button" onClick={() => void submitEditClass()} disabled={!canSaveEdit}>
               {isSubmitting ? "Сохраняем..." : "Сохранить"}
             </button>
           </div>
