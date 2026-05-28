@@ -1,4 +1,4 @@
-import { Api } from "./api"
+﻿import { Api } from "./api"
 import { throwApiResponseError } from "./response"
 import type { Errors } from "../types/api.types"
 
@@ -12,6 +12,7 @@ export type MyClassDto = {
   role: ClassRole
   students_count: number
   teachers_count: number
+  join_code?: string | null
 }
 
 export type PublicClassDto = {
@@ -28,6 +29,12 @@ export type ClassMemberDto = {
   first_name: string | null
   last_name: string | null
   role: ClassRole
+}
+
+export type ClassMembersDto = {
+  items: ClassMemberDto[]
+  students_count: number
+  teachers_count: number
 }
 
 export type ClassDetailDto = {
@@ -81,6 +88,10 @@ const DELETE_CLASS_ERRORS: Errors = {
   default: "Не удалось удалить курс"
 }
 
+const LEAVE_CLASS_ERRORS: Errors = {
+  default: "Не удалось покинуть курс"
+}
+
 export async function getMyClasses(): Promise<MyClassDto[]> {
   try {
     const response = await Api.fetchGet("/api/classes/my", MY_CLASSES_ERRORS)
@@ -105,28 +116,28 @@ export async function getPublicClasses(search?: string): Promise<PublicClassDto[
   }
 }
 
-export async function createClass(body: { name: string; type: ClassType }): Promise<ClassDetailDto> {
+export async function createClass(body: { name: string; type: ClassType }): Promise<MyClassDto> {
   try {
     const response = await Api.fetchPost("/api/classes", body, CREATE_CLASS_ERRORS)
-    return (await response.json()) as ClassDetailDto
+    return (await response.json()) as MyClassDto
   } catch (error) {
     throwApiResponseError(error)
   }
 }
 
-export async function joinClassByCode(code: string): Promise<{ class_id: number; role: ClassRole }> {
+export async function joinClassByCode(code: string): Promise<MyClassDto> {
   try {
     const response = await Api.fetchPost("/api/classes/join", { code }, JOIN_BY_CODE_ERRORS)
-    return (await response.json()) as { class_id: number; role: ClassRole }
+    return (await response.json()) as MyClassDto
   } catch (error) {
     throwApiResponseError(error)
   }
 }
 
-export async function joinOpenClass(classId: number): Promise<{ class_id: number; role: ClassRole }> {
+export async function joinOpenClass(classId: number): Promise<MyClassDto> {
   try {
     const response = await Api.fetchPost(`/api/classes/${classId}/join-open`, {}, JOIN_OPEN_ERRORS)
-    return (await response.json()) as { class_id: number; role: ClassRole }
+    return (await response.json()) as MyClassDto
   } catch (error) {
     throwApiResponseError(error)
   }
@@ -141,10 +152,10 @@ export async function getClassDetail(classId: number): Promise<ClassDetailDto> {
   }
 }
 
-export async function getClassMembers(classId: number): Promise<ClassMemberDto[]> {
+export async function getClassMembers(classId: number): Promise<ClassMembersDto> {
   try {
     const response = await Api.fetchGet(`/api/classes/${classId}/members`, CLASS_MEMBERS_ERRORS)
-    return (await response.json()) as ClassMemberDto[]
+    return (await response.json()) as ClassMembersDto
   } catch (error) {
     throwApiResponseError(error)
   }
@@ -162,6 +173,14 @@ export async function updateClass(classId: number, body: { name?: string; type?:
 export async function deleteClass(classId: number): Promise<void> {
   try {
     await Api.fetchDelete(`/api/classes/${classId}`, DELETE_CLASS_ERRORS)
+  } catch (error) {
+    throwApiResponseError(error)
+  }
+}
+
+export async function leaveClass(classId: number): Promise<void> {
+  try {
+    await Api.fetchPost(`/api/classes/${classId}/leave`, {}, LEAVE_CLASS_ERRORS)
   } catch (error) {
     throwApiResponseError(error)
   }

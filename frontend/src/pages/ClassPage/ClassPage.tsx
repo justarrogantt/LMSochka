@@ -1,4 +1,4 @@
-import { useOutletContext } from "react-router-dom"
+﻿import { useOutletContext } from "react-router-dom"
 import type { ClassLayoutContext } from "../ClassLayout/ClassLayout"
 import styles from "./ClassPage.module.css"
 

@@ -1,4 +1,4 @@
-// Страница регистрации нового пользователя.
+﻿// Страница регистрации нового пользователя.
 import { useNavigate } from "react-router-dom"
 import { useState, type ChangeEvent, type FormEvent, type MouseEvent } from "react"
 import AuthLayout from "../../components/AuthLayout/AuthLayout"
@@ -206,3 +206,5 @@ export default function RegisterPage() {
     </AuthLayout>
   )
 }
+
+

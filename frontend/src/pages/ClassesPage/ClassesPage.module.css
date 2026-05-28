@@ -1,4 +1,5 @@
-.page {
+﻿.page {
+  flex: 1;
   display: flex;
   flex-direction: column;
   gap: 24px;
@@ -191,6 +192,7 @@
   z-index: 20;
   padding: 24px;
   background: rgba(21, 23, 25, 0.28);
+  backdrop-filter: blur(4px);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -372,3 +374,6 @@
     grid-template-columns: 1fr;
   }
 }
+
+
+

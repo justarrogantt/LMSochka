@@ -1,4 +1,5 @@
-.page {
+﻿.page {
+  flex: 1;
   display: flex;
   flex-direction: column;
   gap: 22px;
@@ -27,6 +28,17 @@
   display: flex;
   flex-direction: column;
   gap: 12px;
+}
+
+.emptyMessage {
+  min-height: 220px;
+  color: var(--color-muted);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  font-size: 18px;
+  font-weight: 700;
 }
 
 .groupTitle {
@@ -127,3 +139,5 @@
     order: 4;
   }
 }
+
+

@@ -1,4 +1,4 @@
-import { NavLink, Outlet, useNavigate } from "react-router-dom"
+﻿import { NavLink, Outlet, useNavigate } from "react-router-dom"
 import logo from "../../assets/logo.svg"
 import BellIcon from "../../assets/icons/layout/bell.svg?react"
 import CoursesIcon from "../../assets/icons/layout/courses.svg?react"
@@ -11,7 +11,6 @@ import { Api, ApiError, ApiSilentError } from "../../services/api"
 import { logout as logoutRequest } from "../../services/auth.api"
 import styles from "./AppLayout.module.css"
 
-// Пункты меню держим в одном месте, чтобы роуты и подписи не расползались.
 const menuItems = [
   {
     path: "/",
@@ -39,7 +38,6 @@ export default function AppLayout() {
   const showToast = useToast()
   const userEmail = user?.email ?? ""
 
-  // Выполняет logout на бэке, чистит локальную сессию и возвращает на вход.
   async function logout() {
     try {
       await logoutRequest()
@@ -58,8 +56,7 @@ export default function AppLayout() {
 
       showToast({
         type: "error",
-        message: error instanceof ApiError ? error.message : "Не удалось выйти из аккаунта",
-        offsetBottom: 30
+        message: error instanceof ApiError ? error.message : "Не удалось выйти из аккаунта"
       })
     }
   }
@@ -132,3 +129,5 @@ export default function AppLayout() {
     </div>
   )
 }
+
+

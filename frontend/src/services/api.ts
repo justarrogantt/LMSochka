@@ -1,4 +1,5 @@
 import type { Errors } from "../types/api.types"
+import { wait } from "./helpers"
 
 // Таймаут фронтового запроса (в миллисекундах).
 // Держи его не больше таймаута reverse proxy (Nginx/Traefik и т.д.),
@@ -227,6 +228,7 @@ export class Api {
         },
         timeoutMs
       )
+      await wait()
 
       if (withAuth && response.status === 401) {
         const refreshed = await Api.fetchRefresh()
@@ -243,6 +245,7 @@ export class Api {
           },
           timeoutMs
         )
+        await wait()
       }
 
       if (!response.ok) {

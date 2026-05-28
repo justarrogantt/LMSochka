@@ -1,19 +1,14 @@
-import { type ReactNode, useEffect, useState } from "react"
+﻿import { type ReactNode, useEffect, useState } from "react"
 import { createPortal } from "react-dom"
 import { useNavigate } from "react-router-dom"
 import CloseIcon from "../../assets/icons/classes/close.svg?react"
 import CreateCourseIcon from "../../assets/icons/classes/create-course.svg?react"
 import FindCourseIcon from "../../assets/icons/classes/find-course.svg?react"
 import KeyIcon from "../../assets/icons/classes/key.svg?react"
+import Loading from "../../components/Loading/Loading"
 import { useToast } from "../../components/Toast/ToastProvider"
-import { ApiError, ApiSilentError } from "../../services/api"
-import {
-  createClass,
-  getMyClasses,
-  joinClassByCode,
-  type ClassType,
-  type MyClassDto
-} from "../../services/classes.api"
+import { ApiSilentError } from "../../services/api"
+import { createClass, getMyClasses, joinClassByCode, type ClassType, type MyClassDto } from "../../services/classes.api"
 import styles from "./ClassesPage.module.css"
 
 const classTypeLabels = {
@@ -28,16 +23,13 @@ const roleLabels = {
 }
 
 type ModalType = "create" | "join" | null
+type CreateFormState = {
+  newClassName: string
+  newClassType: ClassType
+}
 
-type ClassesPageState = {
-  classes: MyClassDto[]
-  isLoading: boolean
-  activeModal: ModalType
-  form: {
-    newClassName: string
-    newClassType: ClassType
-    joinCode: string
-  }
+type JoinFormState = {
+  joinCode: string
 }
 
 type ModalShellProps = {
@@ -49,6 +41,7 @@ type ModalShellProps = {
 type CreateClassModalProps = {
   newClassName: string
   newClassType: ClassType
+  isSubmitting: boolean
   onNameChange: (value: string) => void
   onTypeChange: (value: ClassType) => void
   onSubmit: () => void
@@ -57,6 +50,7 @@ type CreateClassModalProps = {
 
 type JoinClassModalProps = {
   joinCode: string
+  isSubmitting: boolean
   onCodeChange: (value: string) => void
   onSubmit: () => void
   onClose: () => void
@@ -67,10 +61,11 @@ type ClassCardProps = {
   onOpen: (classId: number) => void
 }
 
+// Базовая обертка модального окна
 function ModalShell({ title, onClose, children }: ModalShellProps) {
   return createPortal(
-    <div className={styles.modalOverlay}>
-      <div className={styles.modal}>
+    <div className={styles.modalOverlay} onClick={onClose}>
+      <div className={styles.modal} onClick={(event) => event.stopPropagation()}>
         <div className={styles.modalHead}>
           <div className={styles.modalTitle}>{title}</div>
           <button className={styles.closeButton} type="button" onClick={onClose} aria-label="Закрыть окно">
@@ -84,7 +79,8 @@ function ModalShell({ title, onClose, children }: ModalShellProps) {
   )
 }
 
-function CreateClassModal({ newClassName, newClassType, onNameChange, onTypeChange, onSubmit, onClose }: CreateClassModalProps) {
+// Модалка создания курса
+function CreateClassModal({ newClassName, newClassType, isSubmitting, onNameChange, onTypeChange, onSubmit, onClose }: CreateClassModalProps) {
   return (
     <ModalShell title="Создать курс" onClose={onClose}>
       <label className={styles.field}>
@@ -95,6 +91,7 @@ function CreateClassModal({ newClassName, newClassType, onNameChange, onTypeChan
           value={newClassName}
           onChange={(event) => onNameChange(event.target.value)}
           placeholder="Например, Математика 10А"
+          disabled={isSubmitting}
         />
       </label>
 
@@ -105,6 +102,7 @@ function CreateClassModal({ newClassName, newClassType, onNameChange, onTypeChan
             className={`${styles.typeButton} ${newClassType === "closed" ? styles.typeButtonActive : ""}`}
             type="button"
             onClick={() => onTypeChange("closed")}
+            disabled={isSubmitting}
           >
             Закрытый
           </button>
@@ -112,6 +110,7 @@ function CreateClassModal({ newClassName, newClassType, onNameChange, onTypeChan
             className={`${styles.typeButton} ${newClassType === "open" ? styles.typeButtonActive : ""}`}
             type="button"
             onClick={() => onTypeChange("open")}
+            disabled={isSubmitting}
           >
             Открытый
           </button>
@@ -119,18 +118,19 @@ function CreateClassModal({ newClassName, newClassType, onNameChange, onTypeChan
       </div>
 
       <div className={styles.modalActions}>
-        <button className={styles.secondaryButton} type="button" onClick={onClose}>
+        <button className={styles.secondaryButton} type="button" onClick={onClose} disabled={isSubmitting}>
           Отмена
         </button>
-        <button className={styles.primaryButton} type="button" onClick={onSubmit}>
-          Создать
+        <button className={styles.primaryButton} type="button" onClick={onSubmit} disabled={isSubmitting || !newClassName.trim()}>
+          {isSubmitting ? "Создаем..." : "Создать"}
         </button>
       </div>
     </ModalShell>
   )
 }
 
-function JoinClassModal({ joinCode, onCodeChange, onSubmit, onClose }: JoinClassModalProps) {
+// Модалка вступления в курс по коду
+function JoinClassModal({ joinCode, isSubmitting, onCodeChange, onSubmit, onClose }: JoinClassModalProps) {
   return (
     <ModalShell title="Вступить по коду" onClose={onClose}>
       <label className={styles.field}>
@@ -141,23 +141,25 @@ function JoinClassModal({ joinCode, onCodeChange, onSubmit, onClose }: JoinClass
           value={joinCode}
           onChange={(event) => onCodeChange(event.target.value.toUpperCase())}
           placeholder="AB12CD34"
+          disabled={isSubmitting}
         />
       </label>
 
       <div className={styles.modalHint}>Введите код, который преподаватель выдал для входа в закрытый курс.</div>
 
       <div className={styles.modalActions}>
-        <button className={styles.secondaryButton} type="button" onClick={onClose}>
+        <button className={styles.secondaryButton} type="button" onClick={onClose} disabled={isSubmitting}>
           Отмена
         </button>
-        <button className={styles.primaryButton} type="button" onClick={onSubmit}>
-          Вступить
+        <button className={styles.primaryButton} type="button" onClick={onSubmit} disabled={isSubmitting || !joinCode.trim()}>
+          {isSubmitting ? "Вступаем..." : "Вступить"}
         </button>
       </div>
     </ModalShell>
   )
 }
 
+// Карточка курса в списке "Мои курсы"
 function ClassCard({ item, onOpen }: ClassCardProps) {
   return (
     <button className={styles.card} type="button" onClick={() => onOpen(item.id)}>
@@ -186,116 +188,107 @@ function ClassCard({ item, onOpen }: ClassCardProps) {
 export default function ClassesPage() {
   const navigate = useNavigate()
   const showToast = useToast()
-  const [state, setState] = useState<ClassesPageState>({
-    classes: [],
-    isLoading: true,
-    activeModal: null,
-    form: {
-      newClassName: "",
-      newClassType: "closed",
-      joinCode: ""
-    }
+
+  // Данные курсов с бэка
+  const [classes, setClasses] = useState<MyClassDto[]>([])
+
+  // Лоадер страницы
+  const [isLoading, setIsLoading] = useState(true)
+
+  // Состояние модалок
+  const [activeModal, setActiveModal] = useState<ModalType>(null)
+
+  // Флаги отправки
+  const [isSubmitting, setIsSubmitting] = useState(false)
+
+  // Поля модалки создания
+  const [createForm, setCreateForm] = useState<CreateFormState>({
+    newClassName: "",
+    newClassType: "closed"
   })
 
+  // Поля модалки вступления
+  const [joinForm, setJoinForm] = useState<JoinFormState>({
+    joinCode: ""
+  })
+
+  // Загрузка списка курсов
   useEffect(() => {
     async function loadClasses() {
       try {
-        const classes = await getMyClasses()
-        setState((prev) => ({ ...prev, classes, isLoading: false }))
+        const nextClasses = await getMyClasses()
+        setClasses(nextClasses)
       } catch (error) {
-        setState((prev) => ({ ...prev, isLoading: false }))
         if (error instanceof ApiSilentError) return
         showToast({
           type: "error",
-          message: error instanceof ApiError ? error.message : "Не удалось загрузить мои курсы",
-          offsetBottom: 30
+          message: error instanceof Error ? error.message : "Не удалось загрузить мои курсы"
         })
+      } finally {
+        setIsLoading(false)
       }
     }
 
     void loadClasses()
-  }, [])
+  }, [showToast])
 
+  // Закрытие модалок
   function closeModal() {
-    setState((prev) => ({
-      ...prev,
-      activeModal: null,
-      form: { ...prev.form, newClassName: "", joinCode: "" }
-    }))
+    if (isSubmitting) return
+    setActiveModal(null)
+    setCreateForm((prev) => ({ ...prev, newClassName: "" }))
+    setJoinForm({ joinCode: "" })
   }
 
+  // Создание курса
   async function submitCreateClass() {
-    const name = state.form.newClassName.trim()
+    if (isSubmitting) return
+    const name = createForm.newClassName.trim()
     if (!name) return
 
-    const tempId = -Date.now()
-    const optimisticClass: MyClassDto = {
-      id: tempId,
-      name,
-      type: state.form.newClassType,
-      role: "creator",
-      students_count: 0,
-      teachers_count: 1
-    }
-    const prevClasses = state.classes
-
-    setState((prev) => ({
-      ...prev,
-      classes: [optimisticClass, ...prev.classes],
-      activeModal: null,
-      form: { ...prev.form, newClassName: "" }
-    }))
+    setIsSubmitting(true)
+    setActiveModal(null)
 
     try {
-      const created = await createClass({ name, type: state.form.newClassType })
-      setState((prev) => ({
-        ...prev,
-        classes: prev.classes.map((item) =>
-          item.id === tempId
-            ? {
-                id: created.id,
-                name: created.name,
-                type: created.type,
-                role: created.user_role,
-                students_count: created.students_count,
-                teachers_count: created.teachers_count
-              }
-            : item
-        )
-      }))
-      showToast({ type: "neutral", message: "Курс создан", offsetBottom: 30 })
+      const createdClass = await createClass({ name, type: createForm.newClassType })
+      setClasses((prev) => [createdClass, ...prev])
+      setCreateForm((prev) => ({ ...prev, newClassName: "" }))
+      showToast({ type: "neutral", message: "Курс создан" })
     } catch (error) {
-      setState((prev) => ({ ...prev, classes: prevClasses }))
-      if (error instanceof ApiSilentError) return
       showToast({
         type: "error",
-        message: error instanceof ApiError ? error.message : "Не удалось создать курс",
-        offsetBottom: 30
+        message: error instanceof Error ? error.message : "Не удалось создать курс"
       })
+    } finally {
+      setIsSubmitting(false)
     }
   }
 
+  // Вступление в курс по коду
   async function submitJoinByCode() {
-    const code = state.form.joinCode.trim()
+    if (isSubmitting) return
+    const code = joinForm.joinCode.trim()
     if (!code) return
 
+    setIsSubmitting(true)
+    setActiveModal(null)
+
     try {
-      await joinClassByCode(code)
-      closeModal()
-      const classes = await getMyClasses()
-      setState((prev) => ({ ...prev, classes }))
-      showToast({ type: "neutral", message: "Вы вступили в курс", offsetBottom: 30 })
+      const joinedClass = await joinClassByCode(code)
+      setClasses((prev) => [joinedClass, ...prev])
+      setJoinForm({ joinCode: "" })
+      showToast({ type: "neutral", message: "Вы вступили в курс" })
     } catch (error) {
-      if (error instanceof ApiSilentError) return
       showToast({
         type: "error",
-        message: error instanceof ApiError ? error.message : "Не удалось вступить по коду",
-        offsetBottom: 30
+        message: error instanceof Error ? error.message : "Не удалось вступить по коду"
       })
+    } finally {
+      setIsSubmitting(false)
     }
   }
 
-  const hasClasses = state.classes.length > 0
+  const hasClasses = classes.length > 0
 
   return (
     <div className={styles.page}>
@@ -306,7 +299,7 @@ export default function ClassesPage() {
         </div>
 
         <div className={styles.actions}>
-          <button className={styles.secondaryButton} type="button" onClick={() => setState((prev) => ({ ...prev, activeModal: "join" }))}>
+          <button className={styles.secondaryButton} type="button" onClick={() => setActiveModal("join")}>
             <KeyIcon className={`${styles.buttonIcon} ${styles.keyIcon}`} />
             Вступить по коду
           </button>
@@ -314,42 +307,42 @@ export default function ClassesPage() {
             <FindCourseIcon className={`${styles.buttonIcon} ${styles.searchIcon}`} />
             Найти курс
           </button>
-          <button className={styles.primaryButton} type="button" onClick={() => setState((prev) => ({ ...prev, activeModal: "create" }))}>
+          <button className={styles.primaryButton} type="button" onClick={() => setActiveModal("create")}>
             <CreateCourseIcon className={`${styles.buttonIcon} ${styles.addIcon}`} />
             Создать курс
           </button>
         </div>
       </div>
 
-      {!state.isLoading && hasClasses && (
+      {isLoading && <Loading />}
+
+      {!isLoading && hasClasses && (
         <div className={styles.cards}>
-          {state.classes.map((item) => (
+          {classes.map((item) => (
             <ClassCard key={item.id} item={item} onOpen={(classId) => navigate(`/classes/${classId}`)} />
           ))}
         </div>
       )}
 
-      {!state.isLoading && !hasClasses && (
-        <div className={styles.emptyMessage}>
-          Вы пока не состоите ни в одном курсе
-        </div>
-      )}
+      {!isLoading && !hasClasses && <div className={styles.emptyMessage}>Вы пока не состоите ни в одном курсе</div>}
 
-      {state.activeModal === "create" && (
+      {activeModal === "create" && (
         <CreateClassModal
-          newClassName={state.form.newClassName}
-          newClassType={state.form.newClassType}
-          onNameChange={(value) => setState((prev) => ({ ...prev, form: { ...prev.form, newClassName: value } }))}
-          onTypeChange={(value) => setState((prev) => ({ ...prev, form: { ...prev.form, newClassType: value } }))}
+          newClassName={createForm.newClassName}
+          newClassType={createForm.newClassType}
+          isSubmitting={isSubmitting}
+          onNameChange={(value) => setCreateForm((prev) => ({ ...prev, newClassName: value }))}
+          onTypeChange={(value) => setCreateForm((prev) => ({ ...prev, newClassType: value }))}
           onSubmit={submitCreateClass}
           onClose={closeModal}
         />
       )}
 
-      {state.activeModal === "join" && (
+      {activeModal === "join" && (
         <JoinClassModal
-          joinCode={state.form.joinCode}
-          onCodeChange={(value) => setState((prev) => ({ ...prev, form: { ...prev.form, joinCode: value } }))}
+          joinCode={joinForm.joinCode}
+          isSubmitting={isSubmitting}
+          onCodeChange={(value) => setJoinForm({ joinCode: value })}
           onSubmit={submitJoinByCode}
           onClose={closeModal}
         />

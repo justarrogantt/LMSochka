@@ -13,8 +13,8 @@
   justify-content: center;
   width: 75px;
   height: 75px;
-  border: 6px solid var(--color-border-strong);
-  border-top: 6px solid var(--color-primary);
+  border: 6px solid var(--color-line-strong);
+  border-top: 6px solid var(--color-accent);
   border-radius: 50%;
   animation: spin 1s linear infinite;
 }

@@ -1,27 +1,25 @@
-import { type ReactNode, useEffect, useState } from "react"
+﻿import { type ReactNode, useEffect, useState } from "react"
 import { createPortal } from "react-dom"
 import { NavLink, Outlet, useNavigate, useParams } from "react-router-dom"
 import ArrowIcon from "../../assets/icons/classes/arrow.svg?react"
 import CloseIcon from "../../assets/icons/classes/close.svg?react"
+import Loading from "../../components/Loading/Loading"
 import { useToast } from "../../components/Toast/ToastProvider"
-import { ApiError, ApiSilentError } from "../../services/api"
-import { deleteClass, getClassDetail, updateClass, type ClassDetailDto } from "../../services/classes.api"
+import { ApiSilentError } from "../../services/api"
+import { deleteClass, getClassDetail, leaveClass, updateClass, type ClassDetailDto, type ClassType } from "../../services/classes.api"
 import styles from "./ClassLayout.module.css"
 
 const tabs = [
   { title: "Обзор", path: "" },
   { title: "Участники", path: "members" },
   { title: "Задания", path: "assignments" },
-  { title: "Оцени", path: "grades" },
+  { title: "Оценки", path: "grades" },
   { title: "Объявления", path: "announcements" }
 ]
 
-type ClassLayoutState = {
-  detail: ClassDetailDto | null
-  isLoading: boolean
-  isDeleteModalOpen: boolean
-  isEditModalOpen: boolean
-  editedClassName: string
+type EditFormState = {
+  name: string
+  type: ClassType
 }
 
 type ModalShellProps = {
@@ -34,10 +32,11 @@ export type ClassLayoutContext = {
   classDetail: ClassDetailDto | null
 }
 
+// Базовая обертка модального окна
 function ModalShell({ title, onClose, children }: ModalShellProps) {
   return createPortal(
-    <div className={styles.modalOverlay}>
-      <div className={styles.modal}>
+    <div className={styles.modalOverlay} onClick={onClose}>
+      <div className={styles.modal} onClick={(event) => event.stopPropagation()}>
         <div className={styles.modalHead}>
           <div className={styles.modalTitle}>{title}</div>
           <button className={styles.closeButton} type="button" onClick={onClose} aria-label="Закрыть окно">
@@ -56,102 +55,139 @@ export default function ClassLayout() {
   const parsedClassId = Number(classId)
   const navigate = useNavigate()
   const showToast = useToast()
-  const [state, setState] = useState<ClassLayoutState>({
-    detail: null,
-    isLoading: true,
-    isDeleteModalOpen: false,
-    isEditModalOpen: false,
-    editedClassName: ""
-  })
   const basePath = `/classes/${classId}`
 
+  // Данные курса
+  const [classDetail, setClassDetail] = useState<ClassDetailDto | null>(null)
+
+  // Лоадер страницы
+  const [isLoading, setIsLoading] = useState(true)
+
+  // Состояние модалок
+  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false)
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false)
+
+  // Флаг отправки мутаций
+  const [isSubmitting, setIsSubmitting] = useState(false)
+
+  // Поля формы редактирования
+  const [editForm, setEditForm] = useState<EditFormState>({
+    name: "",
+    type: "closed"
+  })
+
+  // Загрузка данных курса
   useEffect(() => {
     async function loadClass() {
       if (!Number.isFinite(parsedClassId)) {
-        setState((prev) => ({ ...prev, isLoading: false }))
+        setIsLoading(false)
         return
       }
 
       try {
         const detail = await getClassDetail(parsedClassId)
-        setState((prev) => ({
-          ...prev,
-          detail,
-          editedClassName: detail.name,
-          isLoading: false
-        }))
+        setClassDetail(detail)
+        setEditForm({ name: detail.name, type: detail.type })
       } catch (error) {
-        setState((prev) => ({ ...prev, isLoading: false }))
         if (error instanceof ApiSilentError) return
-        showToast({
-          type: "error",
-          message: error instanceof ApiError ? error.message : "Не удалось загрузить курс",
-          offsetBottom: 30
-        })
+        showToast({ type: "error", message: error instanceof Error ? error.message : "Не удалось загрузить курс" })
+      } finally {
+        setIsLoading(false)
       }
     }
 
     void loadClass()
-  }, [classId])
+  }, [parsedClassId, showToast])
 
+  // Копирование кода приглашения
   async function copyJoinCode() {
-    if (!state.detail?.join_code) return
+    if (!classDetail?.join_code) return
 
     try {
-      await navigator.clipboard.writeText(state.detail.join_code)
-      showToast({ type: "neutral", message: "Код скопирован", offsetBottom: 30 })
+      await navigator.clipboard.writeText(classDetail.join_code)
+      showToast({ type: "neutral", message: "Код скопирован" })
     } catch {
-      showToast({ type: "error", message: "Не удалось скопировать код", offsetBottom: 30 })
+      showToast({ type: "error", message: "Не удалось скопировать код" })
     }
   }
 
+  // Открытие модалки редактирования
+  function openEditModal() {
+    if (!classDetail) return
+    setEditForm({ name: classDetail.name, type: classDetail.type })
+    setIsEditModalOpen(true)
+  }
+
+  // Редактирование курса
   async function submitEditClass() {
-    if (!state.detail) return
-    const nextName = state.editedClassName.trim()
-    if (!nextName || nextName === state.detail.name) {
-      setState((prev) => ({ ...prev, isEditModalOpen: false }))
+    if (!classDetail || isSubmitting) return
+
+    const nextName = editForm.name.trim()
+    const nextType = editForm.type
+    const isNameChanged = !!nextName && nextName !== classDetail.name
+    const isTypeChanged = nextType !== classDetail.type
+
+    if (!isNameChanged && !isTypeChanged) {
+      setIsEditModalOpen(false)
       return
     }
 
-    const prevDetail = state.detail
-    setState((prev) => ({
-      ...prev,
-      detail: prev.detail ? { ...prev.detail, name: nextName } : prev.detail,
-      isEditModalOpen: false
-    }))
+    const prevDetail = classDetail
+    setIsSubmitting(true)
+    setIsEditModalOpen(false)
 
     try {
-      const updated = await updateClass(state.detail.id, { name: nextName })
-      setState((prev) => ({ ...prev, detail: updated, editedClassName: updated.name }))
-      showToast({ type: "neutral", message: "Курс обновлен", offsetBottom: 30 })
-    } catch (error) {
-      setState((prev) => ({ ...prev, detail: prevDetail, editedClassName: prevDetail.name }))
-      if (error instanceof ApiSilentError) return
-      showToast({
-        type: "error",
-        message: error instanceof ApiError ? error.message : "Не удалось обновить курс",
-        offsetBottom: 30
+      const updated = await updateClass(classDetail.id, {
+        ...(isNameChanged ? { name: nextName } : {}),
+        ...(isTypeChanged ? { type: nextType } : {})
       })
+      setClassDetail(updated)
+      setEditForm({ name: updated.name, type: updated.type })
+      showToast({ type: "neutral", message: "Курс обновлен" })
+    } catch (error) {
+      setClassDetail(prevDetail)
+      setEditForm({ name: prevDetail.name, type: prevDetail.type })
+      showToast({ type: "error", message: error instanceof Error ? error.message : "Не удалось обновить курс" })
+    } finally {
+      setIsSubmitting(false)
     }
   }
 
+  // Удаление курса (для создателя)
   async function submitDeleteClass() {
-    if (!state.detail) return
-    const deletedClassId = state.detail.id
+    if (!classDetail || isSubmitting) return
 
+    setIsSubmitting(true)
     try {
-      await deleteClass(deletedClassId)
-      showToast({ type: "neutral", message: "Курс удален", offsetBottom: 30 })
+      await deleteClass(classDetail.id)
+      showToast({ type: "neutral", message: "Курс удален" })
       navigate("/classes", { replace: true })
     } catch (error) {
       if (error instanceof ApiSilentError) return
-      showToast({
-        type: "error",
-        message: error instanceof ApiError ? error.message : "Не удалось удалить курс",
-        offsetBottom: 30
-      })
+      showToast({ type: "error", message: error instanceof Error ? error.message : "Не удалось удалить курс" })
+    } finally {
+      setIsSubmitting(false)
     }
   }
+
+  // Выход из курса (для не-создателя)
+  async function submitLeaveClass() {
+    if (!classDetail || isSubmitting) return
+
+    setIsSubmitting(true)
+    try {
+      await leaveClass(classDetail.id)
+      showToast({ type: "neutral", message: "Вы покинули курс" })
+      navigate("/classes", { replace: true })
+    } catch (error) {
+      if (error instanceof ApiSilentError) return
+      showToast({ type: "error", message: error instanceof Error ? error.message : "Не удалось покинуть курс" })
+    } finally {
+      setIsSubmitting(false)
+    }
+  }
+
+  const isCreator = classDetail?.user_role === "creator"
 
   return (
     <div className={styles.page}>
@@ -161,20 +197,36 @@ export default function ClassLayout() {
             <ArrowIcon className={styles.backIcon} />
             <div>Мои курсы</div>
           </button>
-          <div className={styles.title}>{state.detail?.name ?? "Курс"}</div>
+          <div className={styles.title}>{classDetail?.name ?? "Курс"}</div>
         </div>
 
-        <div className={styles.actions}>
-          <button className={styles.secondaryButton} type="button" onClick={copyJoinCode}>
-            Код приглашения: {state.detail?.join_code ?? "—"}
-          </button>
-          <button className={styles.secondaryButton} type="button" onClick={() => setState((prev) => ({ ...prev, isEditModalOpen: true }))}>
-            Редактировать
-          </button>
-          <button className={styles.dangerButton} type="button" onClick={() => setState((prev) => ({ ...prev, isDeleteModalOpen: true }))}>
-            Удалить
-          </button>
-        </div>
+        {!isLoading && (
+          <div className={styles.actions}>
+            {isCreator && classDetail?.type === "closed" && classDetail?.join_code && (
+              <button className={styles.secondaryButton} type="button" onClick={copyJoinCode}>
+                Код приглашения: {classDetail.join_code}
+              </button>
+            )}
+
+            {isCreator && (
+              <button className={styles.secondaryButton} type="button" onClick={openEditModal}>
+                Редактировать
+              </button>
+            )}
+
+            {isCreator && (
+              <button className={styles.dangerButton} type="button" onClick={() => setIsDeleteModalOpen(true)}>
+                Удалить
+              </button>
+            )}
+
+            {!isCreator && (
+              <button className={styles.dangerButton} type="button" onClick={() => setIsDeleteModalOpen(true)}>
+                Покинуть курс
+              </button>
+            )}
+          </div>
+        )}
       </div>
 
       <div className={styles.tabs}>
@@ -190,39 +242,73 @@ export default function ClassLayout() {
         ))}
       </div>
 
-      {!state.isLoading && <Outlet context={{ classDetail: state.detail } satisfies ClassLayoutContext} />}
+      {isLoading && <Loading />}
+      {!isLoading && <Outlet context={{ classDetail } satisfies ClassLayoutContext} />}
 
-      {state.isDeleteModalOpen && (
-        <ModalShell title="Удалить курс" onClose={() => setState((prev) => ({ ...prev, isDeleteModalOpen: false }))}>
-          <div className={styles.modalText}>Вы точно хотите удалить курс? Это действие нельзя отменить.</div>
+      {isDeleteModalOpen && (
+        <ModalShell title={isCreator ? "Удалить курс" : "Покинуть курс"} onClose={() => !isSubmitting && setIsDeleteModalOpen(false)}>
+          <div className={styles.modalText}>
+            {isCreator ? "Вы точно хотите удалить курс? Это действие нельзя отменить." : "Вы точно хотите покинуть курс?"}
+          </div>
           <div className={styles.modalActions}>
-            <button className={styles.secondaryButton} type="button" onClick={() => setState((prev) => ({ ...prev, isDeleteModalOpen: false }))}>
+            <button className={styles.secondaryButton} type="button" onClick={() => setIsDeleteModalOpen(false)} disabled={isSubmitting}>
               Отмена
             </button>
-            <button className={styles.dangerButton} type="button" onClick={() => void submitDeleteClass()}>
-              Да, удалить
-            </button>
+            {isCreator && (
+              <button className={styles.dangerButton} type="button" onClick={() => void submitDeleteClass()} disabled={isSubmitting}>
+                {isSubmitting ? "Удаляем..." : "Да, удалить"}
+              </button>
+            )}
+            {!isCreator && (
+              <button className={styles.dangerButton} type="button" onClick={() => void submitLeaveClass()} disabled={isSubmitting}>
+                {isSubmitting ? "Выходим..." : "Да, покинуть"}
+              </button>
+            )}
           </div>
         </ModalShell>
       )}
 
-      {state.isEditModalOpen && (
-        <ModalShell title="Редактировать курс" onClose={() => setState((prev) => ({ ...prev, isEditModalOpen: false }))}>
+      {isEditModalOpen && (
+        <ModalShell title="Редактировать курс" onClose={() => !isSubmitting && setIsEditModalOpen(false)}>
           <label className={styles.field}>
             <div className={styles.fieldLabel}>Название курса</div>
             <input
               className={styles.input}
               type="text"
-              value={state.editedClassName}
-              onChange={(event) => setState((prev) => ({ ...prev, editedClassName: event.target.value }))}
+              value={editForm.name}
+              onChange={(event) => setEditForm((prev) => ({ ...prev, name: event.target.value }))}
+              disabled={isSubmitting}
             />
           </label>
+
+          <div className={styles.field}>
+            <div className={styles.fieldLabel}>Тип курса</div>
+            <div className={styles.typeButtons}>
+              <button
+                className={`${styles.typeButton} ${editForm.type === "closed" ? styles.typeButtonActive : ""}`}
+                type="button"
+                onClick={() => setEditForm((prev) => ({ ...prev, type: "closed" }))}
+                disabled={isSubmitting}
+              >
+                Закрытый
+              </button>
+              <button
+                className={`${styles.typeButton} ${editForm.type === "open" ? styles.typeButtonActive : ""}`}
+                type="button"
+                onClick={() => setEditForm((prev) => ({ ...prev, type: "open" }))}
+                disabled={isSubmitting}
+              >
+                Открытый
+              </button>
+            </div>
+          </div>
+
           <div className={styles.modalActions}>
-            <button className={styles.secondaryButton} type="button" onClick={() => setState((prev) => ({ ...prev, isEditModalOpen: false }))}>
+            <button className={styles.secondaryButton} type="button" onClick={() => setIsEditModalOpen(false)} disabled={isSubmitting}>
               Отмена
             </button>
-            <button className={styles.primaryButton} type="button" onClick={() => void submitEditClass()}>
-              Сохранить
+            <button className={styles.primaryButton} type="button" onClick={() => void submitEditClass()} disabled={isSubmitting}>
+              {isSubmitting ? "Сохраняем..." : "Сохранить"}
             </button>
           </div>
         </ModalShell>

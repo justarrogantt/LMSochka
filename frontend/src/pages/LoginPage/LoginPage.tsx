@@ -1,4 +1,4 @@
-import { useNavigate } from "react-router-dom"
+﻿import { useNavigate } from "react-router-dom"
 import { useState, type ChangeEvent, type FormEvent, type MouseEvent } from "react"
 import AuthLayout from "../../components/AuthLayout/AuthLayout"
 import styles from "../../components/AuthLayout/AuthLayout.module.css"
@@ -173,3 +173,5 @@ export default function LoginPage() {
     </AuthLayout>
   )
 }
+
+

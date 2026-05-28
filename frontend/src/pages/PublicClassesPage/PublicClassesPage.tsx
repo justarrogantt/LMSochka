@@ -1,66 +1,70 @@
-import { useEffect, useState } from "react"
+﻿import { useEffect, useState } from "react"
 import { useNavigate } from "react-router-dom"
 import ArrowIcon from "../../assets/icons/classes/arrow.svg?react"
+import Loading from "../../components/Loading/Loading"
 import { useToast } from "../../components/Toast/ToastProvider"
-import { ApiError, ApiSilentError } from "../../services/api"
+import { ApiSilentError } from "../../services/api"
 import { getPublicClasses, joinOpenClass, type PublicClassDto } from "../../services/classes.api"
+import { formatDateTime } from "../../services/helpers"
 import styles from "./PublicClassesPage.module.css"
-
-type PublicClassesState = {
-  search: string
-  isLoading: boolean
-  classes: PublicClassDto[]
-}
 
 export default function PublicClassesPage() {
   const navigate = useNavigate()
   const showToast = useToast()
-  const [state, setState] = useState<PublicClassesState>({
-    search: "",
-    isLoading: true,
-    classes: []
-  })
 
+  // Данные каталога с бэка
+  const [classes, setClasses] = useState<PublicClassDto[]>([])
+
+  // Лоадер страницы
+  const [isLoading, setIsLoading] = useState(true)
+
+  // Поисковая строка
+  const [search, setSearch] = useState("")
+
+  // Id курсов, в которые сейчас выполняется вступление
+  const [submittingIds, setSubmittingIds] = useState<Set<number>>(new Set())
+
+  // Загрузка публичных курсов
   useEffect(() => {
     async function loadPublicClasses() {
       try {
-        const classes = await getPublicClasses()
-        setState((prev) => ({ ...prev, classes, isLoading: false }))
+        const nextClasses = await getPublicClasses()
+        setClasses(nextClasses)
       } catch (error) {
-        setState((prev) => ({ ...prev, isLoading: false }))
         if (error instanceof ApiSilentError) return
         showToast({
           type: "error",
-          message: error instanceof ApiError ? error.message : "Не удалось загрузить каталог",
-          offsetBottom: 30
+          message: error instanceof Error ? error.message : "Не удалось загрузить каталог"
         })
+      } finally {
+        setIsLoading(false)
       }
     }
 
     void loadPublicClasses()
   }, [])
 
-  const filteredClasses = state.classes.filter((item) =>
-    item.name.toLowerCase().includes(state.search.trim().toLowerCase())
-  )
+  const filteredClasses = classes.filter((item) => item.name.toLowerCase().includes(search.trim().toLowerCase()))
 
+  // Вступление в открытый курс
   async function joinById(classId: number) {
-    const prevClasses = state.classes
-    setState((prev) => ({
-      ...prev,
-      classes: prev.classes.map((item) => (item.id === classId ? { ...item, is_member: true } : item))
-    }))
+    if (submittingIds.has(classId)) return
+    setSubmittingIds((prev) => new Set(prev).add(classId))
 
     try {
       await joinOpenClass(classId)
-      showToast({ type: "neutral", message: "Вы вступили в курс", offsetBottom: 30 })
+      setClasses((prev) => prev.map((item) => (item.id === classId ? { ...item, is_member: true } : item)))
+      showToast({ type: "neutral", message: "Вы вступили в курс" })
     } catch (error) {
-      setState((prev) => ({ ...prev, classes: prevClasses }))
-      if (error instanceof ApiSilentError) return
       showToast({
         type: "error",
-        message: error instanceof ApiError ? error.message : "Не удалось вступить в курс",
-        offsetBottom: 30
+        message: error instanceof Error ? error.message : "Не удалось вступить в курс"
+      })
+    } finally {
+      setSubmittingIds((prev) => {
+        const next = new Set(prev)
+        next.delete(classId)
+        return next
       })
     }
   }
@@ -81,24 +85,20 @@ export default function PublicClassesPage() {
 
       <label className={styles.search}>
         <div className={styles.searchLabel}>Поиск курса</div>
-        <input
-          className={styles.searchInput}
-          placeholder="Например, Python"
-          type="search"
-          value={state.search}
-          onChange={(event) => setState((prev) => ({ ...prev, search: event.target.value }))}
-        />
+        <input className={styles.searchInput} placeholder="Например, Python" type="search" value={search} onChange={(event) => setSearch(event.target.value)} />
       </label>
 
+      {isLoading && <Loading />}
+
       <div className={styles.cards}>
-        {!state.isLoading &&
+        {!isLoading &&
           filteredClasses.map((item) => (
             <div className={styles.card} key={item.id}>
               <div className={styles.cardInfo}>
                 <div className={styles.cardTitle}>{item.name}</div>
                 <div className={styles.cardMeta}>
                   <div>{item.students_count} студентов</div>
-                  <div>Создан {item.created_at}</div>
+                  <div>Создан {formatDateTime(item.created_at)}</div>
                 </div>
               </div>
 
@@ -109,14 +109,19 @@ export default function PublicClassesPage() {
               )}
 
               {!item.is_member && (
-                <button className={styles.primaryButton} type="button" onClick={() => void joinById(item.id)}>
-                  Присоединиться
+                <button
+                  className={styles.primaryButton}
+                  type="button"
+                  onClick={() => void joinById(item.id)}
+                  disabled={submittingIds.has(item.id)}
+                >
+                  {submittingIds.has(item.id) ? "Вступаем..." : "Присоединиться"}
                 </button>
               )}
             </div>
           ))}
 
-        {!state.isLoading && filteredClasses.length === 0 && <div className={styles.emptyMessage}>Тут пока пусто</div>}
+        {!isLoading && filteredClasses.length === 0 && <div className={styles.emptyMessage}>Тут пока пусто</div>}
       </div>
     </div>
   )

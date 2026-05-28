@@ -1,4 +1,4 @@
-import { Api } from "./api"
+﻿import { Api } from "./api"
 import { throwApiResponseError } from "./response"
 import type { Errors } from "../types/api.types"
 
@@ -22,6 +22,13 @@ const CREATE_ANNOUNCEMENT_ERRORS: Errors = {
   network: "Не удалось связаться с сервером",
   403: "Недостаточно прав для создания объявления",
   404: "Курс не найден",
+  422: "Проверьте поля объявления"
+}
+
+const UPDATE_ANNOUNCEMENT_ERRORS: Errors = {
+  default: "Не удалось обновить объявление",
+  403: "Недостаточно прав для редактирования объявления",
+  404: "Объявление не найдено",
   422: "Проверьте поля объявления"
 }
 
@@ -54,6 +61,23 @@ export async function createAnnouncement(
 ): Promise<AnnouncementDto> {
   try {
     const response = await Api.fetchPost(`/api/classes/${classId}/announcements`, body, CREATE_ANNOUNCEMENT_ERRORS)
+    return (await response.json()) as AnnouncementDto
+  } catch (error) {
+    throwApiResponseError(error)
+  }
+}
+
+export async function updateAnnouncement(
+  classId: number,
+  announcementId: number,
+  body: { title?: string; content?: string }
+): Promise<AnnouncementDto> {
+  try {
+    const response = await Api.fetchPatch(
+      `/api/classes/${classId}/announcements/${announcementId}`,
+      body,
+      UPDATE_ANNOUNCEMENT_ERRORS
+    )
     return (await response.json()) as AnnouncementDto
   } catch (error) {
     throwApiResponseError(error)

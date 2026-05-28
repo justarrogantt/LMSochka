@@ -1,4 +1,4 @@
-import {
+﻿import {
   createContext,
   useContext,
   useEffect,
@@ -46,7 +46,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           return
         }
 
-        showToast({ type: "error", message: error.message, offsetBottom: 30 })
+        showToast({ type: "error", message: error.message })
       }
     }
   }
@@ -85,3 +85,4 @@ export function useAuth() {
 
   return value
 }
+

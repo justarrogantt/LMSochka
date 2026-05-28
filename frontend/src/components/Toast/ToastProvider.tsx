@@ -9,7 +9,6 @@ type Toast = {
   message: string
   type?: ToastType
   duration?: number
-  offsetBottom?: number
 }
 
 type ShowToast = (toast: Toast) => void
@@ -21,11 +20,10 @@ export function ToastProvider({ children }: { children: ReactNode }) {
   const [viewportBottom, setViewportBottom] = useState(24)
   const closeTimerRef = useRef<number | null>(null)
 
-  function showToast(nextToast: Toast) {
-    const offsetBottom = nextToast.offsetBottom ?? 24
+function showToast(nextToast: Toast) {
     const duration = nextToast.duration ?? 3000
 
-    setViewportBottom(offsetBottom)
+    setViewportBottom(75)
     setToast(nextToast)
 
     if (closeTimerRef.current) {

@@ -1,14 +1,16 @@
-import { type ReactNode, useEffect, useState } from "react"
+﻿import { type ReactNode, useEffect, useState } from "react"
 import { createPortal } from "react-dom"
 import { useOutletContext } from "react-router-dom"
-import styles from "./ClassAnnouncementsPage.module.css"
 import ActionsIcon from "../../assets/icons/classes/actions.svg?react"
 import CloseIcon from "../../assets/icons/classes/close.svg?react"
+import Loading from "../../components/Loading/Loading"
 import { useToast } from "../../components/Toast/ToastProvider"
 import { useAuth } from "../../contexts/AuthContext"
-import { ApiError, ApiSilentError } from "../../services/api"
-import { createAnnouncement, listAnnouncements, type AnnouncementDto } from "../../services/announcement.api"
+import { ApiSilentError } from "../../services/api"
+import { createAnnouncement, listAnnouncements, updateAnnouncement, type AnnouncementDto } from "../../services/announcement.api"
+import { formatDateTime } from "../../services/helpers"
 import type { ClassLayoutContext } from "../ClassLayout/ClassLayout"
+import styles from "./ClassAnnouncementsPage.module.css"
 
 type AnnouncementCard = {
   id: number
@@ -18,15 +20,9 @@ type AnnouncementCard = {
   content: string
 }
 
-type AnnouncementsState = {
-  items: AnnouncementCard[]
-  isLoading: boolean
-  isCreateModalOpen: boolean
-  isSubmitting: boolean
-  form: {
-    title: string
-    content: string
-  }
+type FormState = {
+  title: string
+  content: string
 }
 
 type ModalShellProps = {
@@ -35,10 +31,11 @@ type ModalShellProps = {
   children: ReactNode
 }
 
+// Базовая обертка модального окна
 function ModalShell({ title, onClose, children }: ModalShellProps) {
   return createPortal(
-    <div className={styles.modalOverlay}>
-      <div className={styles.modal}>
+    <div className={styles.modalOverlay} onClick={onClose}>
+      <div className={styles.modal} onClick={(event) => event.stopPropagation()}>
         <div className={styles.modalHead}>
           <div className={styles.modalTitle}>{title}</div>
           <button className={styles.closeButton} type="button" onClick={onClose} aria-label="Закрыть окно">
@@ -52,12 +49,13 @@ function ModalShell({ title, onClose, children }: ModalShellProps) {
   )
 }
 
+// Маппинг ответа бэка в карточку объявления
 function mapServerAnnouncement(dto: AnnouncementDto): AnnouncementCard {
   return {
     id: dto.id,
     title: dto.title,
     author: dto.author.email,
-    date: "только что",
+    date: formatDateTime(dto.created_at),
     content: dto.content
   }
 }
@@ -66,101 +64,104 @@ export default function ClassAnnouncementsPage() {
   const { classDetail } = useOutletContext<ClassLayoutContext>()
   const { user } = useAuth()
   const showToast = useToast()
-  const [state, setState] = useState<AnnouncementsState>({
-    items: [],
-    isLoading: true,
-    isCreateModalOpen: false,
-    isSubmitting: false,
-    form: {
-      title: "",
-      content: ""
-    }
+
+  // Данные объявлений
+  const [items, setItems] = useState<AnnouncementCard[]>([])
+
+  // Лоадер страницы
+  const [isLoading, setIsLoading] = useState(true)
+
+  // Состояние модалки
+  const [activeModal, setActiveModal] = useState<"create" | "edit" | null>(null)
+  const [editingId, setEditingId] = useState<number | null>(null)
+
+  // Флаг публикации
+  const [isSubmitting, setIsSubmitting] = useState(false)
+
+  // Поля формы
+  const [form, setForm] = useState<FormState>({
+    title: "",
+    content: ""
   })
 
+  // Загрузка объявлений курса
   useEffect(() => {
     async function loadAnnouncements() {
       if (!classDetail?.id) {
-        setState((prev) => ({ ...prev, isLoading: false }))
+        setIsLoading(false)
         return
       }
 
       try {
         const page = await listAnnouncements(classDetail.id)
-        setState((prev) => ({
-          ...prev,
-          items: page.items.map(mapServerAnnouncement),
-          isLoading: false
-        }))
+        setItems(page.items.map(mapServerAnnouncement))
       } catch (error) {
-        setState((prev) => ({ ...prev, isLoading: false }))
         if (error instanceof ApiSilentError) return
-        showToast({
-          type: "error",
-          message: error instanceof ApiError ? error.message : "Не удалось загрузить объявления",
-          offsetBottom: 30
-        })
+        showToast({ type: "error", message: error instanceof Error ? error.message : "Не удалось загрузить объявления" })
+      } finally {
+        setIsLoading(false)
       }
     }
 
     void loadAnnouncements()
-  }, [classDetail?.id])
+  }, [classDetail?.id, showToast])
 
+  // Закрытие модалки создания объявления
   function closeCreateModal() {
-    if (state.isSubmitting) return
-    setState((prev) => ({
-      ...prev,
-      isCreateModalOpen: false,
-      form: {
-        title: "",
-        content: ""
-      }
-    }))
+    if (isSubmitting) return
+    setActiveModal(null)
+    setEditingId(null)
+    setForm({ title: "", content: "" })
   }
 
-  async function submitCreateAnnouncement() {
+  // Открытие модалки создания объявления
+  function openCreateModal() {
+    setForm({ title: "", content: "" })
+    setEditingId(null)
+    setActiveModal("create")
+  }
+
+  // Открытие модалки редактирования объявления
+  function openEditModal(item: AnnouncementCard) {
+    setForm({ title: item.title, content: item.content })
+    setEditingId(item.id)
+    setActiveModal("edit")
+  }
+
+  // Сохранение объявления (создание или редактирование)
+  async function submitAnnouncement() {
     if (!classDetail?.id) return
 
-    const title = state.form.title.trim()
-    const content = state.form.content.trim()
-    if (!title || !content) return
+    const nextTitle = form.title.trim()
+    const nextContent = form.content.trim()
+    if (!nextTitle || !nextContent) return
 
-    const optimisticItem: AnnouncementCard = {
-      id: -Date.now(),
-      title,
-      content,
-      author: user?.email ?? "you@example.com",
-      date: "только что"
-    }
-    const prevItems = state.items
-
-    setState((prev) => ({
-      ...prev,
-      items: [optimisticItem, ...prev.items],
-      isSubmitting: true,
-      isCreateModalOpen: false,
-      form: { title: "", content: "" }
-    }))
+    setIsSubmitting(true)
+    setActiveModal(null)
 
     try {
-      const created = await createAnnouncement(classDetail.id, { title, content })
-      setState((prev) => ({
-        ...prev,
-        items: prev.items.map((item) => (item.id === optimisticItem.id ? mapServerAnnouncement(created) : item)),
-        isSubmitting: false
-      }))
-      showToast({ type: "neutral", message: "Объявление создано", offsetBottom: 30 })
+      if (editingId) {
+        const updated = await updateAnnouncement(classDetail.id, editingId, { title: nextTitle, content: nextContent })
+        const updatedCard = mapServerAnnouncement(updated)
+        setItems((prev) => prev.map((item) => (item.id === editingId ? updatedCard : item)))
+        showToast({ type: "neutral", message: "Объявление обновлено" })
+      } else {
+        const created = await createAnnouncement(classDetail.id, { title: nextTitle, content: nextContent })
+        setItems((prev) => [mapServerAnnouncement(created), ...prev])
+        showToast({ type: "neutral", message: "Объявление создано" })
+      }
+
+      setEditingId(null)
+      setForm({ title: "", content: "" })
     } catch (error) {
-      setState((prev) => ({ ...prev, items: prevItems, isSubmitting: false }))
-      if (error instanceof ApiSilentError) return
-      showToast({
-        type: "error",
-        message: error instanceof ApiError ? error.message : "Не удалось создать объявление",
-        offsetBottom: 30
-      })
+      showToast({ type: "error", message: error instanceof Error ? error.message : "Не удалось сохранить объявление" })
+    } finally {
+      setIsSubmitting(false)
     }
   }
 
-  const canSubmit = state.form.title.trim().length > 0 && state.form.content.trim().length > 0 && !state.isSubmitting
+  const canSubmit = form.title.trim().length > 0 && form.content.trim().length > 0 && !isSubmitting
+  const canManageAnnouncements = classDetail?.user_role !== "student"
 
   return (
     <div className={styles.page}>
@@ -170,20 +171,31 @@ export default function ClassAnnouncementsPage() {
           <div className={styles.text}>Новости и важные сообщения для участников курса.</div>
         </div>
 
-        <button className={styles.primaryButton} type="button" onClick={() => setState((prev) => ({ ...prev, isCreateModalOpen: true }))}>
-          Создать объявление
-        </button>
+        {canManageAnnouncements && (
+          <button className={styles.primaryButton} type="button" onClick={openCreateModal}>
+            Создать объявление
+          </button>
+        )}
       </div>
 
-      {!state.isLoading && (
+      {isLoading && <Loading />}
+
+      {!isLoading && items.length > 0 && (
         <div className={styles.cards}>
-          {state.items.map((item) => (
+          {items.map((item) => (
             <div className={styles.card} key={item.id}>
               <div className={styles.cardHead}>
                 <div className={styles.cardTitle}>{item.title}</div>
-                <button className={styles.iconButton} type="button" aria-label="Действия с объявлением">
-                  <ActionsIcon className={styles.icon} />
-                </button>
+                {canManageAnnouncements && (
+                  <button
+                    className={styles.iconButton}
+                    type="button"
+                    aria-label="Редактировать объявление"
+                    onClick={() => openEditModal(item)}
+                  >
+                    <ActionsIcon className={styles.icon} />
+                  </button>
+                )}
               </div>
 
               <div className={styles.meta}>
@@ -197,15 +209,17 @@ export default function ClassAnnouncementsPage() {
         </div>
       )}
 
-      {state.isCreateModalOpen && (
-        <ModalShell title="Создать объявление" onClose={closeCreateModal}>
+      {!isLoading && items.length === 0 && <div className={styles.emptyMessage}>Объявлений пока нет</div>}
+
+      {canManageAnnouncements && activeModal && (
+        <ModalShell title={activeModal === "create" ? "Создать объявление" : "Редактировать объявление"} onClose={closeCreateModal}>
           <label className={styles.field}>
             <div className={styles.fieldLabel}>Заголовок</div>
             <input
               className={styles.input}
               type="text"
-              value={state.form.title}
-              onChange={(event) => setState((prev) => ({ ...prev, form: { ...prev.form, title: event.target.value } }))}
+              value={form.title}
+              onChange={(event) => setForm((prev) => ({ ...prev, title: event.target.value }))}
               placeholder="Например, Изменение дедлайна"
             />
           </label>
@@ -214,18 +228,18 @@ export default function ClassAnnouncementsPage() {
             <div className={styles.fieldLabel}>Текст объявления</div>
             <textarea
               className={styles.textarea}
-              value={state.form.content}
-              onChange={(event) => setState((prev) => ({ ...prev, form: { ...prev.form, content: event.target.value } }))}
+              value={form.content}
+              onChange={(event) => setForm((prev) => ({ ...prev, content: event.target.value }))}
               placeholder={`Текст от ${user?.email ?? "преподавателя"}`}
             />
           </label>
 
           <div className={styles.modalActions}>
-            <button className={styles.secondaryButton} type="button" onClick={closeCreateModal} disabled={state.isSubmitting}>
+            <button className={styles.secondaryButton} type="button" onClick={closeCreateModal} disabled={isSubmitting}>
               Отмена
             </button>
-            <button className={styles.primaryButton} type="button" onClick={() => void submitCreateAnnouncement()} disabled={!canSubmit}>
-              {state.isSubmitting ? "Публикуем..." : "Опубликовать"}
+            <button className={styles.primaryButton} type="button" onClick={() => void submitAnnouncement()} disabled={!canSubmit}>
+              {isSubmitting ? "Сохраняем..." : activeModal === "create" ? "Опубликовать" : "Сохранить"}
             </button>
           </div>
         </ModalShell>
