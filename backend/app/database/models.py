@@ -87,6 +87,9 @@ class ClassMembersTable(Base):
     # soft delete: запись остаётся в БД, чтобы оценки и сданные решения ушедшего
     # участника не потерялись (нужны для аудита и просмотра в gradebook)
     deleted_at: Mapped[datetime | None] = mapped_column(default=None)
+    # Почему запись помечена deleted_at: 'left' (само-выход — юзер может вернуться)
+    # или 'kicked' (creator выгнал — назад нельзя). NULL у активных участников.
+    removal_reason: Mapped[str | None] = mapped_column(String(16), default=None)
 
 
 class AnnouncementsTable(Base):

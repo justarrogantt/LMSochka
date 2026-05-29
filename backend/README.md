@@ -59,7 +59,7 @@ SECRET_KEY=test-secret-key-that-is-long-enough-32bytes make test
 | DELETE | `/{id}` | `204` | soft delete класса. Только `creator`. |
 | PATCH | `/{id}/members/{userId}/role` | `ClassMembersDTO` | сменить роль на `student`/`teacher`. Только `creator`. Менять `creator` нельзя. Ответ — обновлённая секция участников + counts. |
 | DELETE | `/{id}/members/{userId}` | `ClassMembersDTO` | кикнуть участника (soft delete). Только `creator`. `creator` убрать нельзя. **200 OK** с актуальным списком. |
-| POST | `/{id}/leave` | `{class_id, status}` | самовыход. `student`/`teacher`. `creator` — 403 (только delete класса). **200 OK** с `{class_id, status: "left"}`. |
+| POST | `/{id}/leave` | `{class_id, status}` | самовыход. `student`/`teacher`. `creator` — 403 (только delete класса). **200 OK** с `{class_id, status: "left"}`. После leave можно вернуться обратно (`/join` или `/join-open`) — реактивация как `student`. |
 
 > **Контракт для оптимистичных обновлений на фронте:** все mutation-ручки (`POST`/`PATCH`/`DELETE`, где есть смысл) возвращают тот же DTO, что использует фронт для отрисовки соответствующего экрана. После любой мутации фронту не нужен дополнительный `GET` — он сразу обновляет state. Исключение: `DELETE /classes/{id}` остаётся `204` (класс пропал, обновлять нечего — фронт сам удалит карточку).
 
