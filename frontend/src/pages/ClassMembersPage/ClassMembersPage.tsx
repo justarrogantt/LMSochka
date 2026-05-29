@@ -24,13 +24,14 @@ function getMemberName(member: ClassMemberDto) {
 
 type MemberCardProps = {
   member: ClassMemberDto
+  badgeLabel?: string
   canManage: boolean
   onRoleChange: () => void
   onDelete: () => void
 }
 
 // Карточка участника курса
-function MemberCard({ member, canManage, onRoleChange, onDelete }: MemberCardProps) {
+function MemberCard({ member, badgeLabel, canManage, onRoleChange, onDelete }: MemberCardProps) {
   const name = getMemberName(member)
   return (
     <div className={styles.memberCard}>
@@ -39,7 +40,7 @@ function MemberCard({ member, canManage, onRoleChange, onDelete }: MemberCardPro
         <div className={styles.memberName}>{name}</div>
         <div className={styles.memberEmail}>{member.email}</div>
       </div>
-      <div className={styles.roleBadge}>{roleLabels[member.role]}</div>
+      <div className={styles.roleBadge}>{badgeLabel ?? roleLabels[member.role]}</div>
       {canManage && (
         <>
           <button className={styles.iconButton} type="button" aria-label="Изменить роль участника" onClick={onRoleChange}>
@@ -146,7 +147,7 @@ export default function ClassMembersPage() {
   }
 
   const creators = members.filter((member) => member.role === "creator")
-  const teachers = members.filter((member) => member.role === "teacher")
+  const teachers = members.filter((member) => member.role === "teacher" || member.role === "creator")
   const students = members.filter((member) => member.role === "student")
   const hasMembers = members.length > 0
 
@@ -178,7 +179,8 @@ export default function ClassMembersPage() {
                 <MemberCard
                   key={member.user_id}
                   member={member}
-                  canManage={canManageMembers}
+                  badgeLabel={member.role === "creator" ? "Преподаватель" : undefined}
+                  canManage={canManageMembers && member.role !== "creator"}
                   onRoleChange={() => openRoleModal(member)}
                   onDelete={() => setMemberToDelete(member)}
                 />
