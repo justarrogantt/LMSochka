@@ -1,5 +1,5 @@
 ﻿import { useOutletContext } from "react-router-dom"
-import type { ClassLayoutContext } from "../ClassLayout/ClassLayout"
+import type { ClassLayoutContext } from "../../layouts/ClassLayout/ClassLayout"
 import styles from "./ClassPage.module.css"
 
 export default function ClassPage() {

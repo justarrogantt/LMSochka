@@ -1,13 +1,12 @@
-import { type ReactNode, useEffect, useState } from "react"
-import { createPortal } from "react-dom"
+import { useEffect, useState } from "react"
 import { useNavigate, useOutletContext, useParams } from "react-router-dom"
 import ArrowIcon from "../../assets/icons/classes/arrow.svg?react"
-import CloseIcon from "../../assets/icons/classes/close.svg?react"
 import Loading from "../../components/Loading/Loading"
+import Modal from "../../components/Modal/Modal"
 import { useToast } from "../../components/Toast/ToastProvider"
 import { ApiSilentError } from "../../services/api"
 import { formatDateTime } from "../../services/helpers"
-import type { ClassLayoutContext } from "../ClassLayout/ClassLayout"
+import type { ClassLayoutContext } from "../../layouts/ClassLayout/ClassLayout"
 import {
   getAssignment,
   updateAssignment,
@@ -22,37 +21,6 @@ type FormState = {
   material_url: string
   due_at: string
   max_grade: string
-}
-
-type ModalShellProps = {
-  title: string
-  onClose: () => void
-  children: ReactNode
-  disabled?: boolean
-}
-
-// Базовая обёртка модального окна
-function ModalShell({ title, onClose, children, disabled }: ModalShellProps) {
-  return createPortal(
-    <div className={styles.modalOverlay} onClick={onClose}>
-      <div className={styles.modal} onClick={(e) => e.stopPropagation()}>
-        <div className={styles.modalHead}>
-          <div className={styles.modalTitle}>{title}</div>
-          <button className={styles.closeButton} type="button" onClick={onClose} aria-label="Закрыть окно" disabled={disabled}>
-            <CloseIcon className={styles.closeIcon} />
-          </button>
-        </div>
-        {children}
-      </div>
-    </div>,
-    document.body
-  )
-}
-
-// Конвертация ISO-даты в формат datetime-local для инпута
-function toDatetimeLocal(iso: string | null): string {
-  if (!iso) return ""
-  return iso.slice(0, 16)
 }
 
 export default function AssignmentPage() {
@@ -118,7 +86,7 @@ export default function AssignmentPage() {
       title: assignment.title,
       description: assignment.description,
       material_url: assignment.material_url ?? "",
-      due_at: toDatetimeLocal(assignment.due_at),
+      due_at: assignment.due_at ? assignment.due_at.slice(0, 16) : "",
       max_grade: String(assignment.max_grade)
     }
     setForm(saved)
@@ -241,7 +209,7 @@ export default function AssignmentPage() {
       )}
 
       {canManage && activeModal === "edit" && (
-        <ModalShell title="Редактировать задание" onClose={closeModal} disabled={isSubmitting}>
+        <Modal title="Редактировать задание" onClose={closeModal} disabled={isSubmitting}>
           <label className={styles.field}>
             <div className={styles.fieldLabel}>Название</div>
             <input
@@ -307,11 +275,11 @@ export default function AssignmentPage() {
               {isSubmitting ? "Сохраняем..." : "Сохранить"}
             </button>
           </div>
-        </ModalShell>
+        </Modal>
       )}
 
       {canManage && activeModal === "delete" && (
-        <ModalShell title="Удалить задание" onClose={closeModal} disabled={isSubmitting}>
+        <Modal title="Удалить задание" onClose={closeModal} disabled={isSubmitting}>
           <div className={styles.modalText}>Вы точно хотите удалить задание? Это действие нельзя отменить.</div>
           <div className={styles.modalActions}>
             <button className={styles.secondaryButton} type="button" onClick={closeModal} disabled={isSubmitting}>
@@ -321,7 +289,7 @@ export default function AssignmentPage() {
               {isSubmitting ? "Удаляем..." : "Удалить"}
             </button>
           </div>
-        </ModalShell>
+        </Modal>
       )}
     </div>
   )

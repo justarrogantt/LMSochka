@@ -1,41 +1,70 @@
-﻿import { useEffect, useState } from "react"
+import { useEffect, useState } from "react"
 import { useNavigate } from "react-router-dom"
 import ArrowIcon from "../../assets/icons/classes/arrow.svg?react"
 import Loading from "../../components/Loading/Loading"
 import { useToast } from "../../components/Toast/ToastProvider"
 import { ApiSilentError } from "../../services/api"
-import { getPublicClasses, joinOpenClass, type PublicClassDto } from "./services/publicClasses.api"
 import { formatDateTime, truncate } from "../../services/helpers"
+import { getPublicClasses, joinOpenClass, type PublicClassDto } from "./services/publicClasses.api"
 import styles from "./PublicClassesPage.module.css"
+
+type PublicClassCardProps = {
+  item: PublicClassDto
+  isJoining: boolean
+  onOpen: () => void
+  onJoin: () => void
+}
+
+// Карточка открытого курса в каталоге
+function PublicClassCard({ item, isJoining, onOpen, onJoin }: PublicClassCardProps) {
+  return (
+    <div className={styles.card}>
+      <div className={styles.cardInfo}>
+        <div className={styles.cardTitle}>{truncate(item.name, 60)}</div>
+        <div className={styles.cardMeta}>
+          <div>{item.students_count} студентов</div>
+          <div>Создан {formatDateTime(item.created_at)}</div>
+        </div>
+      </div>
+
+      {item.is_member ? (
+        <button className={styles.secondaryButton} type="button" onClick={onOpen}>
+          Вы уже участник
+        </button>
+      ) : (
+        <button className={styles.primaryButton} type="button" onClick={onJoin} disabled={isJoining}>
+          {isJoining ? "Вступаем..." : "Присоединиться"}
+        </button>
+      )}
+    </div>
+  )
+}
 
 export default function PublicClassesPage() {
   const navigate = useNavigate()
   const showToast = useToast()
 
-  // Данные каталога с бэка
+  // Курсы каталога
   const [classes, setClasses] = useState<PublicClassDto[]>([])
 
   // Лоадер страницы
   const [isLoading, setIsLoading] = useState(true)
 
-  // Поисковая строка
+  // Поисковая строка (фильтрация на клиенте)
   const [search, setSearch] = useState("")
 
   // Id курсов, в которые сейчас выполняется вступление
   const [submittingIds, setSubmittingIds] = useState<Set<number>>(new Set())
 
-  // Загрузка публичных курсов
+  // Загрузка каталога открытых курсов
   useEffect(() => {
     async function loadPublicClasses() {
       try {
-        const nextClasses = await getPublicClasses()
-        setClasses(nextClasses)
+        const data = await getPublicClasses()
+        setClasses(data)
       } catch (error) {
         if (error instanceof ApiSilentError) return
-        showToast({
-          type: "error",
-          message: (error as Error).message
-        })
+        showToast({ type: "error", message: (error as Error).message })
       } finally {
         setIsLoading(false)
       }
@@ -44,9 +73,7 @@ export default function PublicClassesPage() {
     void loadPublicClasses()
   }, [])
 
-  const filteredClasses = classes.filter((item) => item.name.toLowerCase().includes(search.trim().toLowerCase()))
-
-  // Вступление в открытый курс
+  // Вступление в открытый курс (после успеха помечаем карточку как участник)
   async function joinById(classId: number) {
     if (submittingIds.has(classId)) return
     setSubmittingIds((prev) => new Set(prev).add(classId))
@@ -56,10 +83,7 @@ export default function PublicClassesPage() {
       setClasses((prev) => prev.map((item) => (item.id === classId ? { ...item, is_member: true } : item)))
       showToast({ type: "neutral", message: "Вы вступили в курс" })
     } catch (error) {
-      showToast({
-        type: "error",
-        message: (error as Error).message
-      })
+      showToast({ type: "error", message: (error as Error).message })
     } finally {
       setSubmittingIds((prev) => {
         const next = new Set(prev)
@@ -68,6 +92,8 @@ export default function PublicClassesPage() {
       })
     }
   }
+
+  const filteredClasses = classes.filter((item) => item.name.toLowerCase().includes(search.trim().toLowerCase()))
 
   return (
     <div className={styles.page}>
@@ -93,32 +119,13 @@ export default function PublicClassesPage() {
       <div className={styles.cards}>
         {!isLoading &&
           filteredClasses.map((item) => (
-            <div className={styles.card} key={item.id}>
-              <div className={styles.cardInfo}>
-                <div className={styles.cardTitle}>{truncate(item.name, 60)}</div>
-                <div className={styles.cardMeta}>
-                  <div>{item.students_count} студентов</div>
-                  <div>Создан {formatDateTime(item.created_at)}</div>
-                </div>
-              </div>
-
-              {item.is_member && (
-                <button className={styles.secondaryButton} type="button" onClick={() => navigate(`/classes/${item.id}`)}>
-                  Вы уже участник
-                </button>
-              )}
-
-              {!item.is_member && (
-                <button
-                  className={styles.primaryButton}
-                  type="button"
-                  onClick={() => void joinById(item.id)}
-                  disabled={submittingIds.has(item.id)}
-                >
-                  {submittingIds.has(item.id) ? "Вступаем..." : "Присоединиться"}
-                </button>
-              )}
-            </div>
+            <PublicClassCard
+              key={item.id}
+              item={item}
+              isJoining={submittingIds.has(item.id)}
+              onOpen={() => navigate(`/classes/${item.id}`)}
+              onJoin={() => void joinById(item.id)}
+            />
           ))}
 
         {!isLoading && filteredClasses.length === 0 && <div className={styles.emptyMessage}>Тут пока пусто</div>}

@@ -1,15 +1,14 @@
-import { type ReactNode, useEffect, useState } from "react"
-import { createPortal } from "react-dom"
+import { useEffect, useState } from "react"
 import { useNavigate, useOutletContext, useParams } from "react-router-dom"
 import ActionsIcon from "../../assets/icons/classes/actions.svg?react"
-import CloseIcon from "../../assets/icons/classes/close.svg?react"
 import TrashIcon from "../../assets/icons/classes/trash.svg?react"
 import Loading from "../../components/Loading/Loading"
+import Modal from "../../components/Modal/Modal"
 import Pagination from "../../components/Pagination/Pagination"
 import { useToast } from "../../components/Toast/ToastProvider"
 import { ApiSilentError } from "../../services/api"
 import { formatDateTime, truncate } from "../../services/helpers"
-import type { ClassLayoutContext } from "../ClassLayout/ClassLayout"
+import type { ClassLayoutContext } from "../../layouts/ClassLayout/ClassLayout"
 import {
   createAssignment,
   deleteAssignment,
@@ -20,14 +19,6 @@ import {
 import styles from "./AssignmentsPage.module.css"
 
 const LIMIT = 10
-
-type AssignmentCard = {
-  id: number
-  title: string
-  description: string
-  due_at: string | null
-  max_grade: number
-}
 
 type FormState = {
   title: string
@@ -45,40 +36,40 @@ const EMPTY_FORM: FormState = {
   max_grade: "100"
 }
 
-type ModalShellProps = {
-  title: string
-  onClose: () => void
-  children: ReactNode
-  disabled?: boolean
+type AssignmentCardProps = {
+  item: AssignmentDto
+  canManage: boolean
+  onOpen: () => void
+  onEdit: () => void
+  onDelete: () => void
 }
 
-// Базовая обёртка модального окна
-function ModalShell({ title, onClose, children, disabled }: ModalShellProps) {
-  return createPortal(
-    <div className={styles.modalOverlay} onClick={onClose}>
-      <div className={styles.modal} onClick={(e) => e.stopPropagation()}>
-        <div className={styles.modalHead}>
-          <div className={styles.modalTitle}>{title}</div>
-          <button className={styles.closeButton} type="button" onClick={onClose} aria-label="Закрыть окно" disabled={disabled}>
-            <CloseIcon className={styles.closeIcon} />
-          </button>
-        </div>
-        {children}
+// Карточка-превью задания в списке
+function AssignmentCard({ item, canManage, onOpen, onEdit, onDelete }: AssignmentCardProps) {
+  return (
+    <div className={styles.card} onClick={onOpen}>
+      <div className={styles.cardHead}>
+        <div className={styles.cardTitle}>{truncate(item.title, 80)}</div>
+        {canManage && (
+          <div className={styles.cardActions} onClick={(e) => e.stopPropagation()}>
+            <button className={styles.iconButton} type="button" aria-label="Редактировать задание" onClick={onEdit}>
+              <ActionsIcon className={styles.icon} />
+            </button>
+            <button className={styles.iconButton} type="button" aria-label="Удалить задание" onClick={onDelete}>
+              <TrashIcon className={styles.icon} />
+            </button>
+          </div>
+        )}
       </div>
-    </div>,
-    document.body
-  )
-}
 
-// Маппинг ответа бэка в карточку задания
-function mapServerAssignment(dto: AssignmentDto): AssignmentCard {
-  return {
-    id: dto.id,
-    title: dto.title,
-    description: dto.description,
-    due_at: dto.due_at ? formatDateTime(dto.due_at) : null,
-    max_grade: dto.max_grade
-  }
+      {item.description && <div className={styles.content}>{truncate(item.description, 200)}</div>}
+
+      <div className={styles.meta}>
+        {item.due_at && <div>до {formatDateTime(item.due_at)}</div>}
+        <div>до {item.max_grade} баллов</div>
+      </div>
+    </div>
+  )
 }
 
 export default function AssignmentsPage() {
@@ -87,14 +78,29 @@ export default function AssignmentsPage() {
   const navigate = useNavigate()
   const showToast = useToast()
 
-  const [items, setItems] = useState<AssignmentCard[]>([])
+  // Задания текущей страницы
+  const [items, setItems] = useState<AssignmentDto[]>([])
+
+  // Лоадер страницы
   const [isLoading, setIsLoading] = useState(true)
+
+  // Пагинация: текущая страница и общее число заданий
   const [currentPage, setCurrentPage] = useState(1)
   const [totalItems, setTotalItems] = useState(0)
-  const [activeModal, setActiveModal] = useState<"create" | "edit" | null>(null)
+
+  // Id редактируемого задания (null — режим создания)
   const [editingId, setEditingId] = useState<number | null>(null)
+
+  // Открыта ли модалка формы (создание/редактирование)
+  const [isFormOpen, setIsFormOpen] = useState(false)
+
+  // Id задания, выбранного для удаления
   const [deletingId, setDeletingId] = useState<number | null>(null)
+
+  // Флаг отправки запроса
   const [isSubmitting, setIsSubmitting] = useState(false)
+
+  // Поля формы и их исходное состояние (для блокировки кнопки до изменений)
   const [form, setForm] = useState<FormState>(EMPTY_FORM)
   const [initialForm, setInitialForm] = useState<FormState>(EMPTY_FORM)
 
@@ -104,7 +110,7 @@ export default function AssignmentsPage() {
     setIsLoading(true)
     try {
       const data = await listAssignments(classDetail.id, page, LIMIT)
-      setItems(data.items.map(mapServerAssignment))
+      setItems(data.items)
       setTotalItems(data.total)
       setCurrentPage(page)
     } catch (error) {
@@ -120,10 +126,10 @@ export default function AssignmentsPage() {
     void loadPage(1)
   }, [classDetail?.id])
 
-  // Закрытие модалки создания/редактирования
+  // Закрытие модалки формы
   function closeFormModal() {
     if (isSubmitting) return
-    setActiveModal(null)
+    setIsFormOpen(false)
     setEditingId(null)
     setForm(EMPTY_FORM)
     setInitialForm(EMPTY_FORM)
@@ -138,23 +144,24 @@ export default function AssignmentsPage() {
   // Открытие модалки создания
   function openCreateModal() {
     setForm(EMPTY_FORM)
+    setInitialForm(EMPTY_FORM)
     setEditingId(null)
-    setActiveModal("create")
+    setIsFormOpen(true)
   }
 
   // Открытие модалки редактирования
-  function openEditModal(item: AssignmentCard) {
+  function openEditModal(item: AssignmentDto) {
     const saved: FormState = {
       title: item.title,
       description: item.description,
-      material_url: "",
-      due_at: "",
+      material_url: item.material_url ?? "",
+      due_at: item.due_at ? item.due_at.slice(0, 16) : "",
       max_grade: String(item.max_grade)
     }
     setForm(saved)
     setInitialForm(saved)
     setEditingId(item.id)
-    setActiveModal("edit")
+    setIsFormOpen(true)
   }
 
   // Обновление одного поля формы
@@ -162,38 +169,29 @@ export default function AssignmentsPage() {
     setForm((prev) => ({ ...prev, [key]: value }))
   }
 
-  // Сохранение задания (создание или редактирование)
-  async function submitAssignment() {
+  // Собрать тело запроса из полей формы
+  function buildBody() {
+    return {
+      title: form.title.trim(),
+      description: form.description.trim() || undefined,
+      material_url: form.material_url.trim() || null,
+      due_at: form.due_at || null,
+      max_grade: Number(form.max_grade)
+    }
+  }
+
+  // Создание задания — перезагружаем первую страницу (меняется пагинация)
+  async function submitCreate() {
     if (!classDetail?.id) return
 
-    const title = form.title.trim()
-    const maxGrade = Number(form.max_grade)
-    if (!title || maxGrade <= 0) return
-
+    const body = buildBody()
+    closeFormModal()
     setIsSubmitting(true)
 
     try {
-      const body = {
-        title,
-        description: form.description.trim() || undefined,
-        material_url: form.material_url.trim() || null,
-        due_at: form.due_at || null,
-        max_grade: maxGrade
-      }
-
-      if (editingId) {
-        await updateAssignment(classDetail.id, editingId, body)
-        showToast({ type: "neutral", message: "Задание обновлено" })
-        void loadPage(currentPage)
-      } else {
-        await createAssignment(classDetail.id, body)
-        showToast({ type: "neutral", message: "Задание создано" })
-        void loadPage(1)
-      }
-
-      setActiveModal(null)
-      setEditingId(null)
-      setForm(EMPTY_FORM)
+      await createAssignment(classDetail.id, body)
+      showToast({ type: "neutral", message: "Задание создано" })
+      void loadPage(1)
     } catch (error) {
       showToast({ type: "error", message: (error as Error).message })
     } finally {
@@ -201,10 +199,39 @@ export default function AssignmentsPage() {
     }
   }
 
-  // Удаление задания
-  async function submitDeleteAssignment() {
-    if (!classDetail?.id || !deletingId || isSubmitting) return
+  // Редактирование — оптимистично обновляем карточку без перезагрузки, при ошибке откат
+  async function submitEdit() {
+    if (!classDetail?.id || !editingId) return
 
+    const id = editingId
+    const body = buildBody()
+    const prevItems = items
+
+    setItems((prev) =>
+      prev.map((it) =>
+        it.id === id
+          ? { ...it, title: body.title, description: body.description ?? "", material_url: body.material_url, due_at: body.due_at, max_grade: body.max_grade }
+          : it
+      )
+    )
+    closeFormModal()
+    setIsSubmitting(true)
+
+    try {
+      const updated = await updateAssignment(classDetail.id, id, body)
+      setItems((prev) => prev.map((it) => (it.id === updated.id ? updated : it)))
+      showToast({ type: "neutral", message: "Задание обновлено" })
+    } catch (error) {
+      setItems(prevItems)
+      showToast({ type: "error", message: (error as Error).message })
+    } finally {
+      setIsSubmitting(false)
+    }
+  }
+
+  // Удаление задания — перезагружаем страницу (меняется пагинация)
+  async function submitDelete() {
+    if (!classDetail?.id || !deletingId || isSubmitting) return
     setIsSubmitting(true)
 
     try {
@@ -220,15 +247,15 @@ export default function AssignmentsPage() {
     }
   }
 
-  const isFormFilled = form.title.trim().length > 0 && Number(form.max_grade) > 0
-  const isFormChanged =
+  const isFilled = form.title.trim().length > 0 && Number(form.max_grade) > 0
+  const isChanged =
     form.title.trim() !== initialForm.title.trim() ||
     form.description.trim() !== initialForm.description.trim() ||
-    form.material_url.trim() !== "" ||
-    form.due_at !== "" ||
+    form.material_url.trim() !== initialForm.material_url.trim() ||
+    form.due_at !== initialForm.due_at ||
     form.max_grade !== initialForm.max_grade
-  const canSubmit = !isSubmitting && isFormFilled && (editingId === null || isFormChanged)
-  const canManageAssignments = classDetail?.user_role !== "student"
+  const canSubmit = !isSubmitting && isFilled && (editingId === null || isChanged)
+  const canManage = classDetail?.user_role !== "student"
 
   return (
     <div className={styles.page}>
@@ -238,7 +265,7 @@ export default function AssignmentsPage() {
           <div className={styles.text}>Учебные задания и дедлайны курса.</div>
         </div>
 
-        {canManageAssignments && (
+        {canManage && (
           <button className={styles.primaryButton} type="button" onClick={openCreateModal}>
             Создать задание
           </button>
@@ -250,60 +277,24 @@ export default function AssignmentsPage() {
       {!isLoading && items.length > 0 && (
         <div className={styles.cards}>
           {items.map((item) => (
-            <div
-              className={styles.card}
+            <AssignmentCard
               key={item.id}
-              onClick={() => navigate(`/classes/${classId}/assignments/${item.id}`)}
-            >
-              <div className={styles.cardHead}>
-                <div className={styles.cardTitle}>{truncate(item.title, 80)}</div>
-                {canManageAssignments && (
-                  <div className={styles.cardActions} onClick={(e) => e.stopPropagation()}>
-                    <button
-                      className={styles.iconButton}
-                      type="button"
-                      aria-label="Редактировать задание"
-                      onClick={() => openEditModal(item)}
-                    >
-                      <ActionsIcon className={styles.icon} />
-                    </button>
-                    <button
-                      className={styles.iconButton}
-                      type="button"
-                      aria-label="Удалить задание"
-                      onClick={() => setDeletingId(item.id)}
-                    >
-                      <TrashIcon className={styles.icon} />
-                    </button>
-                  </div>
-                )}
-              </div>
-
-              {item.description && (
-                <div className={styles.content}>{truncate(item.description, 200)}</div>
-              )}
-
-              <div className={styles.meta}>
-                {item.due_at && <div>до {item.due_at}</div>}
-                <div>до {item.max_grade} баллов</div>
-              </div>
-            </div>
+              item={item}
+              canManage={canManage}
+              onOpen={() => navigate(`/classes/${classId}/assignments/${item.id}`)}
+              onEdit={() => openEditModal(item)}
+              onDelete={() => setDeletingId(item.id)}
+            />
           ))}
         </div>
       )}
 
-      {!isLoading && items.length === 0 && (
-        <div className={styles.emptyMessage}>Заданий пока нет</div>
-      )}
+      {!isLoading && items.length === 0 && <div className={styles.emptyMessage}>Заданий пока нет</div>}
 
       <Pagination page={currentPage} total={totalItems} limit={LIMIT} onChange={(p) => void loadPage(p)} />
 
-      {canManageAssignments && activeModal && (
-        <ModalShell
-          title={activeModal === "create" ? "Создать задание" : "Редактировать задание"}
-          onClose={closeFormModal}
-          disabled={isSubmitting}
-        >
+      {canManage && isFormOpen && (
+        <Modal title={editingId ? "Редактировать задание" : "Создать задание"} onClose={closeFormModal} disabled={isSubmitting}>
           <label className={styles.field}>
             <div className={styles.fieldLabel}>Название</div>
             <input
@@ -369,25 +360,30 @@ export default function AssignmentsPage() {
             <button className={styles.secondaryButton} type="button" onClick={closeFormModal} disabled={isSubmitting}>
               Отмена
             </button>
-            <button className={styles.primaryButton} type="button" onClick={() => void submitAssignment()} disabled={!canSubmit}>
-              {isSubmitting ? "Сохраняем..." : activeModal === "create" ? "Создать" : "Сохранить"}
+            <button
+              className={styles.primaryButton}
+              type="button"
+              onClick={() => void (editingId ? submitEdit() : submitCreate())}
+              disabled={!canSubmit}
+            >
+              {isSubmitting ? "Сохраняем..." : editingId ? "Сохранить" : "Создать"}
             </button>
           </div>
-        </ModalShell>
+        </Modal>
       )}
 
-      {canManageAssignments && deletingId && (
-        <ModalShell title="Удалить задание" onClose={closeDeleteModal} disabled={isSubmitting}>
+      {canManage && deletingId && (
+        <Modal title="Удалить задание" onClose={closeDeleteModal} disabled={isSubmitting}>
           <div className={styles.modalText}>Вы точно хотите удалить задание? Это действие нельзя отменить.</div>
           <div className={styles.modalActions}>
             <button className={styles.secondaryButton} type="button" onClick={closeDeleteModal} disabled={isSubmitting}>
               Отмена
             </button>
-            <button className={styles.dangerButton} type="button" onClick={() => void submitDeleteAssignment()} disabled={isSubmitting}>
+            <button className={styles.dangerButton} type="button" onClick={() => void submitDelete()} disabled={isSubmitting}>
               {isSubmitting ? "Удаляем..." : "Удалить"}
             </button>
           </div>
-        </ModalShell>
+        </Modal>
       )}
     </div>
   )

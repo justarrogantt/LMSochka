@@ -1,9 +1,8 @@
-import { type ReactNode, useEffect, useState } from "react"
-import { createPortal } from "react-dom"
+import { useEffect, useState } from "react"
 import { useNavigate, useOutletContext, useParams } from "react-router-dom"
 import ArrowIcon from "../../assets/icons/classes/arrow.svg?react"
-import CloseIcon from "../../assets/icons/classes/close.svg?react"
 import Loading from "../../components/Loading/Loading"
+import Modal from "../../components/Modal/Modal"
 import { useToast } from "../../components/Toast/ToastProvider"
 import { ApiSilentError } from "../../services/api"
 import { formatDateTime } from "../../services/helpers"
@@ -13,37 +12,12 @@ import {
   deleteAnnouncement,
   type AnnouncementDto
 } from "../ClassAnnouncementsPage/services/announcement.api"
-import type { ClassLayoutContext } from "../ClassLayout/ClassLayout"
+import type { ClassLayoutContext } from "../../layouts/ClassLayout/ClassLayout"
 import styles from "./AnnouncementPage.module.css"
 
 type FormState = {
   title: string
   content: string
-}
-
-type ModalShellProps = {
-  title: string
-  onClose: () => void
-  children: ReactNode
-  disabled?: boolean
-}
-
-// Базовая обёртка модального окна
-function ModalShell({ title, onClose, children, disabled }: ModalShellProps) {
-  return createPortal(
-    <div className={styles.modalOverlay} onClick={onClose}>
-      <div className={styles.modal} onClick={(e) => e.stopPropagation()}>
-        <div className={styles.modalHead}>
-          <div className={styles.modalTitle}>{title}</div>
-          <button className={styles.closeButton} type="button" onClick={onClose} aria-label="Закрыть окно" disabled={disabled}>
-            <CloseIcon className={styles.closeIcon} />
-          </button>
-        </div>
-        {children}
-      </div>
-    </div>,
-    document.body
-  )
 }
 
 export default function AnnouncementPage() {
@@ -195,7 +169,7 @@ export default function AnnouncementPage() {
       )}
 
       {canManage && activeModal === "edit" && (
-        <ModalShell title="Редактировать объявление" onClose={closeModal} disabled={isSubmitting}>
+        <Modal title="Редактировать объявление" onClose={closeModal} disabled={isSubmitting}>
           <label className={styles.field}>
             <div className={styles.fieldLabel}>Заголовок</div>
             <input
@@ -225,11 +199,11 @@ export default function AnnouncementPage() {
               {isSubmitting ? "Сохраняем..." : "Сохранить"}
             </button>
           </div>
-        </ModalShell>
+        </Modal>
       )}
 
       {canManage && activeModal === "delete" && (
-        <ModalShell title="Удалить объявление" onClose={closeModal} disabled={isSubmitting}>
+        <Modal title="Удалить объявление" onClose={closeModal} disabled={isSubmitting}>
           <div className={styles.modalText}>Вы точно хотите удалить объявление? Это действие нельзя отменить.</div>
           <div className={styles.modalActions}>
             <button className={styles.secondaryButton} type="button" onClick={closeModal} disabled={isSubmitting}>
@@ -239,7 +213,7 @@ export default function AnnouncementPage() {
               {isSubmitting ? "Удаляем..." : "Удалить"}
             </button>
           </div>
-        </ModalShell>
+        </Modal>
       )}
     </div>
   )

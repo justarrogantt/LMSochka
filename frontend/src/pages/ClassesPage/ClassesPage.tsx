@@ -1,11 +1,10 @@
-﻿import { type ReactNode, useEffect, useState } from "react"
-import { createPortal } from "react-dom"
+﻿import { useEffect, useState } from "react"
 import { useNavigate } from "react-router-dom"
-import CloseIcon from "../../assets/icons/classes/close.svg?react"
 import CreateCourseIcon from "../../assets/icons/classes/create-course.svg?react"
 import FindCourseIcon from "../../assets/icons/classes/find-course.svg?react"
 import KeyIcon from "../../assets/icons/classes/key.svg?react"
 import Loading from "../../components/Loading/Loading"
+import Modal from "../../components/Modal/Modal"
 import { useToast } from "../../components/Toast/ToastProvider"
 import { ApiSilentError } from "../../services/api"
 import { truncate } from "../../services/helpers"
@@ -40,13 +39,6 @@ type JoinFormState = {
   joinCode: string
 }
 
-type ModalShellProps = {
-  title: string
-  onClose: () => void
-  children: ReactNode
-  disabled?: boolean
-}
-
 type CreateClassModalProps = {
   newClassName: string
   newClassType: ClassType
@@ -70,28 +62,10 @@ type ClassCardProps = {
   onOpen: (classId: number) => void
 }
 
-// Базовая обертка модального окна
-function ModalShell({ title, onClose, children, disabled }: ModalShellProps) {
-  return createPortal(
-    <div className={styles.modalOverlay} onClick={onClose}>
-      <div className={styles.modal} onClick={(event) => event.stopPropagation()}>
-        <div className={styles.modalHead}>
-          <div className={styles.modalTitle}>{title}</div>
-          <button className={styles.closeButton} type="button" onClick={onClose} aria-label="Закрыть окно" disabled={disabled}>
-            <CloseIcon className={styles.closeIcon} />
-          </button>
-        </div>
-        {children}
-      </div>
-    </div>,
-    document.body
-  )
-}
-
 // Модалка создания курса
 function CreateClassModal({ newClassName, newClassType, isSubmitting, onNameChange, onTypeChange, onSubmit, onClose }: CreateClassModalProps) {
   return (
-    <ModalShell title="Создать курс" onClose={onClose} disabled={isSubmitting}>
+    <Modal title="Создать курс" onClose={onClose} disabled={isSubmitting}>
       <label className={styles.field}>
         <div className={styles.fieldLabel}>Название курса</div>
         <input
@@ -134,14 +108,14 @@ function CreateClassModal({ newClassName, newClassType, isSubmitting, onNameChan
           {isSubmitting ? "Создаем..." : "Создать"}
         </button>
       </div>
-    </ModalShell>
+    </Modal>
   )
 }
 
 // Модалка вступления в курс по коду
 function JoinClassModal({ joinCode, isSubmitting, onCodeChange, onSubmit, onClose }: JoinClassModalProps) {
   return (
-    <ModalShell title="Вступить по коду" onClose={onClose} disabled={isSubmitting}>
+    <Modal title="Вступить по коду" onClose={onClose} disabled={isSubmitting}>
       <label className={styles.field}>
         <div className={styles.fieldLabel}>Код приглашения</div>
         <input
@@ -164,7 +138,7 @@ function JoinClassModal({ joinCode, isSubmitting, onCodeChange, onSubmit, onClos
           {isSubmitting ? "Вступаем..." : "Вступить"}
         </button>
       </div>
-    </ModalShell>
+    </Modal>
   )
 }
 
