@@ -4,6 +4,7 @@ import ArrowIcon from "../../assets/icons/classes/arrow.svg?react"
 import Loading from "../../components/Loading/Loading"
 import Modal from "../../components/Modal/Modal"
 import { useToast } from "../../components/Toast/ToastProvider"
+import copy from "copy-to-clipboard"
 import { ApiSilentError } from "../../services/api"
 import { deleteClass, getClassDetail, leaveClass, updateClass, type ClassDetailDto, type ClassType } from "./services/class.api"
 import styles from "./ClassLayout.module.css"
@@ -76,15 +77,10 @@ export default function ClassLayout() {
   }, [parsedClassId, showToast])
 
   // Копирование кода приглашения в буфер обмена
-  async function copyJoinCode() {
+  function copyJoinCode() {
     if (!classDetail?.join_code) return
-
-    try {
-      await navigator.clipboard.writeText(classDetail.join_code)
-      showToast({ type: "neutral", message: "Код скопирован" })
-    } catch {
-      showToast({ type: "error", message: "Не удалось скопировать код" })
-    }
+    copy(classDetail.join_code)
+    showToast({ type: "neutral", message: "Код скопирован" })
   }
 
   // Открытие модалки редактирования
