@@ -1,9 +1,6 @@
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database.models import (
-    AssignmentsTable,
-    ClassMembersTable,
-    ClassRole,
     GradesTable,
     SubmissionStatus,
     UsersTable,
@@ -19,7 +16,7 @@ from app.schemas.gradebook_schemas import (
 )
 from app.schemas.submission_schemas import SubmissionDTO
 from app.schemas.user_schemas import UserBriefDTO
-from app.services import submission_service
+from app.services import access, submission_service
 from app.services.submission_service import _is_late
 
 
@@ -34,31 +31,6 @@ def _grade_dto(grade: GradesTable, grader: UsersTable) -> GradeDTO:
     )
 
 
-async def _get_assignment_or_404(aid: int, db: AsyncSession) -> AssignmentsTable:
-    asg = await assignment_repo.get_by_id_any(aid, db)
-    if asg is None:
-        raise ServiceError("Задание не найдено", 404)
-    return asg
-
-
-async def _get_member_or_403(
-    class_id: int, user_id: int, db: AsyncSession
-) -> ClassMembersTable:
-    member = await class_repo.get_member(class_id, user_id, db)
-    if member is None:
-        raise ServiceError("Вы не состоите в этом классе", 403)
-    return member
-
-
-async def _ensure_teacher_or_creator(
-    assignment: AssignmentsTable, user_id: int, db: AsyncSession
-) -> ClassMembersTable:
-    member = await _get_member_or_403(assignment.class_id, user_id, db)
-    if member.role not in {ClassRole.TEACHER, ClassRole.CREATOR}:
-        raise ServiceError("Недостаточно прав", 403)
-    return member
-
-
 async def put_grade(
     sid: int,
     body: UpsertGradeRequest,
@@ -70,8 +42,8 @@ async def put_grade(
         raise ServiceError("Решение не найдено", 404)
     sub, _, _ = row
 
-    asg = await _get_assignment_or_404(sub.assignment_id, db)
-    await _ensure_teacher_or_creator(asg, grader.id, db)
+    asg = await access.get_assignment_or_404(sub.assignment_id, db)
+    await access.ensure_teacher_or_creator(asg.class_id, grader.id, db)
 
     if sub.status not in {SubmissionStatus.SUBMITTED, SubmissionStatus.GRADED}:
         raise ServiceError("Оценивать можно только отправленное или уже оценённое решение", 409)
@@ -106,11 +78,11 @@ async def get_grade(
         raise ServiceError("Решение не найдено", 404)
     sub, _, _ = row
 
-    asg = await _get_assignment_or_404(sub.assignment_id, db)
+    asg = await access.get_assignment_or_404(sub.assignment_id, db)
     if user.id != sub.student_id:
-        await _ensure_teacher_or_creator(asg, user.id, db)
+        await access.ensure_teacher_or_creator(asg.class_id, user.id, db)
     else:
-        await _get_member_or_403(asg.class_id, user.id, db)
+        await access.get_class_member_or_403(asg.class_id, user.id, db)
 
     grade_row = await grade_repo.get_with_grader_by_submission(sub.id, db)
     if grade_row is None:
@@ -134,8 +106,8 @@ async def delete_grade(
         raise ServiceError("Решение не найдено", 404)
     sub, student, grade = row
 
-    asg = await _get_assignment_or_404(sub.assignment_id, db)
-    await _ensure_teacher_or_creator(asg, user.id, db)
+    asg = await access.get_assignment_or_404(sub.assignment_id, db)
+    await access.ensure_teacher_or_creator(asg.class_id, user.id, db)
 
     if grade is None:
         raise ServiceError("Оценка не найдена", 404)
@@ -156,12 +128,10 @@ async def delete_grade(
 async def get_gradebook(
     class_id: int, user: UsersTable, db: AsyncSession
 ) -> GradebookDTO:
+    # 404 если класса нет вообще, 403 если есть, но ты не teacher/creator
     if await class_repo.get_by_id(class_id, db) is None:
         raise ServiceError("Класс не найден", 404)
-
-    member = await _get_member_or_403(class_id, user.id, db)
-    if member.role not in {ClassRole.TEACHER, ClassRole.CREATOR}:
-        raise ServiceError("Недостаточно прав", 403)
+    await access.ensure_teacher_or_creator(class_id, user.id, db)
 
     assignments = await assignment_repo.list_for_class_plain(class_id, db)
     students_rows = await class_repo.list_students_for_gradebook(class_id, db)

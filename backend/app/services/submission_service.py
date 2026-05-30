@@ -4,18 +4,17 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database.models import (
     AssignmentsTable,
-    ClassMembersTable,
-    ClassRole,
     GradesTable,
     SubmissionsTable,
     SubmissionStatus,
     UsersTable,
 )
-from app.database.repositories import assignment_repo, class_repo, grade_repo, submission_repo
+from app.database.repositories import grade_repo, submission_repo
 from app.schemas.errors import ServiceError
 from app.schemas.pagination import PageDTO
 from app.schemas.submission_schemas import SaveSubmissionRequest, SubmissionDTO, SubmissionGradeDTO
 from app.schemas.user_schemas import UserBriefDTO
+from app.services import access
 
 
 def _is_late(submission: SubmissionsTable, assignment: AssignmentsTable) -> bool:
@@ -55,48 +54,14 @@ def _dto(
     )
 
 
-async def _get_assignment_or_404(aid: int, db: AsyncSession) -> AssignmentsTable:
-    asg = await assignment_repo.get_by_id_any(aid, db)
-    if asg is None:
-        raise ServiceError("Задание не найдено", 404)
-    return asg
-
-
-async def _get_member_or_403(
-    class_id: int, user_id: int, db: AsyncSession
-) -> ClassMembersTable:
-    member = await class_repo.get_member(class_id, user_id, db)
-    if member is None:
-        raise ServiceError("Вы не состоите в этом классе", 403)
-    return member
-
-
-async def _ensure_student(
-    assignment: AssignmentsTable, user_id: int, db: AsyncSession
-) -> ClassMembersTable:
-    member = await _get_member_or_403(assignment.class_id, user_id, db)
-    if member.role != ClassRole.STUDENT:
-        raise ServiceError("Сдавать решения может только студент", 403)
-    return member
-
-
-async def _ensure_teacher_or_creator(
-    assignment: AssignmentsTable, user_id: int, db: AsyncSession
-) -> ClassMembersTable:
-    member = await _get_member_or_403(assignment.class_id, user_id, db)
-    if member.role not in {ClassRole.TEACHER, ClassRole.CREATOR}:
-        raise ServiceError("Недостаточно прав", 403)
-    return member
-
-
 async def save_my_submission(
     aid: int,
     user: UsersTable,
     body: SaveSubmissionRequest,
     db: AsyncSession,
 ) -> SubmissionDTO:
-    asg = await _get_assignment_or_404(aid, db)
-    await _ensure_student(asg, user.id, db)
+    asg = await access.get_assignment_or_404(aid, db)
+    await access.ensure_student(asg, user.id, db)
 
     sub = await submission_repo.get_by_assignment_and_student(asg.id, user.id, db)
     attachment_url = str(body.attachment_url) if body.attachment_url is not None else None
@@ -129,8 +94,8 @@ async def save_my_submission(
 async def submit_my_submission(
     aid: int, user: UsersTable, db: AsyncSession
 ) -> SubmissionDTO:
-    asg = await _get_assignment_or_404(aid, db)
-    await _ensure_student(asg, user.id, db)
+    asg = await access.get_assignment_or_404(aid, db)
+    await access.ensure_student(asg, user.id, db)
 
     sub = await submission_repo.get_by_assignment_and_student(asg.id, user.id, db)
     if sub is None:
@@ -152,8 +117,8 @@ async def submit_my_submission(
 async def get_my_submission(
     aid: int, user: UsersTable, db: AsyncSession
 ) -> SubmissionDTO | None:
-    asg = await _get_assignment_or_404(aid, db)
-    await _ensure_student(asg, user.id, db)
+    asg = await access.get_assignment_or_404(aid, db)
+    await access.ensure_student(asg, user.id, db)
 
     sub = await submission_repo.get_by_assignment_and_student(asg.id, user.id, db)
     if sub is None:
@@ -171,8 +136,8 @@ async def list_assignment_submissions(
     user: UsersTable,
     db: AsyncSession,
 ) -> PageDTO[SubmissionDTO]:
-    asg = await _get_assignment_or_404(aid, db)
-    await _ensure_teacher_or_creator(asg, user.id, db)
+    asg = await access.get_assignment_or_404(aid, db)
+    await access.ensure_teacher_or_creator(asg.class_id, user.id, db)
 
     rows = await submission_repo.list_for_assignment(asg.id, status, limit, offset, db)
     total = await submission_repo.count_for_assignment(asg.id, status, db)
@@ -192,9 +157,9 @@ async def get_submission(
         raise ServiceError("Решение не найдено", 404)
     sub, student, grade = row
 
-    asg = await _get_assignment_or_404(sub.assignment_id, db)
+    asg = await access.get_assignment_or_404(sub.assignment_id, db)
     if user.id != sub.student_id:
-        await _ensure_teacher_or_creator(asg, user.id, db)
+        await access.ensure_teacher_or_creator(asg.class_id, user.id, db)
 
     return _dto(sub, student, asg, grade)
 
@@ -210,8 +175,8 @@ async def return_submission(
         raise ServiceError("Решение не найдено", 404)
     sub, student, grade = row
 
-    asg = await _get_assignment_or_404(sub.assignment_id, db)
-    await _ensure_teacher_or_creator(asg, user.id, db)
+    asg = await access.get_assignment_or_404(sub.assignment_id, db)
+    await access.ensure_teacher_or_creator(asg.class_id, user.id, db)
 
     if sub.status not in {SubmissionStatus.SUBMITTED, SubmissionStatus.GRADED}:
         raise ServiceError("Возвратить можно только отправленное или оценённое решение", 409)
@@ -221,6 +186,14 @@ async def return_submission(
     sub.submitted_at = None
     sub.return_comment = comment.strip() if comment else None
     db.add(sub)
+
+    # Возврат на доработку = решение переделывают, прежняя оценка больше не действует.
+    # Снимаем её, иначе студент в списке заданий и gradebook видел бы устаревший балл
+    # на решении, которое ещё дорабатывает.
+    if grade is not None:
+        await grade_repo.delete(grade, db)
+        grade = None
+
     await db.commit()
     await db.refresh(sub)
     return _dto(sub, student, asg, grade)

@@ -60,6 +60,7 @@ SECRET_KEY=test-secret-key-that-is-long-enough-32bytes make test
 | PATCH | `/{id}/members/{userId}/role` | `ClassMembersDTO` | сменить роль на `student`/`teacher`. Только `creator`. Менять `creator` нельзя. Ответ — обновлённая секция участников + counts. |
 | DELETE | `/{id}/members/{userId}` | `ClassMembersDTO` | кикнуть участника (soft delete). Только `creator`. `creator` убрать нельзя. **200 OK** с актуальным списком. |
 | POST | `/{id}/leave` | `{class_id, status}` | самовыход. `student`/`teacher`. `creator` — 403 (только delete класса). **200 OK** с `{class_id, status: "left"}`. После leave можно вернуться обратно (`/join` или `/join-open`) — реактивация как `student`. |
+| POST | `/{id}/transfer-ownership` | `ClassDetailDTO` | передать класс другому участнику (`new_owner_id`). Только `creator`. Новый владелец → `creator`, прежний → `teacher`. Ответ — свежий DetailDTO от лица бывшего создателя (прав уже меньше, `join_code` скрыт). 404 если получатель не активный участник, 409 если передаёшь сам себе. |
 
 > **Контракт для оптимистичных обновлений на фронте:** все mutation-ручки (`POST`/`PATCH`/`DELETE`, где есть смысл) возвращают тот же DTO, что использует фронт для отрисовки соответствующего экрана. После любой мутации фронту не нужен дополнительный `GET` — он сразу обновляет state. Исключение: `DELETE /classes/{id}` остаётся `204` (класс пропал, обновлять нечего — фронт сам удалит карточку).
 
@@ -96,7 +97,7 @@ SECRET_KEY=test-secret-key-that-is-long-enough-32bytes make test
 | GET | `/assignments/{aid}/my-submission` | получить своё решение. Только `student`. Если ещё не создавал — `200 null`. |
 | GET | `/assignments/{aid}/submissions?page=&limit=&status=` | список решений по заданию для `teacher/creator`. Фильтр `status` опционален (`draft/submitted/returned/graded`). Сортировка `submitted_at DESC NULLS LAST`. |
 | GET | `/submissions/{sid}` | одно решение: видно владельцу-студенту или `teacher/creator` класса задания. |
-| POST | `/submissions/{sid}/return` | вернуть решение на доработку (`submitted/graded -> returned`) с опц. `comment`. Только `teacher/creator`. |
+| POST | `/submissions/{sid}/return` | вернуть решение на доработку (`submitted/graded -> returned`) с опц. `comment`. Только `teacher/creator`. Если решение было оценено — оценка снимается (на доработке прежний балл неактуален). |
 
 Статусы решения: `draft`, `submitted`, `returned`, `graded`.
 `is_late` считается на бэке: `submitted_at > due_at` (если у задания есть `due_at`).

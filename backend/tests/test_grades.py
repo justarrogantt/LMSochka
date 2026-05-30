@@ -268,3 +268,45 @@ async def test_gradebook_permissions_and_404(client):
         headers=_auth(creator_token),
     )
     assert r.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_return_clears_grade(client):
+    """Возврат оценённого решения на доработку снимает оценку: студент не должен
+    видеть устаревший балл на решении, которое ещё переделывает."""
+    creator_token, teacher_token, student_token, _, class_id = await _setup(client)
+    aid = await _make_assignment(client, creator_token, class_id, max_grade=10)
+    sid = await _create_and_submit(client, student_token, aid)
+
+    # оценили
+    r = await client.put(
+        f"/api/submissions/{sid}/grade",
+        json={"value": 8},
+        headers=_auth(teacher_token),
+    )
+    assert r.status_code == 200
+
+    # вернули на доработку
+    r = await client.post(
+        f"/api/submissions/{sid}/return",
+        json={"comment": "переделай"},
+        headers=_auth(teacher_token),
+    )
+    assert r.status_code == 200
+    body = r.json()
+    assert body["status"] == "returned"
+    assert body["grade"] is None  # оценка снята вместе с возвратом
+
+    # GET оценки теперь 404
+    r = await client.get(
+        f"/api/submissions/{sid}/grade", headers=_auth(teacher_token)
+    )
+    assert r.status_code == 404
+
+    # в списке заданий у студента тоже нет старого балла
+    r = await client.get(
+        f"/api/classes/{class_id}/assignments/{aid}", headers=_auth(student_token)
+    )
+    my = r.json()["my_submission"]
+    assert my["status"] == "returned"
+    assert my["grade"] is None
