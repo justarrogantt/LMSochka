@@ -319,6 +319,32 @@ async def remove_member(
     return await _build_members_dto(class_id, db)
 
 
+async def transfer_ownership(
+    cls: ClassesTable,
+    current_member: ClassMembersTable,
+    new_owner_id: int,
+    db: AsyncSession,
+) -> ClassDetailDTO:
+    """Передать класс другому участнику. Текущий creator становится teacher.
+
+    Возвращает свежий ClassDetailDTO от лица бывшего создателя — фронт сразу
+    увидит, что прав поубавилось (роль teacher, нет can_delete_class/manage_members,
+    скрылся join_code). Зовётся только из-под require_class_role(CREATOR).
+    """
+    if new_owner_id == current_member.user_id:
+        raise ServiceError("Вы уже создатель этого класса", 409)
+
+    new_owner = await class_repo.get_member(cls.id, new_owner_id, db)
+    if new_owner is None:
+        # либо такого участника нет, либо он вышел/кикнут — передать ему нельзя
+        raise ServiceError("Участник не найден в этом классе", 404)
+
+    await class_repo.transfer_ownership(cls, current_member, new_owner, db)
+    await db.refresh(cls)
+    await db.refresh(current_member)
+    return await get_class_detail(cls, current_member, db)
+
+
 async def leave_class(
     cls: ClassesTable, member: ClassMembersTable, db: AsyncSession
 ) -> LeaveClassResponseDTO:

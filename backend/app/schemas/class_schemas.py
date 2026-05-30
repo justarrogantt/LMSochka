@@ -34,6 +34,13 @@ class UpdateMemberRoleRequest(BaseModel):
         return v
 
 
+class TransferOwnershipRequest(BaseModel):
+    """Передача роли создателя другому участнику класса."""
+
+    # id участника, которому отдаём класс. Должен быть активным членом класса.
+    new_owner_id: int = Field(ge=1)
+
+
 class ClassDTO(BaseModel):
     """Базовая карточка класса — отдаём, например, при создании."""
 
