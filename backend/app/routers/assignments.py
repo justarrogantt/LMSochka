@@ -52,10 +52,14 @@ async def list_assignments(
     ),
     db: AsyncSession = Depends(get_db),
 ) -> PageDTO[AssignmentDTO]:
-    """Список заданий класса. Любой участник. Сортировка — свежие сверху."""
-    _, cls, _ = ctx
+    """Список заданий класса. Любой участник. Сортировка — свежие сверху.
+
+    Студент видит в каждом задании своё решение (`my_submission`),
+    teacher/creator — прогресс сдачи (`stats`).
+    """
+    _, cls, member = ctx
     return await assignment_service.list_assignments(
-        cls.id, params.page, params.limit, params.offset, db
+        cls.id, member, params.page, params.limit, params.offset, db
     )
 
 
@@ -67,10 +71,13 @@ async def get_assignment(
     ),
     db: AsyncSession = Depends(get_db),
 ) -> AssignmentDTO:
-    """Одно задание. Любой участник."""
-    _, cls, _ = ctx
+    """Одно задание. Любой участник.
+
+    Студент получает своё решение (`my_submission`), teacher/creator — `stats`.
+    """
+    _, cls, member = ctx
     try:
-        return await assignment_service.get_assignment(cls.id, aid, db)
+        return await assignment_service.get_assignment(cls.id, aid, member, db)
     except ServiceError as e:
         raise HTTPException(status_code=e.status_code, detail=str(e)) from e
 
@@ -84,8 +91,7 @@ async def update_assignment(
     ),
     db: AsyncSession = Depends(get_db),
 ) -> AssignmentDTO:
-    """Редактировать. teacher/creator. Менять max_grade при наличии оценок будет нельзя
-    (заведём проверку, когда появится модуль оценок)."""
+    """Редактировать. teacher/creator. Менять max_grade при наличии оценок нельзя (422)."""
     _, cls, _ = ctx
     try:
         return await assignment_service.update_assignment(cls.id, aid, body, db)
