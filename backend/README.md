@@ -138,7 +138,7 @@ SECRET_KEY=test-secret-key-that-is-long-enough-32bytes make test
 Поля в API используют `snake_case` (`join_code`, `creator_id`, `students_count`). Енумы `type` и `role` — строки в нижнем регистре (`open`/`closed`, `creator`/`teacher`/`student`). См. Pydantic-схемы в `app/schemas/class_schemas.py`.
 
 ## Безопасность
-- Пароли хранятся как bcrypt-хеш (cost=12).
+- Пароли хранятся как bcrypt-хеш (cost=12). Перед bcrypt пароль прехешируется `sha256 → base64`: снимает 72-байтный лимит bcrypt (важно для кириллицы/эмодзи, иначе bcrypt 5.x бросает `ValueError`) и не теряет «хвост» длинного пароля.
 - JWT подписан симметричным ключом из `.env`. Access TTL 15 мин, refresh — 7 дней.
 - Refresh — одноразовый (rotation). При повторном использовании старого refresh все сессии юзера отзываются.
 - В БД хранится только sha256 от refresh-токена.

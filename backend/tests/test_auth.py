@@ -89,3 +89,57 @@ async def test_refresh_rotation(client):
     # новый refresh тоже теперь невалиден (все сессии юзера отозваны)
     r = await client.post("/api/auth/refresh", json={"refresh_token": new_refresh})
     assert r.status_code == 401
+
+
+@pytest.mark.asyncio
+async def test_long_cyrillic_password_register_and_login(client):
+    """Регрессия: пароль > 72 байт (кириллица) не должен ронять регистрацию в 500.
+
+    bcrypt сам по себе на таком пароле бросает ValueError; прехеш sha256+base64
+    в password_service снимает лимит. Проверяем полный цикл register → login.
+    """
+    # 50 кириллических символов = 100 байт UTF-8, заведомо больше 72
+    long_password = "пароль" * 9  # 54 символа, 108 байт
+    email = "longpass@example.com"
+
+    r = await client.post(
+        "/api/auth/register",
+        json={"email": email, "password": long_password},
+    )
+    assert r.status_code == 201, r.text
+
+    # тем же длинным паролем логинимся успешно
+    r = await client.post(
+        "/api/auth/login",
+        json={"email": email, "password": long_password},
+    )
+    assert r.status_code == 200, r.text
+
+    # неверный пароль той же длины — 401, а не 500
+    r = await client.post(
+        "/api/auth/login",
+        json={"email": email, "password": "другой" * 9},
+    )
+    assert r.status_code == 401
+
+
+@pytest.mark.asyncio
+async def test_passwords_differing_after_72_bytes_are_distinct(client):
+    """Прехеш sha256 учитывает весь пароль целиком — два пароля, совпадающие
+    в первых 72 байтах, но разные дальше, не должны считаться одинаковыми
+    (старый bcrypt-в-лоб обрезал бы хвост и пустил бы по обоим)."""
+    base = "a" * 72
+    email = "tail@example.com"
+
+    r = await client.post(
+        "/api/auth/register",
+        json={"email": email, "password": base + "ZZZ"},
+    )
+    assert r.status_code == 201, r.text
+
+    # тот же префикс, другой хвост → доступа быть не должно
+    r = await client.post(
+        "/api/auth/login",
+        json={"email": email, "password": base + "QQQ"},
+    )
+    assert r.status_code == 401
