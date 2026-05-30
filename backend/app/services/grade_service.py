@@ -17,7 +17,9 @@ from app.schemas.gradebook_schemas import (
     GradebookDTO,
     GradebookStudentDTO,
 )
+from app.schemas.submission_schemas import SubmissionDTO
 from app.schemas.user_schemas import UserBriefDTO
+from app.services import submission_service
 from app.services.submission_service import _is_late
 
 
@@ -115,6 +117,40 @@ async def get_grade(
         raise ServiceError("Оценка не найдена", 404)
     grade, grader = grade_row
     return _grade_dto(grade, grader)
+
+
+async def delete_grade(
+    sid: int,
+    user: UsersTable,
+    db: AsyncSession,
+) -> SubmissionDTO:
+    """Снять оценку (исправление ошибки преподавателя).
+
+    Возвращаем решение в статус submitted, чтобы оно снова попало в очередь
+    на проверку. Отдаём обновлённый SubmissionDTO — фронт перерисует карточку.
+    """
+    row = await submission_repo.get_with_student_by_id(sid, db)
+    if row is None:
+        raise ServiceError("Решение не найдено", 404)
+    sub, student, grade = row
+
+    asg = await _get_assignment_or_404(sub.assignment_id, db)
+    await _ensure_teacher_or_creator(asg, user.id, db)
+
+    if grade is None:
+        raise ServiceError("Оценка не найдена", 404)
+
+    await grade_repo.delete(grade, db)
+
+    # если решение было в статусе graded — возвращаем его в submitted (оно ведь сдано).
+    # Если уже returned (вернули на доработку после оценки) — статус не трогаем.
+    if sub.status == SubmissionStatus.GRADED:
+        sub.status = SubmissionStatus.SUBMITTED
+        db.add(sub)
+        await db.commit()
+        await db.refresh(sub)
+
+    return submission_service._dto(sub, student, asg, None)
 
 
 async def get_gradebook(

@@ -49,6 +49,13 @@ async def upsert(
     return grade
 
 
+async def delete(grade: GradesTable, db: AsyncSession) -> None:
+    """Удаляем оценку насовсем (hard delete) — это исправление ошибки преподавателя,
+    хранить «отозванную» оценку смысла нет."""
+    await db.delete(grade)
+    await db.commit()
+
+
 async def has_any_for_assignment(assignment_id: int, db: AsyncSession) -> bool:
     result = await db.execute(
         select(func.count(GradesTable.id))

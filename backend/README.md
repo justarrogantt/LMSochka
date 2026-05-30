@@ -83,6 +83,11 @@ SECRET_KEY=test-secret-key-that-is-long-enough-32bytes make test
 
 > Если по заданию уже есть хотя бы одна оценка, менять `max_grade` нельзя (`422`).
 
+`AssignmentDTO` обогащён под роль смотрящего (одним запросом на всю страницу, без N+1):
+- **студент** получает `my_submission` (`{submission_id, status, submitted_at, is_late, grade}`) — или `null`, если ещё не создавал решение. Хватает для бейджа в списке без отдельного GET по каждому заданию.
+- **teacher/creator** получают `stats` (`{students_total, submitted_count, graded_count}`) — прогресс сдачи. `submitted_count` = статус `submitted`+`graded`, `graded_count` = `graded`.
+- Неприменимое поле всегда `null` (студенту не приходит `stats`, преподавателю — `my_submission`).
+
 ### Submissions (`/api`)
 | Метод | Путь | Описание |
 |---|---|---|
@@ -100,7 +105,8 @@ SECRET_KEY=test-secret-key-that-is-long-enough-32bytes make test
 ### Grades (`/api`)
 | Метод | Путь | Описание |
 |---|---|---|
-| PUT | `/submissions/{sid}/grade` | поставить или обновить оценку (`value`, `comment`). Только `teacher/creator`. Валидация: `0 <= value <= assignment.max_grade`. |
+| PUT | `/submissions/{sid}/grade` | поставить или обновить оценку (`value`, `comment`). Только `teacher/creator`. Валидация: `0 <= value <= assignment.max_grade`. Переводит решение в `graded`. |
+| DELETE | `/submissions/{sid}/grade` | снять оценку (исправление ошибки). Только `teacher/creator`. Решение из `graded` возвращается в `submitted`. Отдаёт обновлённый `SubmissionDTO`. 404 если оценки не было. |
 | GET | `/submissions/{sid}/grade` | получить оценку. Доступ: владелец-студент решения или `teacher/creator` класса. |
 
 ### Gradebook (`/api/classes/{class_id}/gradebook`)
