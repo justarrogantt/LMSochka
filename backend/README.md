@@ -83,6 +83,19 @@ SECRET_KEY=test-secret-key-that-is-long-enough-32bytes make test
 
 > `max_grade` после первой оценки менять будет нельзя — проверка зайдёт вместе с модулем оценок.
 
+### Submissions (`/api`)
+| Метод | Путь | Описание |
+|---|---|---|
+| PUT | `/assignments/{aid}/my-submission` | сохранить черновик решения (`answer_text`, `attachment_url`). Только `student` класса задания. Если решения не было — создаётся `draft`, если было `draft/returned` — обновляется. |
+| POST | `/assignments/{aid}/my-submission/submit` | отправить решение (`draft/returned -> submitted`) и проставить `submitted_at`. Только `student`. |
+| GET | `/assignments/{aid}/my-submission` | получить своё решение. Только `student`. Если ещё не создавал — `200 null`. |
+| GET | `/assignments/{aid}/submissions?page=&limit=&status=` | список решений по заданию для `teacher/creator`. Фильтр `status` опционален (`draft/submitted/returned/graded`). Сортировка `submitted_at DESC NULLS LAST`. |
+| GET | `/submissions/{sid}` | одно решение: видно владельцу-студенту или `teacher/creator` класса задания. |
+| POST | `/submissions/{sid}/return` | вернуть решение на доработку (`submitted/graded -> returned`). Только `teacher/creator`. |
+
+Статусы решения: `draft`, `submitted`, `returned`, `graded`.
+`is_late` считается на бэке: `submitted_at > due_at` (если у задания есть `due_at`).
+
 #### Пагинация
 Растущие списки оборачиваем в `{ items, total, page, limit }` (см. `app/schemas/pagination.py`). Дефолт `page=1, limit=20, max limit=100`. Маленькие списки (`/my`, `/members`) остаются массивом.
 

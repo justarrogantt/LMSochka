@@ -48,6 +48,17 @@ async def get_by_id(
     return result.scalar_one_or_none()
 
 
+async def get_by_id_any(aid: int, db: AsyncSession) -> AssignmentsTable | None:
+    """Задание по id без привязки к class_id. Нужно для /assignments/{aid}/..."""
+    result = await db.execute(
+        select(AssignmentsTable).where(
+            AssignmentsTable.id == aid,
+            _NOT_DELETED,
+        )
+    )
+    return result.scalar_one_or_none()
+
+
 async def get_with_author(
     aid: int, class_id: int, db: AsyncSession
 ) -> tuple[AssignmentsTable, UsersTable] | None:

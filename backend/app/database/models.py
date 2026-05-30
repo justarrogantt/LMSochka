@@ -137,3 +137,36 @@ class AssignmentsTable(Base):
     # soft delete: задание уходит из выдачи, но связанные решения и оценки
     # сохраняются в БД для аудита
     deleted_at: Mapped[datetime | None] = mapped_column(default=None)
+
+
+class SubmissionStatus(enum.Enum):
+    DRAFT = "draft"
+    SUBMITTED = "submitted"
+    RETURNED = "returned"
+    GRADED = "graded"
+
+
+class SubmissionsTable(Base):
+    __tablename__ = "submissions"
+    # Одно актуальное решение на пару (задание, студент). Историю попыток не храним.
+    __table_args__ = (
+        UniqueConstraint("assignment_id", "student_id", name="uq_submission_assignment_student"),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    # удалили задание — его решения через API больше не нужны
+    assignment_id: Mapped[int] = mapped_column(
+        ForeignKey("assignments.id", ondelete="CASCADE")
+    )
+    # RESTRICT: пока есть решения студента, его user-запись не удаляем
+    student_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="RESTRICT"))
+    answer_text: Mapped[str] = mapped_column(Text, default="")
+    # ссылка на файл/документ с решением (Drive/Notion/etc)
+    attachment_url: Mapped[str | None] = mapped_column(String(2048), default=None)
+    status: Mapped[SubmissionStatus] = mapped_column(
+        Enum(SubmissionStatus), default=SubmissionStatus.DRAFT
+    )
+    # проставляется в момент финальной отправки
+    submitted_at: Mapped[datetime | None] = mapped_column(default=None)
+    created_at: Mapped[datetime] = mapped_column(server_default=func.now())
+    updated_at: Mapped[datetime | None] = mapped_column(onupdate=func.now())
