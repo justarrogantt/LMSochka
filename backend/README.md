@@ -54,7 +54,7 @@ SECRET_KEY=test-secret-key-that-is-long-enough-32bytes make test
 | GET | `/{id}/role` | `ClassRoleDTO` | роль текущего юзера в классе (403 если не состоит, 404 если класса нет). |
 | POST | `/join` | `MyClassDTO` | присоединение по коду (для закрытых). Возвращает карточку «Мои курсы». |
 | POST | `/{id}/join-open` | `MyClassDTO` | присоединение к открытому классу. Закрытым — 403. Ответ как у `/join`. |
-| GET | `/public` | `PublicClassDTO[]` | каталог открытых классов с опц. `?search=` (ilike); включает `is_member`. |
+| GET | `/public?page=&limit=&search=` | `PageDTO[PublicClassDTO]` | каталог открытых классов с опц. `?search=` (ilike); включает `is_member`. |
 | PATCH | `/{id}` | `ClassDetailDTO` | редактировать `name`/`type`. `creator`/`teacher`. Переход open→closed генерит код, обратный — убирает. Ответ — свежий DetailDTO с пересчитанными counts/permissions. |
 | DELETE | `/{id}` | `204` | soft delete класса. Только `creator`. |
 | PATCH | `/{id}/members/{userId}/role` | `ClassMembersDTO` | сменить роль на `student`/`teacher`. Только `creator`. Менять `creator` нельзя. Ответ — обновлённая секция участников + counts. |
@@ -81,7 +81,32 @@ SECRET_KEY=test-secret-key-that-is-long-enough-32bytes make test
 | PATCH | `/{aid}` | редактировать `title`/`description`/`material_url`/`due_at`/`max_grade`. `teacher`/`creator`. `material_url=null` и `due_at=null` сбрасывают поле. |
 | DELETE | `/{aid}` | soft delete. `teacher`/`creator`. Решения и оценки остаются в БД для аудита. |
 
-> `max_grade` после первой оценки менять будет нельзя — проверка зайдёт вместе с модулем оценок.
+> Если по заданию уже есть хотя бы одна оценка, менять `max_grade` нельзя (`422`).
+
+### Submissions (`/api`)
+| Метод | Путь | Описание |
+|---|---|---|
+| PUT | `/assignments/{aid}/my-submission` | сохранить черновик решения (`answer_text`, `attachment_url`). Только `student` класса задания. Если решения не было — создаётся `draft`, если было `draft/returned` — обновляется. |
+| POST | `/assignments/{aid}/my-submission/submit` | отправить решение (`draft/returned -> submitted`) и проставить `submitted_at`. Только `student`. |
+| GET | `/assignments/{aid}/my-submission` | получить своё решение. Только `student`. Если ещё не создавал — `200 null`. |
+| GET | `/assignments/{aid}/submissions?page=&limit=&status=` | список решений по заданию для `teacher/creator`. Фильтр `status` опционален (`draft/submitted/returned/graded`). Сортировка `submitted_at DESC NULLS LAST`. |
+| GET | `/submissions/{sid}` | одно решение: видно владельцу-студенту или `teacher/creator` класса задания. |
+| POST | `/submissions/{sid}/return` | вернуть решение на доработку (`submitted/graded -> returned`) с опц. `comment`. Только `teacher/creator`. |
+
+Статусы решения: `draft`, `submitted`, `returned`, `graded`.
+`is_late` считается на бэке: `submitted_at > due_at` (если у задания есть `due_at`).
+В `SubmissionDTO` есть `grade` (если оценка уже выставлена) и `return_comment` (если вернули на доработку с комментарием).
+
+### Grades (`/api`)
+| Метод | Путь | Описание |
+|---|---|---|
+| PUT | `/submissions/{sid}/grade` | поставить или обновить оценку (`value`, `comment`). Только `teacher/creator`. Валидация: `0 <= value <= assignment.max_grade`. |
+| GET | `/submissions/{sid}/grade` | получить оценку. Доступ: владелец-студент решения или `teacher/creator` класса. |
+
+### Gradebook (`/api/classes/{class_id}/gradebook`)
+| Метод | Путь | Описание |
+|---|---|---|
+| GET | `/api/classes/{class_id}/gradebook` | сводная таблица по классу: `assignments`, `students` (включая `is_active=false` ушедших), `cells` со статусами/баллами/late-флагом. Только `teacher/creator`. |
 
 #### Пагинация
 Растущие списки оборачиваем в `{ items, total, page, limit }` (см. `app/schemas/pagination.py`). Дефолт `page=1, limit=20, max limit=100`. Маленькие списки (`/my`, `/members`) остаются массивом.

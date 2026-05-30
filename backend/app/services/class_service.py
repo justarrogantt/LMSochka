@@ -21,6 +21,7 @@ from app.schemas.class_schemas import (
     PublicClassDTO,
 )
 from app.schemas.errors import ServiceError
+from app.schemas.pagination import PageDTO
 from app.services.permissions_service import build_permissions
 
 _CODE_ALPHABET = string.ascii_uppercase + string.digits
@@ -166,11 +167,17 @@ async def list_class_members(class_id: int, db: AsyncSession) -> ClassMembersDTO
 
 
 async def list_public_classes(
-    search: str | None, user_id: int, db: AsyncSession
-) -> list[PublicClassDTO]:
-    classes = await class_repo.list_public(search, db)
+    search: str | None,
+    user_id: int,
+    page: int,
+    limit: int,
+    offset: int,
+    db: AsyncSession,
+) -> PageDTO[PublicClassDTO]:
+    classes = await class_repo.list_public(search, limit, offset, db)
+    total = await class_repo.count_public(search, db)
     if not classes:
-        return []
+        return PageDTO[PublicClassDTO](items=[], total=total, page=page, limit=limit)
 
     # одним запросом узнаём в каких из найденных классов юзер уже участник
     my_ids = await class_repo.get_member_class_ids(
@@ -189,7 +196,7 @@ async def list_public_classes(
                 is_member=c.id in my_ids,
             )
         )
-    return result
+    return PageDTO[PublicClassDTO](items=result, total=total, page=page, limit=limit)
 
 
 async def _join(

@@ -290,7 +290,9 @@ async def test_public_classes_and_search(client):
     student_token = await _register(client, "student@example.com")
     r = await client.get("/api/classes/public", headers=_auth(student_token))
     assert r.status_code == 200
-    names = sorted(c["name"] for c in r.json())
+    body = r.json()
+    assert body["total"] == 3
+    names = sorted(c["name"] for c in body["items"])
     assert names == ["Math basics", "Python advanced", "Python intro"]
 
     # поиск
@@ -298,7 +300,7 @@ async def test_public_classes_and_search(client):
         "/api/classes/public?search=python", headers=_auth(student_token)
     )
     assert r.status_code == 200
-    found = r.json()
+    found = r.json()["items"]
     assert len(found) == 2
     assert all("Python" in c["name"] for c in found)
     assert all(c["is_member"] is False for c in found)
@@ -311,7 +313,7 @@ async def test_public_classes_and_search(client):
     r = await client.get(
         "/api/classes/public?search=python", headers=_auth(student_token)
     )
-    by_id = {c["id"]: c for c in r.json()}
+    by_id = {c["id"]: c for c in r.json()["items"]}
     assert by_id[class_id]["is_member"] is True
 
 

@@ -193,7 +193,7 @@ async def count_by_role(class_id: int, db: AsyncSession) -> dict[ClassRole, int]
 
 
 async def list_public(
-    search: str | None, db: AsyncSession
+    search: str | None, limit: int, offset: int, db: AsyncSession
 ) -> list[ClassesTable]:
     """Открытые классы с опциональным поиском по name (case-insensitive подстрока)."""
     query = select(ClassesTable).where(
@@ -201,8 +201,22 @@ async def list_public(
     )
     if search:
         query = query.where(ClassesTable.name.ilike(f"%{search.strip()}%"))
-    result = await db.execute(query.order_by(ClassesTable.created_at.desc()))
+    result = await db.execute(
+        query.order_by(ClassesTable.created_at.desc(), ClassesTable.id.desc())
+        .limit(limit)
+        .offset(offset)
+    )
     return list(result.scalars().all())
+
+
+async def count_public(search: str | None, db: AsyncSession) -> int:
+    query = select(func.count(ClassesTable.id)).where(
+        ClassesTable.type == ClassType.OPEN, _NOT_DELETED
+    )
+    if search:
+        query = query.where(ClassesTable.name.ilike(f"%{search.strip()}%"))
+    result = await db.execute(query)
+    return int(result.scalar_one())
 
 
 async def get_member_class_ids(
@@ -219,6 +233,27 @@ async def get_member_class_ids(
         )
     )
     return set(result.scalars().all())
+
+
+async def list_students_for_gradebook(
+    class_id: int, db: AsyncSession
+) -> list[tuple[UsersTable, ClassMembersTable]]:
+    """Студенты класса для gradebook, включая неактивных (left/kicked)."""
+    result = await db.execute(
+        select(UsersTable, ClassMembersTable)
+        .join(ClassMembersTable, ClassMembersTable.user_id == UsersTable.id)
+        .where(
+            ClassMembersTable.class_id == class_id,
+            ClassMembersTable.role == ClassRole.STUDENT,
+        )
+        .order_by(
+            # Сначала активные, потом выбывшие.
+            ClassMembersTable.deleted_at.is_not(None),
+            ClassMembersTable.joined_at,
+            UsersTable.id,
+        )
+    )
+    return [(u, m) for u, m in result.all()]
 
 
 async def soft_delete(cls: ClassesTable, db: AsyncSession) -> None:

@@ -48,6 +48,17 @@ async def get_by_id(
     return result.scalar_one_or_none()
 
 
+async def get_by_id_any(aid: int, db: AsyncSession) -> AssignmentsTable | None:
+    """Задание по id без привязки к class_id. Нужно для /assignments/{aid}/..."""
+    result = await db.execute(
+        select(AssignmentsTable).where(
+            AssignmentsTable.id == aid,
+            _NOT_DELETED,
+        )
+    )
+    return result.scalar_one_or_none()
+
+
 async def get_with_author(
     aid: int, class_id: int, db: AsyncSession
 ) -> tuple[AssignmentsTable, UsersTable] | None:
@@ -78,6 +89,18 @@ async def list_for_class(
         .offset(offset)
     )
     return [(a, u) for a, u in result.all()]
+
+
+async def list_for_class_plain(
+    class_id: int, db: AsyncSession
+) -> list[AssignmentsTable]:
+    """Список заданий класса без join-ов для gradebook."""
+    result = await db.execute(
+        select(AssignmentsTable)
+        .where(AssignmentsTable.class_id == class_id, _NOT_DELETED)
+        .order_by(AssignmentsTable.created_at.asc(), AssignmentsTable.id.asc())
+    )
+    return list(result.scalars().all())
 
 
 async def count_for_class(class_id: int, db: AsyncSession) -> int:

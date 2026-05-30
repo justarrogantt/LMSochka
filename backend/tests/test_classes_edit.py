@@ -133,7 +133,7 @@ async def test_delete_by_creator_soft(client):
     assert r.json() == []
 
     r = await client.get("/api/classes/public", headers=_auth(token))
-    assert r.json() == []
+    assert r.json()["items"] == []
 
 
 @pytest.mark.asyncio
