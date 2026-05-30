@@ -17,6 +17,7 @@ from app.schemas.class_schemas import (
     UpdateMemberRoleRequest,
 )
 from app.schemas.errors import ServiceError
+from app.schemas.pagination import PageDTO, PageParams
 from app.services import class_service
 
 classes_router = APIRouter(prefix="/classes", tags=["Classes"])
@@ -52,13 +53,16 @@ async def my_classes(
 
 @classes_router.get("/public")
 async def public_classes(
+    params: PageParams = Depends(),
     search: str | None = Query(default=None, max_length=100),
     context: tuple[UsersTable, str] = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
-) -> list[PublicClassDTO]:
+) -> PageDTO[PublicClassDTO]:
     """Каталог открытых классов с опциональным поиском по названию."""
     user, _ = context
-    return await class_service.list_public_classes(search, user.id, db)
+    return await class_service.list_public_classes(
+        search, user.id, params.page, params.limit, params.offset, db
+    )
 
 
 @classes_router.post("/join", status_code=201)

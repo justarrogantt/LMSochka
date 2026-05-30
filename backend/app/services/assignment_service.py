@@ -3,7 +3,7 @@ from datetime import datetime
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database.models import AssignmentsTable, UsersTable
-from app.database.repositories import assignment_repo
+from app.database.repositories import assignment_repo, grade_repo
 from app.schemas.assignment_schemas import (
     AssignmentDTO,
     UpdateAssignmentRequest,
@@ -94,9 +94,13 @@ async def update_assignment(
     material_url_provided = "material_url" in fields_set
     due_at_provided = "due_at" in fields_set
 
-    # TODO(grades): когда появится модуль оценок, добавить проверку:
-    # если max_grade пришёл и для задания уже есть хотя бы одна Grade — отдать 422
-    # «нельзя менять max_grade когда уже есть оценки» (см. ТЗ).
+    if body.max_grade is not None and body.max_grade != asg.max_grade:
+        has_grades = await grade_repo.has_any_for_assignment(asg.id, db)
+        if has_grades:
+            raise ServiceError(
+                "Нельзя менять max_grade: по этому заданию уже выставлены оценки",
+                422,
+            )
 
     asg = await assignment_repo.update(
         asg,

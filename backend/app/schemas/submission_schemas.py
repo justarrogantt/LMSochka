@@ -22,6 +22,7 @@ class SubmissionGradeDTO(BaseModel):
     value: float
     comment: str | None
     graded_at: datetime
+    updated_at: datetime | None
 
 
 class SubmissionDTO(BaseModel):
@@ -31,6 +32,7 @@ class SubmissionDTO(BaseModel):
     answer_text: str
     attachment_url: str | None
     status: SubmissionStatus
+    return_comment: str | None = None
     submitted_at: datetime | None
     is_late: bool
     grade: SubmissionGradeDTO | None = None

@@ -6,14 +6,15 @@ from app.database.models import (
     AssignmentsTable,
     ClassMembersTable,
     ClassRole,
+    GradesTable,
     SubmissionsTable,
     SubmissionStatus,
     UsersTable,
 )
-from app.database.repositories import assignment_repo, class_repo, submission_repo
+from app.database.repositories import assignment_repo, class_repo, grade_repo, submission_repo
 from app.schemas.errors import ServiceError
 from app.schemas.pagination import PageDTO
-from app.schemas.submission_schemas import SaveSubmissionRequest, SubmissionDTO
+from app.schemas.submission_schemas import SaveSubmissionRequest, SubmissionDTO, SubmissionGradeDTO
 from app.schemas.user_schemas import UserBriefDTO
 
 
@@ -24,9 +25,11 @@ def _is_late(submission: SubmissionsTable, assignment: AssignmentsTable) -> bool
 
 
 def _dto(
-    submission: SubmissionsTable, student: UsersTable, assignment: AssignmentsTable
+    submission: SubmissionsTable,
+    student: UsersTable,
+    assignment: AssignmentsTable,
+    grade: GradesTable | None,
 ) -> SubmissionDTO:
-    # TODO(grades): подтягивать grade из grade_repo и прокидывать в поле grade.
     return SubmissionDTO(
         id=submission.id,
         assignment_id=submission.assignment_id,
@@ -34,9 +37,19 @@ def _dto(
         answer_text=submission.answer_text,
         attachment_url=submission.attachment_url,
         status=submission.status,
+        return_comment=submission.return_comment,
         submitted_at=submission.submitted_at,
         is_late=_is_late(submission, assignment),
-        grade=None,
+        grade=(
+            SubmissionGradeDTO(
+                value=grade.value,
+                comment=grade.comment,
+                graded_at=grade.graded_at,
+                updated_at=grade.updated_at,
+            )
+            if grade is not None
+            else None
+        ),
         created_at=submission.created_at,
         updated_at=submission.updated_at,
     )
@@ -96,6 +109,7 @@ async def save_my_submission(
             attachment_url=attachment_url,
             db=db,
         )
+        grade = None
     else:
         if sub.status in {SubmissionStatus.SUBMITTED, SubmissionStatus.GRADED}:
             raise ServiceError(
@@ -105,10 +119,11 @@ async def save_my_submission(
         sub.answer_text = body.answer_text
         sub.attachment_url = attachment_url
         db.add(sub)
+        grade = await grade_repo.get_by_submission(sub.id, db)
 
     await db.commit()
     await db.refresh(sub)
-    return _dto(sub, user, asg)
+    return _dto(sub, user, asg, grade)
 
 
 async def submit_my_submission(
@@ -125,10 +140,13 @@ async def submit_my_submission(
 
     sub.status = SubmissionStatus.SUBMITTED
     sub.submitted_at = datetime.now(UTC)
+    # После повторной отправки очищаем предыдущий комментарий на возврат.
+    sub.return_comment = None
     db.add(sub)
     await db.commit()
     await db.refresh(sub)
-    return _dto(sub, user, asg)
+    grade = await grade_repo.get_by_submission(sub.id, db)
+    return _dto(sub, user, asg, grade)
 
 
 async def get_my_submission(
@@ -140,7 +158,8 @@ async def get_my_submission(
     sub = await submission_repo.get_by_assignment_and_student(asg.id, user.id, db)
     if sub is None:
         return None
-    return _dto(sub, user, asg)
+    grade = await grade_repo.get_by_submission(sub.id, db)
+    return _dto(sub, user, asg, grade)
 
 
 async def list_assignment_submissions(
@@ -158,7 +177,7 @@ async def list_assignment_submissions(
     rows = await submission_repo.list_for_assignment(asg.id, status, limit, offset, db)
     total = await submission_repo.count_for_assignment(asg.id, status, db)
     return PageDTO[SubmissionDTO](
-        items=[_dto(sub, student, asg) for sub, student in rows],
+        items=[_dto(sub, student, asg, grade) for sub, student, grade in rows],
         total=total,
         page=page,
         limit=limit,
@@ -171,13 +190,13 @@ async def get_submission(
     row = await submission_repo.get_with_student_by_id(sid, db)
     if row is None:
         raise ServiceError("Решение не найдено", 404)
-    sub, student = row
+    sub, student, grade = row
 
     asg = await _get_assignment_or_404(sub.assignment_id, db)
     if user.id != sub.student_id:
         await _ensure_teacher_or_creator(asg, user.id, db)
 
-    return _dto(sub, student, asg)
+    return _dto(sub, student, asg, grade)
 
 
 async def return_submission(
@@ -189,7 +208,7 @@ async def return_submission(
     row = await submission_repo.get_with_student_by_id(sid, db)
     if row is None:
         raise ServiceError("Решение не найдено", 404)
-    sub, student = row
+    sub, student, grade = row
 
     asg = await _get_assignment_or_404(sub.assignment_id, db)
     await _ensure_teacher_or_creator(asg, user.id, db)
@@ -200,9 +219,8 @@ async def return_submission(
     sub.status = SubmissionStatus.RETURNED
     # После возврата студент дорабатывает заново, старая метка отправки больше неактуальна.
     sub.submitted_at = None
-    # TODO(grades): когда появится grades, добавлять системный комментарий о возврате.
-    _ = comment
+    sub.return_comment = comment.strip() if comment else None
     db.add(sub)
     await db.commit()
     await db.refresh(sub)
-    return _dto(sub, student, asg)
+    return _dto(sub, student, asg, grade)

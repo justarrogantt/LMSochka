@@ -91,6 +91,18 @@ async def list_for_class(
     return [(a, u) for a, u in result.all()]
 
 
+async def list_for_class_plain(
+    class_id: int, db: AsyncSession
+) -> list[AssignmentsTable]:
+    """Список заданий класса без join-ов для gradebook."""
+    result = await db.execute(
+        select(AssignmentsTable)
+        .where(AssignmentsTable.class_id == class_id, _NOT_DELETED)
+        .order_by(AssignmentsTable.created_at.asc(), AssignmentsTable.id.asc())
+    )
+    return list(result.scalars().all())
+
+
 async def count_for_class(class_id: int, db: AsyncSession) -> int:
     """Total для PageDTO. Отдельным запросом — count и фетч не на одном узле."""
     result = await db.execute(

@@ -166,7 +166,28 @@ class SubmissionsTable(Base):
     status: Mapped[SubmissionStatus] = mapped_column(
         Enum(SubmissionStatus), default=SubmissionStatus.DRAFT
     )
+    # Комментарий преподавателя при возврате на доработку.
+    return_comment: Mapped[str | None] = mapped_column(Text, default=None)
     # проставляется в момент финальной отправки
     submitted_at: Mapped[datetime | None] = mapped_column(default=None)
     created_at: Mapped[datetime] = mapped_column(server_default=func.now())
+    updated_at: Mapped[datetime | None] = mapped_column(onupdate=func.now())
+
+
+class GradesTable(Base):
+    __tablename__ = "grades"
+    # Одна оценка на одно решение. Обновления переписывают запись.
+    __table_args__ = (UniqueConstraint("submission_id", name="uq_grade_submission"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    submission_id: Mapped[int] = mapped_column(
+        ForeignKey("submissions.id", ondelete="CASCADE")
+    )
+    # RESTRICT: пока есть выставленные оценки, удалять юзера-оценщика нельзя
+    graded_by_user_id: Mapped[int] = mapped_column(
+        ForeignKey("users.id", ondelete="RESTRICT")
+    )
+    value: Mapped[float] = mapped_column(Float)
+    comment: Mapped[str | None] = mapped_column(Text, default=None)
+    graded_at: Mapped[datetime] = mapped_column(server_default=func.now())
     updated_at: Mapped[datetime | None] = mapped_column(onupdate=func.now())

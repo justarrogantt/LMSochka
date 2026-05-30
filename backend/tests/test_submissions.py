@@ -317,6 +317,7 @@ async def test_teacher_can_return_submitted_submission(client):
     body = r.json()
     assert body["status"] == "returned"
     assert body["submitted_at"] is None
+    assert body["return_comment"] == "Доработай решение"
 
 
 @pytest.mark.asyncio
