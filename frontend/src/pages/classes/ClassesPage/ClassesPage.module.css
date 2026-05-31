@@ -85,9 +85,8 @@
 
 .cards {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(300px, 380px));
+  grid-template-columns: repeat(3, 1fr);
   gap: 16px;
-  justify-content: start;
 }
 
 .card {
