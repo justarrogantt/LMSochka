@@ -1,21 +1,38 @@
+import { z } from "zod"
 import { Api } from "../../../../services/api"
-import { throwApiResponseError } from "../../../../services/response"
+import { parseApiResponse, throwApiResponseError } from "../../../../services/response"
 import type { Errors, PageDto } from "../../../../types/api.types"
 
-export type AnnouncementAuthor = {
-  id: number
-  email: string
+// Обёртка пагинации для списка объявлений.
+function createPageSchema<T extends z.ZodType>(itemSchema: T) {
+  return z.object({
+    items: z.array(itemSchema),
+    total: z.number(),
+    page: z.number(),
+    limit: z.number()
+  }).strip()
 }
 
-export type AnnouncementDto = {
-  id: number
-  class_id: number
-  title: string
-  content: string
-  author: AnnouncementAuthor
-  created_at: string
-  updated_at: string
-}
+// Краткая карточка автора объявления.
+const UserBriefSchema = z.object({
+  id: z.number(),
+  email: z.string().email(),
+  first_name: z.string().nullable(),
+  last_name: z.string().nullable()
+}).strip()
+
+// Объявление курса из API.
+const AnnouncementSchema = z.object({
+  id: z.number(),
+  class_id: z.number(),
+  title: z.string(),
+  content: z.string(),
+  author: UserBriefSchema,
+  created_at: z.string(),
+  updated_at: z.string().nullable()
+}).strip()
+
+export type AnnouncementDto = z.infer<typeof AnnouncementSchema>
 
 const GET_ANNOUNCEMENT_ERRORS: Errors = {
   default: "Не удалось загрузить объявление",
@@ -47,13 +64,16 @@ const DELETE_ANNOUNCEMENT_ERRORS: Errors = {
   404: "Объявление не найдено"
 }
 
+// Пагинированный ответ списка объявлений.
+const AnnouncementsPageSchema = createPageSchema(AnnouncementSchema)
+
 export async function getAnnouncement(classId: number, announcementId: number): Promise<AnnouncementDto> {
   try {
     const response = await Api.fetchGet(
       `/api/classes/${classId}/announcements/${announcementId}`,
       GET_ANNOUNCEMENT_ERRORS
     )
-    return (await response.json()) as AnnouncementDto
+    return await parseApiResponse(response, AnnouncementSchema)
   } catch (error) {
     throwApiResponseError(error)
   }
@@ -65,7 +85,7 @@ export async function listAnnouncements(classId: number, page: number = 1, limit
       `/api/classes/${classId}/announcements?page=${page}&limit=${limit}`,
       LIST_ANNOUNCEMENTS_ERRORS
     )
-    return (await response.json()) as PageDto<AnnouncementDto>
+    return await parseApiResponse(response, AnnouncementsPageSchema)
   } catch (error) {
     throwApiResponseError(error)
   }
@@ -77,7 +97,7 @@ export async function createAnnouncement(
 ): Promise<AnnouncementDto> {
   try {
     const response = await Api.fetchPost(`/api/classes/${classId}/announcements`, body, CREATE_ANNOUNCEMENT_ERRORS)
-    return (await response.json()) as AnnouncementDto
+    return await parseApiResponse(response, AnnouncementSchema)
   } catch (error) {
     throwApiResponseError(error)
   }
@@ -94,7 +114,7 @@ export async function updateAnnouncement(
       body,
       UPDATE_ANNOUNCEMENT_ERRORS
     )
-    return (await response.json()) as AnnouncementDto
+    return await parseApiResponse(response, AnnouncementSchema)
   } catch (error) {
     throwApiResponseError(error)
   }

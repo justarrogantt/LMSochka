@@ -1,8 +1,19 @@
+import { z } from "zod"
 import { Api } from "./api"
 import { parseApiResponse, throwApiResponseError } from "./response"
-import { UserSchema } from "../schemas/auth.schema"
-import type { AuthUser } from "../schemas/auth.schema"
 import type { Errors } from "../types/api.types"
+
+// Текущий пользователь, которого отдаёт /auth/me.
+const UserSchema = z.object({
+  id: z.number(),
+  email: z.string().email(),
+  first_name: z.string().nullable(),
+  last_name: z.string().nullable(),
+  created_at: z.string(),
+  updated_at: z.string().nullable()
+}).strip()
+
+export type AuthUser = z.infer<typeof UserSchema>
 
 const ME_ERRORS: Errors = {
   default: "Не удалось получить данные пользователя",

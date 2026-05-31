@@ -12,7 +12,7 @@ import { useToast } from "../components/Toast/ToastProvider"
 import { useDelayedLoading } from "../hooks/useDelayedLoading"
 import { API_UNAUTHORIZED_EVENT, ApiError } from "../services/api"
 import { getCurrentUser } from "../services/auth.api"
-import type { AuthUser } from "../schemas/auth.schema"
+import type { AuthUser } from "../services/auth.api"
 
 type AuthContextValue = {
   user: AuthUser | null
@@ -47,7 +47,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }
 
         showToast({ type: "error", message: error.message })
+        return
       }
+
+      throw error
     }
   }
 

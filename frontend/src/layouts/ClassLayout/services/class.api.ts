@@ -1,32 +1,43 @@
+import { z } from "zod"
 import { Api } from "../../../services/api"
-import { throwApiResponseError } from "../../../services/response"
-import type { ClassType, ClassRole } from "../../../types/class.types"
-export type { ClassType, ClassRole }
+import { parseApiResponse, throwApiResponseError } from "../../../services/response"
 import type { Errors } from "../../../types/api.types"
 
-export type ClassPermissions = {
-  can_create_assignment: boolean
-  can_create_announcement: boolean
-  can_grade_submissions: boolean
-  can_submit_solution: boolean
-  can_view_gradebook: boolean
-  can_view_own_grades: boolean
-  can_edit_class: boolean
-  can_manage_members: boolean
-  can_delete_class: boolean
-}
+// Типы курса, которые нужны layout-у и вкладкам курса.
+const ClassTypeSchema = z.enum(["open", "closed"])
+const ClassRoleSchema = z.enum(["creator", "teacher", "student"])
 
-export type ClassDetailDto = {
-  id: number
-  name: string
-  type: ClassType
-  creator_id: number
-  join_code: string | null
-  user_role: ClassRole
-  permissions: ClassPermissions
-  students_count: number
-  teachers_count: number
-}
+// Матрица прав текущего пользователя в курсе.
+const ClassPermissionsSchema = z.object({
+  can_create_assignment: z.boolean(),
+  can_create_announcement: z.boolean(),
+  can_grade_submissions: z.boolean(),
+  can_submit_solution: z.boolean(),
+  can_view_gradebook: z.boolean(),
+  can_view_own_grades: z.boolean(),
+  can_edit_class: z.boolean(),
+  can_manage_members: z.boolean(),
+  can_delete_class: z.boolean()
+}).strip()
+
+// Подробности курса для шапки и вложенных страниц.
+const ClassDetailSchema = z.object({
+  id: z.number(),
+  name: z.string(),
+  type: ClassTypeSchema,
+  join_code: z.string().nullable(),
+  creator_id: z.number(),
+  created_at: z.string(),
+  user_role: ClassRoleSchema,
+  permissions: ClassPermissionsSchema,
+  students_count: z.number(),
+  teachers_count: z.number()
+}).strip()
+
+export type ClassType = z.infer<typeof ClassTypeSchema>
+export type ClassRole = z.infer<typeof ClassRoleSchema>
+export type ClassPermissions = z.infer<typeof ClassPermissionsSchema>
+export type ClassDetailDto = z.infer<typeof ClassDetailSchema>
 
 const CLASS_DETAIL_ERRORS: Errors = {
   default: "Не удалось загрузить курс"
@@ -53,7 +64,7 @@ const TRANSFER_OWNERSHIP_ERRORS: Errors = {
 export async function getClassDetail(classId: number): Promise<ClassDetailDto> {
   try {
     const response = await Api.fetchGet(`/api/classes/${classId}`, CLASS_DETAIL_ERRORS)
-    return (await response.json()) as ClassDetailDto
+    return await parseApiResponse(response, ClassDetailSchema)
   } catch (error) {
     throwApiResponseError(error)
   }
@@ -62,7 +73,7 @@ export async function getClassDetail(classId: number): Promise<ClassDetailDto> {
 export async function updateClass(classId: number, body: { name?: string; type?: ClassType }): Promise<ClassDetailDto> {
   try {
     const response = await Api.fetchPatch(`/api/classes/${classId}`, body, UPDATE_CLASS_ERRORS)
-    return (await response.json()) as ClassDetailDto
+    return await parseApiResponse(response, ClassDetailSchema)
   } catch (error) {
     throwApiResponseError(error)
   }
@@ -93,7 +104,7 @@ export async function transferOwnership(classId: number, newOwnerId: number): Pr
       { new_owner_id: newOwnerId },
       TRANSFER_OWNERSHIP_ERRORS
     )
-    return (await response.json()) as ClassDetailDto
+    return await parseApiResponse(response, ClassDetailSchema)
   } catch (error) {
     throwApiResponseError(error)
   }

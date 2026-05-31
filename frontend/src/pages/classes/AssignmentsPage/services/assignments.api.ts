@@ -1,19 +1,62 @@
+import { z } from "zod"
 import { Api } from "../../../../services/api"
-import { throwApiResponseError } from "../../../../services/response"
+import { parseApiResponse, throwApiResponseError } from "../../../../services/response"
 import type { Errors, PageDto } from "../../../../types/api.types"
 
-export type AssignmentDto = {
-  id: number
-  class_id: number
-  author_id: number
-  title: string
-  description: string
-  material_url: string | null
-  due_at: string | null
-  max_grade: number
-  created_at: string
-  updated_at: string | null
+// Обёртка пагинации для списка заданий.
+function createPageSchema<T extends z.ZodType>(itemSchema: T) {
+  return z.object({
+    items: z.array(itemSchema),
+    total: z.number(),
+    page: z.number(),
+    limit: z.number()
+  }).strip()
 }
+
+// Краткая карточка пользователя-автора задания.
+const UserBriefSchema = z.object({
+  id: z.number(),
+  email: z.string().email(),
+  first_name: z.string().nullable(),
+  last_name: z.string().nullable()
+}).strip()
+
+// Статус решения студента.
+const SubmissionStatusSchema = z.enum(["draft", "submitted", "returned", "graded"])
+
+// Краткая сводка решения текущего студента в карточке задания.
+const AssignmentMySubmissionSchema = z.object({
+  submission_id: z.number(),
+  status: SubmissionStatusSchema,
+  submitted_at: z.string().nullable(),
+  is_late: z.boolean(),
+  grade: z.number().nullable()
+}).strip()
+
+// Статистика сдачи задания для преподавателя.
+const AssignmentStatsSchema = z.object({
+  students_total: z.number(),
+  submitted_count: z.number(),
+  graded_count: z.number()
+}).strip()
+
+// Полное задание из API.
+const AssignmentSchema = z.object({
+  id: z.number(),
+  class_id: z.number(),
+  author: UserBriefSchema,
+  title: z.string(),
+  description: z.string(),
+  material_url: z.string().nullable(),
+  due_at: z.string().nullable(),
+  max_grade: z.number(),
+  created_at: z.string(),
+  updated_at: z.string().nullable(),
+  my_submission: AssignmentMySubmissionSchema.nullable(),
+  stats: AssignmentStatsSchema.nullable()
+}).strip()
+
+export type AssignmentDto = z.infer<typeof AssignmentSchema>
 
 const LIST_ASSIGNMENTS_ERRORS: Errors = {
   default: "Не удалось загрузить задания"
@@ -44,13 +87,16 @@ const DELETE_ASSIGNMENT_ERRORS: Errors = {
   404: "Задание не найдено"
 }
 
+// Пагинированный ответ списка заданий.
+const AssignmentsPageSchema = createPageSchema(AssignmentSchema)
+
 export async function listAssignments(classId: number, page: number = 1, limit: number = 20): Promise<PageDto<AssignmentDto>> {
   try {
     const response = await Api.fetchGet(
       `/api/classes/${classId}/assignments?page=${page}&limit=${limit}`,
       LIST_ASSIGNMENTS_ERRORS
     )
-    return (await response.json()) as PageDto<AssignmentDto>
+    return await parseApiResponse(response, AssignmentsPageSchema)
   } catch (error) {
     throwApiResponseError(error)
   }
@@ -62,7 +108,7 @@ export async function getAssignment(classId: number, assignmentId: number): Prom
       `/api/classes/${classId}/assignments/${assignmentId}`,
       GET_ASSIGNMENT_ERRORS
     )
-    return (await response.json()) as AssignmentDto
+    return await parseApiResponse(response, AssignmentSchema)
   } catch (error) {
     throwApiResponseError(error)
   }
@@ -84,7 +130,7 @@ export async function createAssignment(
       body,
       CREATE_ASSIGNMENT_ERRORS
     )
-    return (await response.json()) as AssignmentDto
+    return await parseApiResponse(response, AssignmentSchema)
   } catch (error) {
     throwApiResponseError(error)
   }
@@ -107,7 +153,7 @@ export async function updateAssignment(
       body,
       UPDATE_ASSIGNMENT_ERRORS
     )
-    return (await response.json()) as AssignmentDto
+    return await parseApiResponse(response, AssignmentSchema)
   } catch (error) {
     throwApiResponseError(error)
   }

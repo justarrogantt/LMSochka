@@ -2,11 +2,14 @@ import { useEffect, useState } from "react"
 import { useNavigate } from "react-router-dom"
 import ArrowIcon from "../../../assets/icons/classes/arrow.svg?react"
 import Loading from "../../../components/Loading/Loading"
+import Pagination from "../../../components/Pagination/Pagination"
 import { useToast } from "../../../components/Toast/ToastProvider"
 import { ApiSilentError } from "../../../services/api"
 import { formatDateTime, truncate } from "../../../services/helpers"
 import { getPublicClasses, joinOpenClass, type PublicClassDto } from "./services/publicClasses.api"
 import styles from "./PublicClassesPage.module.css"
+
+const LIMIT = 3
 
 type PublicClassCardProps = {
   item: PublicClassDto
@@ -50,28 +53,37 @@ export default function PublicClassesPage() {
   // Лоадер страницы
   const [isLoading, setIsLoading] = useState(true)
 
-  // Поисковая строка (фильтрация на клиенте)
+  // Поисковая строка. Фильтрация идёт на бэке через query-параметр search.
   const [search, setSearch] = useState("")
+
+  // Пагинация каталога открытых курсов
+  const [currentPage, setCurrentPage] = useState(1)
+  const [totalItems, setTotalItems] = useState(0)
 
   // Id курсов, в которые сейчас выполняется вступление
   const [submittingIds, setSubmittingIds] = useState<Set<number>>(new Set())
 
-  // Загрузка каталога открытых курсов
-  useEffect(() => {
-    async function loadPublicClasses() {
-      try {
-        const data = await getPublicClasses()
-        setClasses(data)
-      } catch (error) {
-        if (error instanceof ApiSilentError) return
-        showToast({ type: "error", message: (error as Error).message })
-      } finally {
-        setIsLoading(false)
-      }
-    }
+  // Загрузка страницы каталога открытых курсов
+  async function loadPublicClasses(page: number, searchText: string) {
+    setIsLoading(true)
 
-    void loadPublicClasses()
-  }, [])
+    try {
+      const data = await getPublicClasses(searchText, page, LIMIT)
+      setClasses(data.items)
+      setTotalItems(data.total)
+      setCurrentPage(data.page)
+    } catch (error) {
+      if (error instanceof ApiSilentError) return
+      showToast({ type: "error", message: (error as Error).message })
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  // При изменении поиска возвращаемся на первую страницу.
+  useEffect(() => {
+    void loadPublicClasses(1, search)
+  }, [search])
 
   // Вступление в открытый курс (после успеха помечаем карточку как участник)
   async function joinById(classId: number) {
@@ -92,8 +104,6 @@ export default function PublicClassesPage() {
       })
     }
   }
-
-  const filteredClasses = classes.filter((item) => item.name.toLowerCase().includes(search.trim().toLowerCase()))
 
   return (
     <div className={styles.page}>
@@ -118,7 +128,7 @@ export default function PublicClassesPage() {
 
       <div className={styles.cards}>
         {!isLoading &&
-          filteredClasses.map((item) => (
+          classes.map((item) => (
             <PublicClassCard
               key={item.id}
               item={item}
@@ -128,8 +138,10 @@ export default function PublicClassesPage() {
             />
           ))}
 
-        {!isLoading && filteredClasses.length === 0 && <div className={styles.emptyMessage}>Тут пока пусто</div>}
+        {!isLoading && classes.length === 0 && <div className={styles.emptyMessage}>Тут пока пусто</div>}
       </div>
+
+      <Pagination page={currentPage} total={totalItems} limit={LIMIT} onChange={(page) => void loadPublicClasses(page, search)} />
     </div>
   )
 }

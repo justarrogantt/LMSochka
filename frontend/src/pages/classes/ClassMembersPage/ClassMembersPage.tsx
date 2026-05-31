@@ -127,7 +127,8 @@ export default function ClassMembersPage() {
     setMembers((prev) => prev.map((item) => (item.user_id === memberId ? { ...item, role: selectedRole } : item)))
 
     try {
-      await updateClassMemberRole(classDetail.id, memberId, selectedRole)
+      const updated = await updateClassMemberRole(classDetail.id, memberId, selectedRole)
+      setMembers(updated.items)
       showToast({ type: "neutral", message: "Роль участника обновлена" })
     } catch (error) {
       setMembers(prevMembers)
@@ -148,7 +149,8 @@ export default function ClassMembersPage() {
     setMembers((prev) => prev.filter((item) => item.user_id !== memberId))
 
     try {
-      await removeClassMember(classDetail.id, memberId)
+      const updated = await removeClassMember(classDetail.id, memberId)
+      setMembers(updated.items)
       showToast({ type: "neutral", message: "Участник удален из курса" })
     } catch (error) {
       setMembers(prevMembers)

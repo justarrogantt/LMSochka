@@ -1,8 +1,26 @@
+import { z } from "zod"
 import { Api } from "../../../../services/api"
 import { parseApiResponse, throwApiResponseError } from "../../../../services/response"
-import type { AuthSuccess } from "../../../../schemas/auth.schema"
 import type { Errors } from "../../../../types/api.types"
-import { RegisterSuccessSchema } from "../schemas/register.schema"
+
+// Пользователь внутри успешного ответа register.
+const RegisterUserSchema = z.object({
+  id: z.number(),
+  email: z.string().email(),
+  first_name: z.string().nullable(),
+  last_name: z.string().nullable(),
+  created_at: z.string(),
+  updated_at: z.string().nullable()
+}).strip()
+
+// Успешный ответ register: созданный пользователь и новая пара токенов.
+const RegisterSuccessSchema = z.object({
+  user: RegisterUserSchema,
+  access_token: z.string(),
+  refresh_token: z.string()
+}).strip()
+
+type AuthSuccess = z.infer<typeof RegisterSuccessSchema>
 
 type RegisterPayload = {
   email: string

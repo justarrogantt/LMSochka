@@ -3,7 +3,7 @@ import { useState, type ChangeEvent, type FormEvent, type MouseEvent } from "rea
 import AuthLayout from "../../../layouts/AuthLayout/AuthLayout"
 import styles from "../../../layouts/AuthLayout/AuthLayout.module.css"
 import { useAuth } from "../../../contexts/AuthContext"
-import { ApiError, ApiSilentError } from "../../../services/api"
+import { ApiSilentError } from "../../../services/api"
 import { login as loginRequest } from "./services/login.api"
 
 type LoginForm = {
@@ -91,7 +91,7 @@ export default function LoginPage() {
     } catch (error) {
       if (error instanceof ApiSilentError) return
 
-      setServerError(error instanceof ApiError ? error.message : "Не удалось войти. Попробуйте позже")
+      setServerError((error as Error).message)
     } finally {
       setIsSubmitting(false)
     }

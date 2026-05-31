@@ -3,6 +3,7 @@ import { NavLink, Outlet, useNavigate, useParams } from "react-router-dom"
 import ArrowIcon from "../../assets/icons/classes/arrow.svg?react"
 import DeleteIcon from "../../assets/icons/classes/delete.svg?react"
 import EditIcon from "../../assets/icons/classes/settings.svg?react"
+import ExitIcon from "../../assets/icons/layout/exit.svg?react"
 import Loading from "../../components/Loading/Loading"
 import Modal from "../../components/Modal/Modal"
 import { useToast } from "../../components/Toast/ToastProvider"
@@ -190,7 +191,7 @@ export default function ClassLayout() {
 
             {!canDeleteClass && (
               <button className={styles.dangerButton} type="button" onClick={() => setIsDeleteModalOpen(true)}>
-                <DeleteIcon className={styles.buttonIcon} />
+                <ExitIcon className={styles.buttonIcon} />
                 Покинуть курс
               </button>
             )}

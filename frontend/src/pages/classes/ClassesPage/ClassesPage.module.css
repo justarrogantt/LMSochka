@@ -132,6 +132,7 @@
 }
 
 .badge {
+  overflow: hidden;
   width: 100%;
   min-height: 34px;
   padding: 0 14px;
@@ -170,6 +171,7 @@
   height: 16px;
   flex: 0 0 16px;
   color: currentColor;
+  stroke-width: 3;
 }
 
 .cardStats {

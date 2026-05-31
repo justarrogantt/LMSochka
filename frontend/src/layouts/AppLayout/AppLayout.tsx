@@ -35,22 +35,42 @@ const menuItems = [
   }
 ]
 
+// Ключ настройки сайдбара в localStorage.
+const SIDEBAR_OPEN_STORAGE_KEY = "sidebar_open"
+
+// Берём сохранённое состояние сайдбара. Если значения нет, сайдбар закрыт.
+function getInitialSidebarOpen() {
+  const saved = localStorage.getItem(SIDEBAR_OPEN_STORAGE_KEY)
+  return saved === "true"
+}
+
+// Сохраняем выбранное состояние, чтобы оно не сбрасывалось после перезагрузки.
+function saveSidebarOpen(isOpen: boolean) {
+  localStorage.setItem(SIDEBAR_OPEN_STORAGE_KEY, String(isOpen))
+}
+
 export default function AppLayout() {
   const { user, setUser } = useAuth()
   const navigate = useNavigate()
   const showToast = useToast()
   const userEmail = user?.email ?? ""
 
-  // Свёрнут ли сайдбар — читаем из localStorage, по умолчанию false (открыт)
-  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState<boolean>(() => {
-    const saved = localStorage.getItem("sidebar_collapsed")
-    return saved === "true"
-  })
+  // Открыт ли сайдбар. Если настройки ещё нет, по умолчанию он закрыт.
+  const [isSidebarOpen, setIsSidebarOpen] = useState<boolean>(getInitialSidebarOpen)
 
-  // Применяем начальное состояние при первом рендере
+  // Фиксируем дефолтное состояние в localStorage при первом входе.
   useEffect(() => {
-    localStorage.setItem("sidebar_collapsed", String(isSidebarCollapsed))
+    saveSidebarOpen(isSidebarOpen)
   }, [])
+
+  // Переключаем сайдбар и сразу сохраняем новое состояние.
+  function toggleSidebar() {
+    setIsSidebarOpen((prev) => {
+      const next = !prev
+      saveSidebarOpen(next)
+      return next
+    })
+  }
 
   async function logout() {
     try {
@@ -70,24 +90,23 @@ export default function AppLayout() {
 
       showToast({
         type: "error",
-        message: error instanceof ApiError ? error.message : "Не удалось выйти из аккаунта"
+        message: (error as Error).message
       })
     }
   }
 
+  const appClassName = `${styles.app} ${isSidebarOpen ? "" : styles.appCollapsed}`
+  const sidebarToggleLabel = isSidebarOpen ? "Свернуть меню" : "Развернуть меню"
+
   return (
-    <div className={`${styles.app} ${isSidebarCollapsed ? styles.appCollapsed : ""}`}>
+    <div className={appClassName}>
       <header className={styles.header}>
         <button
           className={styles.collapseButton}
           type="button"
-          onClick={() => setIsSidebarCollapsed((prev) => {
-            const next = !prev
-            localStorage.setItem("sidebar_collapsed", String(next))
-            return next
-          })}
-          aria-label={isSidebarCollapsed ? "Развернуть меню" : "Свернуть меню"}
-          title={isSidebarCollapsed ? "Развернуть меню" : "Свернуть меню"}
+          onClick={toggleSidebar}
+          aria-label={sidebarToggleLabel}
+          title={sidebarToggleLabel}
         >
           <SidebarIcon className={styles.collapseIcon} />
         </button>
