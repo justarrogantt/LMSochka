@@ -44,6 +44,12 @@ const LEAVE_CLASS_ERRORS: Errors = {
   default: "Не удалось покинуть курс"
 }
 
+const TRANSFER_OWNERSHIP_ERRORS: Errors = {
+  default: "Не удалось передать права владельца",
+  403: "Передать права может только владелец курса",
+  404: "Участник не найден"
+}
+
 export async function getClassDetail(classId: number): Promise<ClassDetailDto> {
   try {
     const response = await Api.fetchGet(`/api/classes/${classId}`, CLASS_DETAIL_ERRORS)
@@ -73,6 +79,21 @@ export async function deleteClass(classId: number): Promise<void> {
 export async function leaveClass(classId: number): Promise<void> {
   try {
     await Api.fetchPost(`/api/classes/${classId}/leave`, {}, LEAVE_CLASS_ERRORS)
+  } catch (error) {
+    throwApiResponseError(error)
+  }
+}
+
+// Передать роль создателя другому участнику. Только текущий создатель.
+// Бэк возвращает свежий ClassDetailDto уже от лица бывшего владельца (теперь teacher).
+export async function transferOwnership(classId: number, newOwnerId: number): Promise<ClassDetailDto> {
+  try {
+    const response = await Api.fetchPost(
+      `/api/classes/${classId}/transfer-ownership`,
+      { new_owner_id: newOwnerId },
+      TRANSFER_OWNERSHIP_ERRORS
+    )
+    return (await response.json()) as ClassDetailDto
   } catch (error) {
     throwApiResponseError(error)
   }

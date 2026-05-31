@@ -5,7 +5,9 @@ import DeleteIcon from "../../../assets/icons/classes/delete.svg?react"
 import EditIcon from "../../../assets/icons/classes/settings.svg?react"
 import Loading from "../../../components/Loading/Loading"
 import Modal from "../../../components/Modal/Modal"
+import Pagination from "../../../components/Pagination/Pagination"
 import { useToast } from "../../../components/Toast/ToastProvider"
+import { useAuth } from "../../../contexts/AuthContext"
 import { ApiSilentError } from "../../../services/api"
 import { formatDateTime } from "../../../services/helpers"
 import type { ClassLayoutContext } from "../../../layouts/ClassLayout/ClassLayout"
@@ -15,6 +17,18 @@ import {
   deleteAssignment,
   type AssignmentDto
 } from "../AssignmentsPage/services/assignments.api"
+import {
+  getMySubmission,
+  listSubmissions,
+  returnSubmission,
+  saveMySubmission,
+  submitMySubmission,
+  type SaveSubmissionBody,
+  type SubmissionDto,
+  type SubmissionStatus,
+  type SubmissionStudent
+} from "./services/submissions.api"
+import { deleteGrade, upsertGrade } from "./services/grades.api"
 import styles from "./AssignmentPage.module.css"
 
 type FormState = {
@@ -25,9 +39,46 @@ type FormState = {
   max_grade: string
 }
 
+// Сколько решений студентов показываем на странице у преподавателя
+const SUBS_LIMIT = 8
+
+// Подписи и цветовые классы статусов решения
+const STATUS_LABELS: Record<SubmissionStatus, string> = {
+  draft: "Черновик",
+  submitted: "Отправлено",
+  returned: "Возвращено",
+  graded: "Оценено"
+}
+
+const STATUS_CLASS: Record<SubmissionStatus, string> = {
+  draft: styles.badgeDraft,
+  submitted: styles.badgeSubmitted,
+  returned: styles.badgeReturned,
+  graded: styles.badgeGraded
+}
+
+// Фильтры списка решений у преподавателя
+const FILTERS: Array<{ label: string; value: SubmissionStatus | null }> = [
+  { label: "Все", value: null },
+  { label: "Отправленные", value: "submitted" },
+  { label: "Возвращённые", value: "returned" },
+  { label: "Оценённые", value: "graded" }
+]
+
+// Бейдж статуса решения
+function StatusBadge({ status }: { status: SubmissionStatus }) {
+  return <span className={`${styles.badge} ${STATUS_CLASS[status]}`}>{STATUS_LABELS[status]}</span>
+}
+
+// Имя студента или email, если имя не заполнено
+function studentName(student: SubmissionStudent) {
+  return `${student.first_name ?? ""} ${student.last_name ?? ""}`.trim() || student.email
+}
+
 export default function AssignmentPage() {
   const { classId, assignmentId } = useParams<{ classId: string; assignmentId: string }>()
   const { classDetail } = useOutletContext<ClassLayoutContext>()
+  const { user } = useAuth()
   const navigate = useNavigate()
   const showToast = useToast()
 
@@ -40,15 +91,49 @@ export default function AssignmentPage() {
   // Активная модалка
   const [activeModal, setActiveModal] = useState<"edit" | "delete" | null>(null)
 
-  // Флаг отправки запроса
+  // Флаг отправки запроса (для модалок задания)
   const [isSubmitting, setIsSubmitting] = useState(false)
 
   // Поля формы редактирования и начальное состояние для сравнения
   const [form, setForm] = useState<FormState>({ title: "", description: "", material_url: "", due_at: "", max_grade: "" })
   const [initialForm, setInitialForm] = useState<FormState>({ title: "", description: "", material_url: "", due_at: "", max_grade: "" })
 
+  // ── Состояние студента: моё решение ──
+  const [mySubmission, setMySubmission] = useState<SubmissionDto | null>(null)
+  const [isMyLoading, setIsMyLoading] = useState(true)
+  const [answerText, setAnswerText] = useState("")
+  const [attachmentUrl, setAttachmentUrl] = useState("")
+  const [isSavingDraft, setIsSavingDraft] = useState(false)
+  const [isSendingWork, setIsSendingWork] = useState(false)
+
+  // ── Состояние преподавателя: список решений ──
+  const [submissions, setSubmissions] = useState<SubmissionDto[]>([])
+  const [isSubsLoading, setIsSubsLoading] = useState(true)
+  const [subsPage, setSubsPage] = useState(1)
+  const [subsTotal, setSubsTotal] = useState(0)
+  const [statusFilter, setStatusFilter] = useState<SubmissionStatus | null>(null)
+
+  // Решение, открытое для проверки, и поля формы оценки/возврата
+  const [selected, setSelected] = useState<SubmissionDto | null>(null)
+  const [gradeValue, setGradeValue] = useState("")
+  const [gradeComment, setGradeComment] = useState("")
+  const [returnMode, setReturnMode] = useState(false)
+  const [returnComment, setReturnComment] = useState("")
+  const [isGrading, setIsGrading] = useState(false)
+  const [isRemovingGrade, setIsRemovingGrade] = useState(false)
+  const [isReturning, setIsReturning] = useState(false)
+
   const parsedClassId = Number(classId)
   const parsedAssignmentId = Number(assignmentId)
+
+  const canManage = classDetail?.permissions.can_create_assignment ?? false
+  const canSubmit = classDetail?.permissions.can_submit_solution ?? false
+  const canGrade = classDetail?.permissions.can_grade_submissions ?? false
+
+  // Текущий пользователь как краткая карточка студента/проверяющего
+  const me: SubmissionStudent | null = user
+    ? { id: user.id, email: user.email, first_name: user.first_name, last_name: user.last_name }
+    : null
 
   // Загрузка задания по ID
   useEffect(() => {
@@ -70,12 +155,63 @@ export default function AssignmentPage() {
     void load()
   }, [parsedClassId, parsedAssignmentId])
 
+  // Загрузка своего решения (только у студента)
+  useEffect(() => {
+    if (!canSubmit || !parsedAssignmentId) {
+      setIsMyLoading(false)
+      return
+    }
+
+    async function load() {
+      setIsMyLoading(true)
+      try {
+        const data = await getMySubmission(parsedAssignmentId)
+        setMySubmission(data)
+        setAnswerText(data?.answer_text ?? "")
+        setAttachmentUrl(data?.attachment_url ?? "")
+      } catch (error) {
+        if (error instanceof ApiSilentError) return
+        showToast({ type: "error", message: (error as Error).message })
+      } finally {
+        setIsMyLoading(false)
+      }
+    }
+
+    void load()
+  }, [canSubmit, parsedAssignmentId])
+
+  // Загрузка списка решений (только у преподавателя), реагирует на фильтр
+  useEffect(() => {
+    if (!canGrade || !parsedAssignmentId) {
+      setIsSubsLoading(false)
+      return
+    }
+
+    void loadSubmissions(1, statusFilter)
+  }, [canGrade, parsedAssignmentId, statusFilter])
+
+  // Загрузка страницы решений с учётом фильтра по статусу
+  async function loadSubmissions(page: number, status: SubmissionStatus | null) {
+    setIsSubsLoading(true)
+    try {
+      const data = await listSubmissions(parsedAssignmentId, page, SUBS_LIMIT, status)
+      setSubmissions(data.items)
+      setSubsTotal(data.total)
+      setSubsPage(page)
+    } catch (error) {
+      if (error instanceof ApiSilentError) return
+      showToast({ type: "error", message: (error as Error).message })
+    } finally {
+      setIsSubsLoading(false)
+    }
+  }
+
   // Переход к списку заданий
   function goBack() {
     navigate(`/classes/${classId}/assignments`)
   }
 
-  // Закрытие активной модалки
+  // Закрытие активной модалки задания
   function closeModal() {
     if (isSubmitting) return
     setActiveModal(null)
@@ -96,12 +232,12 @@ export default function AssignmentPage() {
     setActiveModal("edit")
   }
 
-  // Обновление одного поля формы
+  // Обновление одного поля формы задания
   function setField<K extends keyof FormState>(key: K, value: FormState[K]) {
     setForm((prev) => ({ ...prev, [key]: value }))
   }
 
-  // Оптимистичное редактирование с роллбэком при ошибке
+  // Оптимистичное редактирование задания с роллбэком при ошибке
   async function submitEdit() {
     if (!assignment || isSubmitting) return
 
@@ -141,7 +277,7 @@ export default function AssignmentPage() {
     }
   }
 
-  // Удаление с навигацией назад при успехе
+  // Удаление задания с навигацией назад при успехе
   async function submitDelete() {
     if (isSubmitting) return
 
@@ -157,7 +293,125 @@ export default function AssignmentPage() {
     }
   }
 
-  const canManage = classDetail?.permissions.can_create_assignment ?? false
+  // ── Действия студента ──
+
+  // Тело сохранения/отправки из полей формы
+  function buildSubmissionBody(): SaveSubmissionBody {
+    return { answer_text: answerText.trim(), attachment_url: attachmentUrl.trim() || null }
+  }
+
+  // Сохранить черновик решения
+  async function onSaveDraft() {
+    if (!me || isStudentBusy) return
+    setIsSavingDraft(true)
+    try {
+      const saved = await saveMySubmission(parsedAssignmentId, me, buildSubmissionBody())
+      setMySubmission(saved)
+      showToast({ type: "neutral", message: "Черновик сохранён" })
+    } catch (error) {
+      showToast({ type: "error", message: (error as Error).message })
+    } finally {
+      setIsSavingDraft(false)
+    }
+  }
+
+  // Отправить решение на проверку
+  async function onSubmitWork() {
+    if (!me || isStudentBusy) return
+    setIsSendingWork(true)
+    try {
+      const sent = await submitMySubmission(parsedAssignmentId, me, buildSubmissionBody(), assignment?.due_at ?? null)
+      setMySubmission(sent)
+      showToast({ type: "neutral", message: "Решение отправлено на проверку" })
+    } catch (error) {
+      showToast({ type: "error", message: (error as Error).message })
+    } finally {
+      setIsSendingWork(false)
+    }
+  }
+
+  // ── Действия преподавателя ──
+
+  // Открыть решение на проверку и заполнить поля формы оценки
+  function openReview(submission: SubmissionDto) {
+    setSelected(submission)
+    setGradeValue(submission.grade ? String(submission.grade.value) : "")
+    setGradeComment(submission.grade?.comment ?? "")
+    setReturnMode(false)
+    setReturnComment("")
+  }
+
+  // Закрыть окно проверки
+  function closeReview() {
+    if (isReviewBusy) return
+    setSelected(null)
+    setReturnMode(false)
+  }
+
+  // Обновить решение в списке и в открытом окне
+  function updateInList(updated: SubmissionDto) {
+    setSubmissions((prev) => prev.map((item) => (item.id === updated.id ? updated : item)))
+    setSelected(updated)
+  }
+
+  // Выставить/обновить оценку
+  async function onSaveGrade() {
+    if (!selected || !me || !canSaveGrade) return
+    setIsGrading(true)
+    try {
+      const grade = await upsertGrade(selected.id, me, { value: Number(gradeValue), comment: gradeComment.trim() || null })
+      const updated: SubmissionDto = {
+        ...selected,
+        status: "graded",
+        return_comment: null,
+        grade: { value: grade.value, comment: grade.comment, graded_at: grade.graded_at, updated_at: grade.updated_at }
+      }
+      updateInList(updated)
+      showToast({ type: "neutral", message: "Оценка сохранена" })
+      void loadSubmissions(subsPage, statusFilter)
+    } catch (error) {
+      showToast({ type: "error", message: (error as Error).message })
+    } finally {
+      setIsGrading(false)
+    }
+  }
+
+  // Снять оценку
+  async function onRemoveGrade() {
+    if (!selected || isReviewBusy) return
+    setIsRemovingGrade(true)
+    try {
+      const updated = await deleteGrade(selected.id)
+      updateInList(updated)
+      setGradeValue("")
+      setGradeComment("")
+      showToast({ type: "neutral", message: "Оценка снята" })
+      void loadSubmissions(subsPage, statusFilter)
+    } catch (error) {
+      showToast({ type: "error", message: (error as Error).message })
+    } finally {
+      setIsRemovingGrade(false)
+    }
+  }
+
+  // Вернуть решение на доработку
+  async function onReturn() {
+    if (!selected || isReviewBusy) return
+    setIsReturning(true)
+    try {
+      const updated = await returnSubmission(selected.id, returnComment.trim() || null)
+      updateInList(updated)
+      setReturnMode(false)
+      showToast({ type: "neutral", message: "Решение возвращено на доработку" })
+      void loadSubmissions(subsPage, statusFilter)
+    } catch (error) {
+      showToast({ type: "error", message: (error as Error).message })
+    } finally {
+      setIsReturning(false)
+    }
+  }
+
+  // Производные флаги
   const isFormChanged =
     form.title.trim() !== initialForm.title.trim() ||
     form.description.trim() !== initialForm.description.trim() ||
@@ -165,6 +419,22 @@ export default function AssignmentPage() {
     form.due_at !== initialForm.due_at ||
     form.max_grade !== initialForm.max_grade
   const canSave = form.title.trim().length > 0 && Number(form.max_grade) > 0 && isFormChanged && !isSubmitting
+
+  const isStudentBusy = isSavingDraft || isSendingWork
+  const myStatus = mySubmission?.status ?? null
+  // Редактировать можно только черновик, возвращённое или ещё не начатое решение
+  const isMyEditable = myStatus === null || myStatus === "draft" || myStatus === "returned"
+  const canSendWork = (answerText.trim().length > 0 || attachmentUrl.trim().length > 0) && !isStudentBusy
+
+  const isReviewBusy = isGrading || isRemovingGrade || isReturning
+  const gradeNum = Number(gradeValue)
+  const maxGrade = assignment?.max_grade ?? 0
+  const canSaveGrade =
+    gradeValue.trim() !== "" &&
+    Number.isFinite(gradeNum) &&
+    gradeNum >= 0 &&
+    gradeNum <= maxGrade &&
+    !isReviewBusy
 
   return (
     <div className={styles.page}>
@@ -209,6 +479,144 @@ export default function AssignmentPage() {
             <div>Максимальный балл: {assignment.max_grade}</div>
             <div>Создано: {formatDateTime(assignment.created_at)}</div>
           </div>
+        </div>
+      )}
+
+      {/* ── Блок студента: моё решение ── */}
+      {!isLoading && assignment && canSubmit && (
+        <div className={styles.section}>
+          <div className={styles.sectionHead}>
+            <div className={styles.sectionTitle}>Моё решение</div>
+            {mySubmission && <StatusBadge status={mySubmission.status} />}
+          </div>
+
+          {isMyLoading && <Loading />}
+
+          {!isMyLoading && (
+            <div className={styles.submissionBox}>
+              {/* Комментарий преподавателя при возврате на доработку */}
+              {myStatus === "returned" && mySubmission?.return_comment && (
+                <div className={styles.returnNote}>
+                  <div className={styles.returnNoteLabel}>Возвращено на доработку</div>
+                  <div>{mySubmission.return_comment}</div>
+                </div>
+              )}
+
+              {isMyEditable ? (
+                <>
+                  <label className={styles.field}>
+                    <div className={styles.fieldLabel}>Ответ <span className={styles.fieldOptional}>(текст решения)</span></div>
+                    <textarea
+                      className={styles.textarea}
+                      value={answerText}
+                      onChange={(e) => setAnswerText(e.target.value)}
+                      placeholder="Введите ответ или прикрепите ссылку на файл ниже"
+                      disabled={isStudentBusy}
+                    />
+                  </label>
+
+                  <label className={styles.field}>
+                    <div className={styles.fieldLabel}>Ссылка на файл <span className={styles.fieldOptional}>(необязательно)</span></div>
+                    <input
+                      className={styles.input}
+                      type="url"
+                      value={attachmentUrl}
+                      onChange={(e) => setAttachmentUrl(e.target.value)}
+                      placeholder="https://..."
+                      disabled={isStudentBusy}
+                    />
+                  </label>
+
+                  <div className={styles.submissionActions}>
+                    <button className={styles.secondaryButton} type="button" onClick={() => void onSaveDraft()} disabled={isStudentBusy}>
+                      {isSavingDraft ? "Сохраняем..." : "Сохранить черновик"}
+                    </button>
+                    <button className={styles.primaryButton} type="button" onClick={() => void onSubmitWork()} disabled={!canSendWork}>
+                      {isSendingWork ? "Отправляем..." : "Отправить на проверку"}
+                    </button>
+                  </div>
+                </>
+              ) : (
+                <>
+                  {mySubmission?.answer_text && <div className={styles.readonlyAnswer}>{mySubmission.answer_text}</div>}
+
+                  {mySubmission?.attachment_url && (
+                    <a className={styles.submissionLink} href={mySubmission.attachment_url} target="_blank" rel="noopener noreferrer">
+                      Прикреплённый файл →
+                    </a>
+                  )}
+
+                  <div className={styles.meta}>
+                    {mySubmission?.submitted_at && <div>Отправлено: {formatDateTime(mySubmission.submitted_at)}</div>}
+                    {mySubmission?.is_late && <span className={styles.lateTag}>С опозданием</span>}
+                  </div>
+
+                  {myStatus === "submitted" && (
+                    <div className={styles.sectionHint}>
+                      Решение отправлено и ожидает проверки. Чтобы изменить ответ, попросите преподавателя вернуть его на доработку.
+                    </div>
+                  )}
+
+                  {myStatus === "graded" && mySubmission?.grade && (
+                    <div className={styles.gradeBox}>
+                      <div className={styles.gradeValue}>{mySubmission.grade.value} / {assignment.max_grade} баллов</div>
+                      {mySubmission.grade.comment && <div className={styles.gradeComment}>{mySubmission.grade.comment}</div>}
+                      <div className={styles.gradeMeta}>Оценено: {formatDateTime(mySubmission.grade.graded_at)}</div>
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ── Блок преподавателя: решения студентов ── */}
+      {!isLoading && assignment && canGrade && (
+        <div className={styles.section}>
+          <div className={styles.sectionHead}>
+            <div className={styles.sectionTitle}>Решения студентов</div>
+          </div>
+
+          <div className={styles.filters}>
+            {FILTERS.map((filter) => (
+              <button
+                key={filter.label}
+                type="button"
+                className={`${styles.filterChip} ${statusFilter === filter.value ? styles.filterChipActive : ""}`}
+                onClick={() => setStatusFilter(filter.value)}
+              >
+                {filter.label}
+              </button>
+            ))}
+          </div>
+
+          {isSubsLoading && <Loading />}
+
+          {!isSubsLoading && submissions.length > 0 && (
+            <div className={styles.subList}>
+              {submissions.map((submission) => (
+                <button key={submission.id} type="button" className={styles.subCard} onClick={() => openReview(submission)}>
+                  <div className={styles.subAvatar}>{studentName(submission.student)[0]}</div>
+                  <div className={styles.subInfo}>
+                    <div className={styles.subName}>{studentName(submission.student)}</div>
+                    <div className={styles.subEmail}>{submission.student.email}</div>
+                  </div>
+                  <div className={styles.subMetaRow}>
+                    {submission.is_late && <span className={styles.lateTag}>Опоздание</span>}
+                    {submission.status === "graded" && submission.grade && (
+                      <span className={styles.subGrade}>{submission.grade.value} / {assignment.max_grade}</span>
+                    )}
+                    <StatusBadge status={submission.status} />
+                  </div>
+                </button>
+              ))}
+            </div>
+          )}
+
+          {!isSubsLoading && submissions.length === 0 && <div className={styles.emptyMessage}>Решений пока нет</div>}
+
+          <Pagination page={subsPage} total={subsTotal} limit={SUBS_LIMIT} onChange={(p) => void loadSubmissions(p, statusFilter)} />
         </div>
       )}
 
@@ -293,6 +701,109 @@ export default function AssignmentPage() {
               {isSubmitting ? "Удаляем..." : "Удалить"}
             </button>
           </div>
+        </Modal>
+      )}
+
+      {/* Окно проверки решения студента */}
+      {canGrade && selected && (
+        <Modal title="Решение студента" onClose={closeReview} disabled={isReviewBusy}>
+          <div className={styles.reviewHead}>
+            <div className={styles.subName}>{studentName(selected.student)}</div>
+            <StatusBadge status={selected.status} />
+          </div>
+
+          <div className={styles.reviewBlock}>
+            <div className={styles.reviewLabel}>Ответ</div>
+            {selected.answer_text ? (
+              <div className={styles.readonlyAnswer}>{selected.answer_text}</div>
+            ) : (
+              <div className={styles.reviewMuted}>Текст не приложен</div>
+            )}
+          </div>
+
+          {selected.attachment_url && (
+            <a className={styles.submissionLink} href={selected.attachment_url} target="_blank" rel="noopener noreferrer">
+              Прикреплённый файл →
+            </a>
+          )}
+
+          <div className={styles.meta}>
+            {selected.submitted_at && <div>Отправлено: {formatDateTime(selected.submitted_at)}</div>}
+            {selected.is_late && <span className={styles.lateTag}>С опозданием</span>}
+          </div>
+
+          {/* Оценивать и возвращать можно только отправленное или оценённое решение */}
+          {selected.status === "returned" && (
+            <div className={styles.reviewNote}>Решение возвращено студенту на доработку. Дождитесь повторной отправки.</div>
+          )}
+          {selected.status === "draft" && (
+            <div className={styles.reviewNote}>Студент ещё не отправил решение — это черновик.</div>
+          )}
+
+          {returnMode ? (
+            <>
+              <label className={styles.field}>
+                <div className={styles.fieldLabel}>Комментарий к возврату <span className={styles.fieldOptional}>(необязательно)</span></div>
+                <textarea
+                  className={styles.textarea}
+                  value={returnComment}
+                  onChange={(e) => setReturnComment(e.target.value)}
+                  placeholder="Что нужно доработать..."
+                  disabled={isReviewBusy}
+                />
+              </label>
+              <div className={styles.modalActions}>
+                <button className={styles.secondaryButton} type="button" onClick={() => setReturnMode(false)} disabled={isReviewBusy}>
+                  Отмена
+                </button>
+                <button className={styles.dangerButton} type="button" onClick={() => void onReturn()} disabled={isReviewBusy}>
+                  {isReturning ? "Возвращаем..." : "Вернуть на доработку"}
+                </button>
+              </div>
+            </>
+          ) : (selected.status === "submitted" || selected.status === "graded") && (
+            <>
+              <label className={styles.field}>
+                <div className={styles.fieldLabel}>Оценка <span className={styles.fieldOptional}>(макс. {assignment?.max_grade})</span></div>
+                <input
+                  className={styles.input}
+                  type="number"
+                  min="0"
+                  max={assignment?.max_grade}
+                  value={gradeValue}
+                  onChange={(e) => setGradeValue(e.target.value)}
+                  placeholder="0"
+                  disabled={isReviewBusy}
+                />
+              </label>
+
+              <label className={styles.field}>
+                <div className={styles.fieldLabel}>Комментарий <span className={styles.fieldOptional}>(необязательно)</span></div>
+                <textarea
+                  className={styles.textarea}
+                  value={gradeComment}
+                  onChange={(e) => setGradeComment(e.target.value)}
+                  disabled={isReviewBusy}
+                />
+              </label>
+
+              <div className={styles.reviewActions}>
+                <button className={styles.secondaryButton} type="button" onClick={() => setReturnMode(true)} disabled={isReviewBusy}>
+                  Вернуть на доработку
+                </button>
+                <div className={styles.reviewActionsRight}>
+                  {selected.status === "graded" && (
+                    <button className={styles.dangerButton} type="button" onClick={() => void onRemoveGrade()} disabled={isReviewBusy}>
+                      {isRemovingGrade ? "Снимаем..." : "Снять оценку"}
+                    </button>
+                  )}
+                  <button className={styles.primaryButton} type="button" onClick={() => void onSaveGrade()} disabled={!canSaveGrade}>
+                    {isGrading ? "Сохраняем..." : "Сохранить оценку"}
+                  </button>
+                </div>
+              </div>
+            </>
+          )}
         </Modal>
       )}
     </div>

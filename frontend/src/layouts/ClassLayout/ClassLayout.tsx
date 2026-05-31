@@ -28,6 +28,9 @@ type EditFormState = {
 // Контекст для вложенных вкладок курса
 export type ClassLayoutContext = {
   classDetail: ClassDetailDto | null
+  // Позволяет вкладкам обновить данные курса (например, после передачи прав владельца),
+  // чтобы permissions и роль пересчитались без перезагрузки страницы.
+  setClassDetail: (detail: ClassDetailDto) => void
 }
 
 export default function ClassLayout() {
@@ -76,7 +79,7 @@ export default function ClassLayout() {
     }
 
     void loadClass()
-  }, [parsedClassId, showToast])
+  }, [parsedClassId])
 
   // Копирование кода приглашения в буфер обмена
   function copyJoinCode() {
@@ -209,7 +212,7 @@ export default function ClassLayout() {
       </div>
 
       {isLoading && <Loading />}
-      {!isLoading && <Outlet context={{ classDetail } satisfies ClassLayoutContext} />}
+      {!isLoading && <Outlet context={{ classDetail, setClassDetail } satisfies ClassLayoutContext} />}
 
       {isDeleteModalOpen && (
         <Modal title={canDeleteClass ? "Удалить курс" : "Покинуть курс"} onClose={() => !isSubmitting && setIsDeleteModalOpen(false)} disabled={isSubmitting}>

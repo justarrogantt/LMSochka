@@ -225,7 +225,7 @@ export default function ClassesPage() {
     }
 
     void loadClasses()
-  }, [showToast])
+  }, [])
 
   // Закрытие модалок
   function closeModal() {

@@ -2,10 +2,12 @@ import { useEffect, useState } from "react"
 import { useOutletContext } from "react-router-dom"
 import SettingsIcon from "../../../assets/icons/classes/settings.svg?react"
 import DeleteIcon from "../../../assets/icons/classes/delete.svg?react"
+import CreatorIcon from "../../../assets/icons/classes/creator.svg?react"
 import Loading from "../../../components/Loading/Loading"
 import Modal from "../../../components/Modal/Modal"
 import { useToast } from "../../../components/Toast/ToastProvider"
 import { ApiSilentError } from "../../../services/api"
+import { transferOwnership } from "../../../layouts/ClassLayout/services/class.api"
 import type { ClassRole } from "../../../types/class.types"
 import type { ClassLayoutContext } from "../../../layouts/ClassLayout/ClassLayout"
 import { getClassMembers, removeClassMember, updateClassMemberRole, type ClassMemberDto } from "./services/classMembers.api"
@@ -28,10 +30,12 @@ type MemberCardProps = {
   canManage: boolean
   onRoleChange: () => void
   onDelete: () => void
+  // Передача владения доступна только создателю и только над другими участниками
+  onTransfer?: () => void
 }
 
 // Карточка участника курса
-function MemberCard({ member, badgeLabel, canManage, onRoleChange, onDelete }: MemberCardProps) {
+function MemberCard({ member, badgeLabel, canManage, onRoleChange, onDelete, onTransfer }: MemberCardProps) {
   const name = getMemberName(member)
   return (
     <div className={styles.memberCard}>
@@ -43,6 +47,11 @@ function MemberCard({ member, badgeLabel, canManage, onRoleChange, onDelete }: M
       <div className={styles.roleBadge}>{badgeLabel ?? roleLabels[member.role]}</div>
       {canManage && (
         <>
+          {onTransfer && (
+            <button className={styles.iconButton} type="button" aria-label="Сделать владельцем курса" title="Сделать владельцем курса" onClick={onTransfer}>
+              <CreatorIcon className={styles.icon} />
+            </button>
+          )}
           <button className={styles.iconButton} type="button" aria-label="Изменить роль участника" onClick={onRoleChange}>
             <SettingsIcon className={styles.icon} />
           </button>
@@ -56,7 +65,7 @@ function MemberCard({ member, badgeLabel, canManage, onRoleChange, onDelete }: M
 }
 
 export default function ClassMembersPage() {
-  const { classDetail } = useOutletContext<ClassLayoutContext>()
+  const { classDetail, setClassDetail } = useOutletContext<ClassLayoutContext>()
   const showToast = useToast()
   const canManageMembers = classDetail?.permissions.can_manage_members ?? false
 
@@ -72,6 +81,9 @@ export default function ClassMembersPage() {
 
   // Участник, выбранный для удаления
   const [memberToDelete, setMemberToDelete] = useState<ClassMemberDto | null>(null)
+
+  // Участник, которому передаём владение курсом
+  const [memberToTransfer, setMemberToTransfer] = useState<ClassMemberDto | null>(null)
 
   // Флаг отправки запроса
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -96,7 +108,7 @@ export default function ClassMembersPage() {
     }
 
     void loadMembers()
-  }, [classDetail?.id, showToast])
+  }, [classDetail?.id])
 
   // Открытие модалки смены роли
   function openRoleModal(member: ClassMemberDto) {
@@ -146,6 +158,29 @@ export default function ClassMembersPage() {
     }
   }
 
+  // Передача владения курсом другому участнику (только создатель)
+  async function submitTransfer() {
+    if (!classDetail?.id || !memberToTransfer || isSubmitting) return
+
+    const target = memberToTransfer
+    setMemberToTransfer(null)
+    setIsSubmitting(true)
+
+    try {
+      const updated = await transferOwnership(classDetail.id, target.user_id)
+      // Permissions/роль текущего юзера изменились — обновляем данные курса в шапке и вкладках.
+      setClassDetail(updated)
+      // Роли поменялись (цель → создатель, прежний владелец → преподаватель) — перечитываем список.
+      const data = await getClassMembers(classDetail.id)
+      setMembers(data.items)
+      showToast({ type: "neutral", message: `Курс передан: ${getMemberName(target)}` })
+    } catch (error) {
+      showToast({ type: "error", message: (error as Error).message })
+    } finally {
+      setIsSubmitting(false)
+    }
+  }
+
   const creators = members.filter((member) => member.role === "creator")
   const teachers = members.filter((member) => member.role === "teacher" || member.role === "creator")
   const students = members.filter((member) => member.role === "student")
@@ -183,6 +218,7 @@ export default function ClassMembersPage() {
                   canManage={canManageMembers && member.role !== "creator"}
                   onRoleChange={() => openRoleModal(member)}
                   onDelete={() => setMemberToDelete(member)}
+                  onTransfer={member.role !== "creator" ? () => setMemberToTransfer(member) : undefined}
                 />
               ))}
               {teachers.length === 0 && <div className={styles.groupEmpty}>Пока никого нет</div>}
@@ -199,6 +235,7 @@ export default function ClassMembersPage() {
                   canManage={canManageMembers}
                   onRoleChange={() => openRoleModal(member)}
                   onDelete={() => setMemberToDelete(member)}
+                  onTransfer={() => setMemberToTransfer(member)}
                 />
               ))}
               {students.length === 0 && <div className={styles.groupEmpty}>Пока никого нет</div>}
@@ -253,6 +290,25 @@ export default function ClassMembersPage() {
             </button>
             <button className={styles.dangerButton} type="button" onClick={() => void submitDeleteMember()} disabled={isSubmitting}>
               {isSubmitting ? "Удаляем..." : "Удалить"}
+            </button>
+          </div>
+        </Modal>
+      )}
+
+      {memberToTransfer && (
+        <Modal title="Передать владение курсом" onClose={() => !isSubmitting && setMemberToTransfer(null)} disabled={isSubmitting}>
+          <div className={styles.modalText}>
+            Сделать владельцем курса участника {getMemberName(memberToTransfer)}?
+          </div>
+          <div className={styles.modalHint}>
+            Вы станете преподавателем и потеряете права владельца: управление участниками, передачу прав и удаление курса.
+          </div>
+          <div className={styles.modalActions}>
+            <button className={styles.secondaryButton} type="button" onClick={() => setMemberToTransfer(null)} disabled={isSubmitting}>
+              Отмена
+            </button>
+            <button className={styles.dangerButton} type="button" onClick={() => void submitTransfer()} disabled={isSubmitting}>
+              {isSubmitting ? "Передаём..." : "Передать владение"}
             </button>
           </div>
         </Modal>

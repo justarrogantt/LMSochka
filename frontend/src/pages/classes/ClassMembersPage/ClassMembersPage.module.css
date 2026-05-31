@@ -161,6 +161,12 @@
   font-weight: 600;
 }
 
+.modalHint {
+  color: var(--color-muted);
+  font-size: 14px;
+  line-height: 1.5;
+}
+
 .typeButtons {
   display: flex;
   gap: 8px;
