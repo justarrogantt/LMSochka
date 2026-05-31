@@ -146,7 +146,9 @@ export default function ClassLayout() {
     }
   }
 
-  const isCreator = classDetail?.user_role === "creator"
+  const canEditClass = classDetail?.permissions.can_edit_class ?? false
+  const canDeleteClass = classDetail?.permissions.can_delete_class ?? false
+  const canManageMembers = classDetail?.permissions.can_manage_members ?? false
   const isEditChanged = editForm.name.trim() !== (classDetail?.name ?? "").trim() || editForm.type !== classDetail?.type
   const canSaveEdit = editForm.name.trim().length > 0 && isEditChanged && !isSubmitting
 
@@ -163,27 +165,27 @@ export default function ClassLayout() {
 
         {!isLoading && (
           <div className={styles.actions}>
-            {isCreator && classDetail?.type === "closed" && classDetail?.join_code && (
+            {canManageMembers && classDetail?.type === "closed" && classDetail?.join_code && (
               <button className={styles.secondaryButton} type="button" onClick={copyJoinCode}>
                 Код приглашения: {classDetail.join_code}
               </button>
             )}
 
-            {isCreator && (
+            {canEditClass && (
               <button className={styles.secondaryButton} type="button" onClick={openEditModal}>
                 <EditIcon className={styles.buttonIcon} />
                 Редактировать
               </button>
             )}
 
-            {isCreator && (
+            {canDeleteClass && (
               <button className={styles.dangerButton} type="button" onClick={() => setIsDeleteModalOpen(true)}>
                 <DeleteIcon className={styles.buttonIcon} />
                 Удалить
               </button>
             )}
 
-            {!isCreator && (
+            {!canDeleteClass && (
               <button className={styles.dangerButton} type="button" onClick={() => setIsDeleteModalOpen(true)}>
                 <DeleteIcon className={styles.buttonIcon} />
                 Покинуть курс
@@ -210,15 +212,15 @@ export default function ClassLayout() {
       {!isLoading && <Outlet context={{ classDetail } satisfies ClassLayoutContext} />}
 
       {isDeleteModalOpen && (
-        <Modal title={isCreator ? "Удалить курс" : "Покинуть курс"} onClose={() => !isSubmitting && setIsDeleteModalOpen(false)} disabled={isSubmitting}>
+        <Modal title={canDeleteClass ? "Удалить курс" : "Покинуть курс"} onClose={() => !isSubmitting && setIsDeleteModalOpen(false)} disabled={isSubmitting}>
           <div className={styles.modalText}>
-            {isCreator ? "Вы точно хотите удалить курс? Это действие нельзя отменить." : "Вы точно хотите покинуть курс?"}
+            {canDeleteClass ? "Вы точно хотите удалить курс? Это действие нельзя отменить." : "Вы точно хотите покинуть курс?"}
           </div>
           <div className={styles.modalActions}>
             <button className={styles.secondaryButton} type="button" onClick={() => setIsDeleteModalOpen(false)} disabled={isSubmitting}>
               Отмена
             </button>
-            {isCreator ? (
+            {canDeleteClass ? (
               <button className={styles.dangerButton} type="button" onClick={() => void submitDeleteClass()} disabled={isSubmitting}>
                 {isSubmitting ? "Удаляем..." : "Да, удалить"}
               </button>

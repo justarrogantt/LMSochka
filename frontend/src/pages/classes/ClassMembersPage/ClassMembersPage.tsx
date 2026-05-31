@@ -58,7 +58,7 @@ function MemberCard({ member, badgeLabel, canManage, onRoleChange, onDelete }: M
 export default function ClassMembersPage() {
   const { classDetail } = useOutletContext<ClassLayoutContext>()
   const showToast = useToast()
-  const canManageMembers = classDetail?.user_role === "creator"
+  const canManageMembers = classDetail?.permissions.can_manage_members ?? false
 
   // Список участников курса
   const [members, setMembers] = useState<ClassMemberDto[]>([])

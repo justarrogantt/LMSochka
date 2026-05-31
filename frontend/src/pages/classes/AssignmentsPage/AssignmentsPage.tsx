@@ -256,7 +256,7 @@ export default function AssignmentsPage() {
     form.due_at !== initialForm.due_at ||
     form.max_grade !== initialForm.max_grade
   const canSubmit = !isSubmitting && isFilled && (editingId === null || isChanged)
-  const canManage = classDetail?.user_role !== "student"
+  const canManage = classDetail?.permissions.can_create_assignment ?? false
 
   return (
     <div className={styles.page}>

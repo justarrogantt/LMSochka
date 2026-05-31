@@ -216,7 +216,7 @@ export default function ClassAnnouncementsPage() {
   const isFilled = form.title.trim().length > 0 && form.content.trim().length > 0
   const isChanged = form.title.trim() !== initialForm.title.trim() || form.content.trim() !== initialForm.content.trim()
   const canSubmit = !isSubmitting && isFilled && (editingId === null || isChanged)
-  const canManage = classDetail?.user_role !== "student"
+  const canManage = classDetail?.permissions.can_create_announcement ?? false
 
   return (
     <div className={styles.page}>

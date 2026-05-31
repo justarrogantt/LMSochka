@@ -157,7 +157,7 @@ export default function AssignmentPage() {
     }
   }
 
-  const canManage = classDetail?.user_role !== "student"
+  const canManage = classDetail?.permissions.can_create_assignment ?? false
   const isFormChanged =
     form.title.trim() !== initialForm.title.trim() ||
     form.description.trim() !== initialForm.description.trim() ||

@@ -128,7 +128,7 @@ export default function AnnouncementPage() {
     }
   }
 
-  const canManage = classDetail?.user_role !== "student"
+  const canManage = classDetail?.permissions.can_create_announcement ?? false
   const isFormChanged = form.title.trim() !== initialForm.title.trim() || form.content.trim() !== initialForm.content.trim()
   const canSave = form.title.trim().length > 0 && form.content.trim().length > 0 && isFormChanged && !isSubmitting
 
