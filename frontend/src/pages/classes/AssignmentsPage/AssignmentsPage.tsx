@@ -45,8 +45,9 @@ type AssignmentCardProps = {
   onDelete: () => void
 }
 
-// Карточка-превью задания в списке
 function AssignmentCard({ item, canManage, onOpen, onEdit, onDelete }: AssignmentCardProps) {
+  const pendingCount = item.stats?.submitted_count ?? 0
+
   return (
     <div className={styles.card} onClick={onOpen}>
       <div className={styles.cardHead}>
@@ -69,6 +70,8 @@ function AssignmentCard({ item, canManage, onOpen, onEdit, onDelete }: Assignmen
         {item.due_at && <div>до {formatDateTime(item.due_at)}</div>}
         <div>до {item.max_grade} баллов</div>
       </div>
+
+      {canManage && <div className={styles.pendingText}>на проверке: {pendingCount}</div>}
     </div>
   )
 }
@@ -79,33 +82,18 @@ export default function AssignmentsPage() {
   const navigate = useNavigate()
   const showToast = useToast()
 
-  // Задания текущей страницы
   const [items, setItems] = useState<AssignmentDto[]>([])
-
-  // Лоадер страницы
   const [isLoading, setIsLoading] = useState(true)
-
-  // Пагинация: текущая страница и общее число заданий
   const [currentPage, setCurrentPage] = useState(1)
   const [totalItems, setTotalItems] = useState(0)
-
-  // Id редактируемого задания (null — режим создания)
   const [editingId, setEditingId] = useState<number | null>(null)
-
-  // Открыта ли модалка формы (создание/редактирование)
   const [isFormOpen, setIsFormOpen] = useState(false)
-
-  // Id задания, выбранного для удаления
   const [deletingId, setDeletingId] = useState<number | null>(null)
-
-  // Флаг отправки запроса
   const [isSubmitting, setIsSubmitting] = useState(false)
-
-  // Поля формы и их исходное состояние (для блокировки кнопки до изменений)
+  const [viewMode, setViewMode] = useState<"all" | "pending">("all")
   const [form, setForm] = useState<FormState>(EMPTY_FORM)
   const [initialForm, setInitialForm] = useState<FormState>(EMPTY_FORM)
 
-  // Загрузка страницы заданий
   async function loadPage(page: number) {
     if (!classDetail?.id) return
     setIsLoading(true)
@@ -122,12 +110,10 @@ export default function AssignmentsPage() {
     }
   }
 
-  // Начальная загрузка при смене класса
   useEffect(() => {
     void loadPage(1)
   }, [classDetail?.id])
 
-  // Закрытие модалки формы
   function closeFormModal() {
     if (isSubmitting) return
     setIsFormOpen(false)
@@ -136,13 +122,11 @@ export default function AssignmentsPage() {
     setInitialForm(EMPTY_FORM)
   }
 
-  // Закрытие модалки удаления
   function closeDeleteModal() {
     if (isSubmitting) return
     setDeletingId(null)
   }
 
-  // Открытие модалки создания
   function openCreateModal() {
     setForm(EMPTY_FORM)
     setInitialForm(EMPTY_FORM)
@@ -150,7 +134,6 @@ export default function AssignmentsPage() {
     setIsFormOpen(true)
   }
 
-  // Открытие модалки редактирования
   function openEditModal(item: AssignmentDto) {
     const saved: FormState = {
       title: item.title,
@@ -165,12 +148,10 @@ export default function AssignmentsPage() {
     setIsFormOpen(true)
   }
 
-  // Обновление одного поля формы
   function setField<K extends keyof FormState>(key: K, value: FormState[K]) {
     setForm((prev) => ({ ...prev, [key]: value }))
   }
 
-  // Собрать тело запроса из полей формы
   function buildBody() {
     return {
       title: form.title.trim(),
@@ -181,7 +162,6 @@ export default function AssignmentsPage() {
     }
   }
 
-  // Создание задания — перезагружаем первую страницу (меняется пагинация)
   async function submitCreate() {
     if (!classDetail?.id) return
 
@@ -200,7 +180,6 @@ export default function AssignmentsPage() {
     }
   }
 
-  // Редактирование — оптимистично обновляем карточку без перезагрузки, при ошибке откат
   async function submitEdit() {
     if (!classDetail?.id || !editingId) return
 
@@ -211,7 +190,14 @@ export default function AssignmentsPage() {
     setItems((prev) =>
       prev.map((it) =>
         it.id === id
-          ? { ...it, title: body.title, description: body.description ?? "", material_url: body.material_url, due_at: body.due_at, max_grade: body.max_grade }
+          ? {
+              ...it,
+              title: body.title,
+              description: body.description ?? "",
+              material_url: body.material_url,
+              due_at: body.due_at,
+              max_grade: body.max_grade
+            }
           : it
       )
     )
@@ -230,7 +216,6 @@ export default function AssignmentsPage() {
     }
   }
 
-  // Удаление задания — перезагружаем страницу (меняется пагинация)
   async function submitDelete() {
     if (!classDetail?.id || !deletingId || isSubmitting) return
     setIsSubmitting(true)
@@ -257,6 +242,8 @@ export default function AssignmentsPage() {
     form.max_grade !== initialForm.max_grade
   const canSubmit = !isSubmitting && isFilled && (editingId === null || isChanged)
   const canManage = classDetail?.permissions.can_create_assignment ?? false
+  const pendingTotal = items.reduce((sum, item) => sum + (item.stats?.submitted_count ?? 0), 0)
+  const visibleItems = viewMode === "pending" ? items.filter((item) => (item.stats?.submitted_count ?? 0) > 0) : items
 
   return (
     <div className={styles.page}>
@@ -267,18 +254,34 @@ export default function AssignmentsPage() {
         </div>
 
         {canManage && (
-          <button className={styles.primaryButton} type="button" onClick={openCreateModal}>
-            <AddIcon className={styles.buttonIcon} />
-            Создать задание
-          </button>
+          <div className={styles.headActions}>
+            <button
+              className={`${styles.switchButton} ${viewMode === "all" ? styles.switchButtonActive : ""}`}
+              type="button"
+              onClick={() => setViewMode("all")}
+            >
+              Все задания
+            </button>
+            <button
+              className={`${styles.switchButton} ${viewMode === "pending" ? styles.switchButtonActive : ""}`}
+              type="button"
+              onClick={() => setViewMode("pending")}
+            >
+              На проверке {pendingTotal > 0 ? `(${pendingTotal})` : ""}
+            </button>
+            <button className={styles.primaryButton} type="button" onClick={openCreateModal}>
+              <AddIcon className={styles.buttonIcon} />
+              Создать задание
+            </button>
+          </div>
         )}
       </div>
 
       {isLoading && <Loading />}
 
-      {!isLoading && items.length > 0 && (
+      {!isLoading && visibleItems.length > 0 && (
         <div className={styles.cards}>
-          {items.map((item) => (
+          {visibleItems.map((item) => (
             <AssignmentCard
               key={item.id}
               item={item}
@@ -292,6 +295,9 @@ export default function AssignmentsPage() {
       )}
 
       {!isLoading && items.length === 0 && <div className={styles.emptyMessage}>Заданий пока нет</div>}
+      {!isLoading && items.length > 0 && visibleItems.length === 0 && (
+        <div className={styles.emptyMessage}>Нет заданий на проверке</div>
+      )}
 
       <Pagination page={currentPage} total={totalItems} limit={LIMIT} onChange={(p) => void loadPage(p)} />
 

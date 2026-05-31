@@ -81,6 +81,12 @@
   gap: 8px;
 }
 
+.searchControl {
+  width: 100%;
+  position: relative;
+  display: flex;
+}
+
 .searchLabel {
   color: var(--color-muted);
   font-size: 13px;
@@ -90,7 +96,7 @@
 .searchInput {
   width: 100%;
   height: 48px;
-  padding: 0 16px;
+  padding: 0 16px 0 40px;
   border: 1px solid var(--color-line-strong);
   border-radius: var(--radius-md);
   background: var(--color-surface-2);
@@ -100,6 +106,17 @@
     border-color 0.16s ease,
     box-shadow 0.16s ease,
     background 0.16s ease;
+}
+
+.searchFieldIcon {
+  width: 16px;
+  height: 16px;
+  position: absolute;
+  left: 14px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--color-muted);
+  pointer-events: none;
 }
 
 .searchInput:focus {
@@ -151,7 +168,7 @@
 
 .primaryButton,
 .secondaryButton {
-  min-height: 42px;
+  min-height: 48px;
   padding: 0 18px;
   border-radius: var(--radius-md);
   font-size: 14px;

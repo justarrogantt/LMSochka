@@ -7,6 +7,7 @@ import FindCourseIcon from "../../../assets/icons/classes/find-course.svg?react"
 import KeyIcon from "../../../assets/icons/classes/key.svg?react"
 import MemberIcon from "../../../assets/icons/classes/member.svg?react"
 import OpenIcon from "../../../assets/icons/classes/open.svg?react"
+import SearchIcon from "../../../assets/icons/layout/search.svg?react"
 import Loading from "../../../components/Loading/Loading"
 import Modal from "../../../components/Modal/Modal"
 import { useToast } from "../../../components/Toast/ToastProvider"
@@ -160,7 +161,9 @@ function ClassCard({ item, onOpen }: ClassCardProps) {
           <TypeIcon className={styles.badgeIcon} />
           {classTypeLabels[item.type]}
         </div>
-        <div className={`${styles.badge} ${item.role === "creator" ? styles.badgeCreator : styles.badgeMember}`}>
+        <div
+          className={`${styles.badge} ${item.role === "creator" ? styles.badgeCreator : item.role === "teacher" ? styles.badgeTeacher : styles.badgeStudent}`}
+        >
           <RoleIcon className={styles.badgeIcon} />
           {roleLabels[item.role]}
         </div>
@@ -302,13 +305,16 @@ export default function ClassesPage() {
 
         <div className={styles.actions}>
           <label className={styles.headerSearch}>
-            <input
-              className={styles.searchInput}
-              type="search"
-              placeholder="Поиск по моим курсам"
-              value={courseSearch}
-              onChange={(event) => setCourseSearch(event.target.value)}
-            />
+            <div className={styles.searchControl}>
+              <SearchIcon className={styles.searchFieldIcon} />
+              <input
+                className={styles.searchInput}
+                type="search"
+                placeholder="Поиск по моим курсам"
+                value={courseSearch}
+                onChange={(event) => setCourseSearch(event.target.value)}
+              />
+            </div>
           </label>
 
           <button className={styles.secondaryButton} type="button" onClick={() => setActiveModal("join")}>

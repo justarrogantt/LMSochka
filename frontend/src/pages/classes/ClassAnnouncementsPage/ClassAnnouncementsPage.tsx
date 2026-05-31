@@ -256,7 +256,7 @@ export default function ClassAnnouncementsPage() {
       <Pagination page={currentPage} total={totalItems} limit={LIMIT} onChange={(p) => void loadPage(p)} />
 
       {canManage && isFormOpen && (
-        <Modal title={editingId ? "Редактировать объявление" : "Создать объявление"} onClose={closeFormModal} disabled={isSubmitting}>
+        <Modal title={editingId ? "Редактировать объявление" : "Создать объявление"} onClose={closeFormModal} disabled={isSubmitting} size="lg">
           <label className={styles.field}>
             <div className={styles.fieldLabel}>Заголовок</div>
             <input

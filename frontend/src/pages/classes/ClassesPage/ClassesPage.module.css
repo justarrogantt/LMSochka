@@ -46,6 +46,12 @@
   display: flex;
 }
 
+.searchControl {
+  width: 100%;
+  position: relative;
+  display: flex;
+}
+
 .actions > .secondaryButton,
 .actions > .primaryButton {
   flex: 0 0 auto;
@@ -54,7 +60,7 @@
 .searchInput {
   width: 100%;
   min-height: 44px;
-  padding: 0 14px;
+  padding: 0 14px 0 40px;
   border: 1px solid var(--color-line-strong);
   border-radius: var(--radius-md);
   outline: none;
@@ -193,7 +199,23 @@
   color: var(--color-warning);
 }
 
-.badgeMember {
+.badgeTeacher {
+  background: var(--color-success-soft);
+  color: var(--color-success);
+}
+
+.searchFieldIcon {
+  width: 16px;
+  height: 16px;
+  position: absolute;
+  left: 14px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--color-muted);
+  pointer-events: none;
+}
+
+.badgeStudent {
   background: var(--color-accent-soft);
   color: var(--color-accent-active);
 }

@@ -1,13 +1,17 @@
-import UserIcon from "../../assets/icons/layout/user.svg?react"
 import { useAuth } from "../../contexts/AuthContext"
 import { useTheme } from "../../contexts/ThemeContext"
-import { formatDateTime } from "../../services/helpers"
+import { formatDateTime, formatUserName } from "../../services/helpers"
 import styles from "./ProfilePage.module.css"
 
 export default function ProfilePage() {
   // Текущий пользователь (гарантированно есть внутри защищённых маршрутов)
   const { user } = useAuth()
   const { theme, toggleTheme } = useTheme()
+  const userName = user ? formatUserName(user) : ""
+  const userInitial = userName.trim().charAt(0).toUpperCase() || "U"
+
+  // Есть ли заполненное имя — чтобы не дублировать email в обеих строках
+  const hasName = Boolean(user?.first_name || user?.last_name)
 
   return (
     <div className={styles.page}>
@@ -16,12 +20,11 @@ export default function ProfilePage() {
       </div>
 
       <div className={styles.card}>
-        <div className={styles.avatar}>
-          <UserIcon className={styles.avatarIcon} />
-        </div>
+        <div className={styles.avatar}>{userInitial}</div>
 
         <div className={styles.info}>
-          <div className={styles.email}>{user?.email}</div>
+          <div className={styles.name}>{userName}</div>
+          {hasName && <div className={styles.userEmail}>{user?.email}</div>}
           {user && <div className={styles.since}>С нами с {formatDateTime(user.created_at)}</div>}
         </div>
       </div>

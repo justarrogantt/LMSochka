@@ -12,6 +12,39 @@
   gap: 18px;
 }
 
+.headActions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.switchButton {
+  min-height: 44px;
+  padding: 0 16px;
+  border: 1px solid var(--color-line-strong);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+  color: var(--color-text);
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition:
+    background 0.16s ease,
+    border-color 0.16s ease,
+    color 0.16s ease;
+}
+
+.switchButton:hover {
+  background: var(--color-soft);
+}
+
+.switchButtonActive,
+.switchButtonActive:hover {
+  border-color: var(--color-accent);
+  background: var(--color-accent-soft);
+  color: var(--color-accent-active);
+}
+
 .titleBlock {
   display: flex;
   flex-direction: column;
@@ -188,6 +221,12 @@
   gap: 16px;
   color: var(--color-muted);
   font-size: 13px;
+}
+
+.pendingText {
+  color: var(--color-muted);
+  font-size: 13px;
+  line-height: 1.4;
 }
 
 .modalText {

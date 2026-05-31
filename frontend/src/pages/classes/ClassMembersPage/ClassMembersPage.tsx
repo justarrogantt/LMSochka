@@ -1,39 +1,50 @@
 import { useEffect, useState } from "react"
 import { useOutletContext } from "react-router-dom"
-import SettingsIcon from "../../../assets/icons/classes/settings.svg?react"
+import CreatorIcon from "../../../assets/icons/classes/creator.svg?react"
 import DeleteIcon from "../../../assets/icons/classes/delete.svg?react"
-import Loading from "../../../components/Loading/Loading"
+import MemberIcon from "../../../assets/icons/classes/member.svg?react"
+import SettingsIcon from "../../../assets/icons/classes/settings.svg?react"
+import CoursesIcon from "../../../assets/icons/layout/courses.svg?react"
+import SearchIcon from "../../../assets/icons/layout/search.svg?react"
 import Modal from "../../../components/Modal/Modal"
+import Loading from "../../../components/Loading/Loading"
 import { useToast } from "../../../components/Toast/ToastProvider"
-import { ApiSilentError } from "../../../services/api"
-import { transferOwnership } from "../../../layouts/ClassLayout/services/class.api"
-import type { ClassRole } from "../../../types/class.types"
 import type { ClassLayoutContext } from "../../../layouts/ClassLayout/ClassLayout"
-import { getClassMembers, removeClassMember, updateClassMemberRole, type ClassMemberDto } from "./services/classMembers.api"
+import { transferOwnership } from "../../../layouts/ClassLayout/services/class.api"
+import { ApiSilentError } from "../../../services/api"
+import { formatUserName } from "../../../services/helpers"
+import type { ClassRole } from "../../../types/class.types"
+import {
+  getClassMembers,
+  removeClassMember,
+  updateClassMemberRole,
+  type ClassMemberDto
+} from "./services/classMembers.api"
 import styles from "./ClassMembersPage.module.css"
 
-const roleLabels: Record<ClassRole, string> = {
-  creator: "Создатель",
-  teacher: "Преподаватель",
-  student: "Студент"
+const roleBadge: Record<ClassRole, { label: string; className: string; Icon: typeof CreatorIcon }> = {
+  creator: { label: "Создатель", className: styles.badgeCreator, Icon: CreatorIcon },
+  teacher: { label: "Преподаватель", className: styles.badgeTeacher, Icon: CoursesIcon },
+  student: { label: "Студент", className: styles.badgeStudent, Icon: MemberIcon }
 }
 
-// Имя участника или email, если имя не заполнено
 function getMemberName(member: ClassMemberDto) {
-  return `${member.first_name ?? ""} ${member.last_name ?? ""}`.trim() || member.email
+  return formatUserName(member)
 }
 
 type MemberCardProps = {
   member: ClassMemberDto
-  badgeLabel?: string
+  badgeRole?: ClassRole
   canManage: boolean
   onRoleChange: () => void
   onDelete: () => void
 }
 
-// Карточка участника курса
-function MemberCard({ member, badgeLabel, canManage, onRoleChange, onDelete }: MemberCardProps) {
+function MemberCard({ member, badgeRole, canManage, onRoleChange, onDelete }: MemberCardProps) {
   const name = getMemberName(member)
+  const badge = roleBadge[badgeRole ?? member.role]
+  const BadgeIcon = badge.Icon
+
   return (
     <div className={styles.memberCard}>
       <div className={styles.avatar}>{name[0]}</div>
@@ -41,7 +52,10 @@ function MemberCard({ member, badgeLabel, canManage, onRoleChange, onDelete }: M
         <div className={styles.memberName}>{name}</div>
         <div className={styles.memberEmail}>{member.email}</div>
       </div>
-      <div className={styles.roleBadge}>{badgeLabel ?? roleLabels[member.role]}</div>
+      <div className={`${styles.roleBadge} ${badge.className}`}>
+        <BadgeIcon className={styles.badgeIcon} />
+        {badge.label}
+      </div>
       {canManage && (
         <>
           <button className={styles.iconButton} type="button" aria-label="Изменить роль участника" onClick={onRoleChange}>
@@ -61,26 +75,15 @@ export default function ClassMembersPage() {
   const showToast = useToast()
   const canManageMembers = classDetail?.permissions.can_manage_members ?? false
 
-  // Список участников курса
   const [members, setMembers] = useState<ClassMemberDto[]>([])
-
-  // Лоадер страницы
+  const [search, setSearch] = useState("")
   const [isLoading, setIsLoading] = useState(true)
-
-  // Участник, для которого открыта модалка смены роли, и выбранная роль
   const [selectedMember, setSelectedMember] = useState<ClassMemberDto | null>(null)
   const [selectedRole, setSelectedRole] = useState<"teacher" | "student">("student")
-
-  // Участник, выбранный для удаления
   const [memberToDelete, setMemberToDelete] = useState<ClassMemberDto | null>(null)
-
-  // Участник, которому передаём владение курсом
   const [memberToTransfer, setMemberToTransfer] = useState<ClassMemberDto | null>(null)
-
-  // Флаг отправки запроса
   const [isSubmitting, setIsSubmitting] = useState(false)
 
-  // Загрузка участников курса
   useEffect(() => {
     async function loadMembers() {
       if (!classDetail?.id) {
@@ -102,13 +105,11 @@ export default function ClassMembersPage() {
     void loadMembers()
   }, [classDetail?.id])
 
-  // Открытие модалки смены роли
   function openRoleModal(member: ClassMemberDto) {
     setSelectedMember(member)
     setSelectedRole(member.role === "teacher" ? "teacher" : "student")
   }
 
-  // Изменение роли участника (оптимистично, с откатом при ошибке)
   async function submitRoleChange() {
     if (!classDetail?.id || !selectedMember || isSubmitting) return
 
@@ -130,7 +131,6 @@ export default function ClassMembersPage() {
     }
   }
 
-  // Удаление участника (оптимистично, с откатом при ошибке)
   async function submitDeleteMember() {
     if (!classDetail?.id || !memberToDelete || isSubmitting) return
 
@@ -152,21 +152,19 @@ export default function ClassMembersPage() {
     }
   }
 
-  // Передача владения курсом другому участнику (только создатель)
   async function submitTransfer() {
     if (!classDetail?.id || !memberToTransfer || isSubmitting) return
 
     const target = memberToTransfer
-    setMemberToTransfer(null)
     setIsSubmitting(true)
 
     try {
       const updated = await transferOwnership(classDetail.id, target.user_id)
-      // Permissions/роль текущего юзера изменились — обновляем данные курса в шапке и вкладках.
       setClassDetail(updated)
-      // Роли поменялись (цель → создатель, прежний владелец → преподаватель) — перечитываем список.
       const data = await getClassMembers(classDetail.id)
       setMembers(data.items)
+      setMemberToTransfer(null)
+      setSelectedMember(null)
       showToast({ type: "neutral", message: `Курс передан: ${getMemberName(target)}` })
     } catch (error) {
       showToast({ type: "error", message: (error as Error).message })
@@ -175,21 +173,44 @@ export default function ClassMembersPage() {
     }
   }
 
-  const creators = members.filter((member) => member.role === "creator")
-  const teachers = members.filter((member) => member.role === "teacher" || member.role === "creator")
-  const students = members.filter((member) => member.role === "student")
+  const query = search.trim().toLowerCase()
+  const filteredMembers = query
+    ? members.filter((member) => getMemberName(member).toLowerCase().includes(query) || member.email.toLowerCase().includes(query))
+    : members
+
+  const creators = filteredMembers.filter((member) => member.role === "creator")
+  const teachers = filteredMembers.filter((member) => member.role === "teacher" || member.role === "creator")
+  const students = filteredMembers.filter((member) => member.role === "student")
   const hasMembers = members.length > 0
+  const hasFiltered = filteredMembers.length > 0
 
   return (
     <div className={styles.page}>
-      <div className={styles.titleBlock}>
-        <div className={styles.title}>Участники</div>
-        <div className={styles.text}>Преподаватели и студенты, которые состоят в курсе.</div>
+      <div className={styles.pageHead}>
+        <div className={styles.titleBlock}>
+          <div className={styles.title}>Участники</div>
+          <div className={styles.text}>Преподаватели и студенты, которые состоят в курсе.</div>
+        </div>
+
+        {hasMembers && (
+          <label className={styles.search}>
+            <div className={styles.searchControl}>
+              <SearchIcon className={styles.searchFieldIcon} />
+              <input
+                className={styles.searchInput}
+                type="search"
+                placeholder="Поиск по имени или почте"
+                value={search}
+                onChange={(event) => setSearch(event.target.value)}
+              />
+            </div>
+          </label>
+        )}
       </div>
 
       {isLoading && <Loading />}
 
-      {!isLoading && hasMembers && (
+      {!isLoading && hasMembers && hasFiltered && (
         <>
           <div className={styles.group}>
             <div className={styles.groupTitle}>Создатель</div>
@@ -208,7 +229,7 @@ export default function ClassMembersPage() {
                 <MemberCard
                   key={member.user_id}
                   member={member}
-                  badgeLabel={member.role === "creator" ? "Преподаватель" : undefined}
+                  badgeRole={member.role === "creator" ? "teacher" : undefined}
                   canManage={canManageMembers && member.role !== "creator"}
                   onRoleChange={() => openRoleModal(member)}
                   onDelete={() => setMemberToDelete(member)}
@@ -237,8 +258,9 @@ export default function ClassMembersPage() {
       )}
 
       {!isLoading && !hasMembers && <div className={styles.emptyMessage}>Участников пока нет</div>}
+      {!isLoading && hasMembers && !hasFiltered && <div className={styles.emptyMessage}>Участники не найдены</div>}
 
-      {selectedMember && (
+      {selectedMember && !memberToTransfer && (
         <Modal title="Изменить роль участника" onClose={() => !isSubmitting && setSelectedMember(null)} disabled={isSubmitting}>
           <div className={styles.modalText}>{getMemberName(selectedMember)}</div>
 
@@ -259,22 +281,19 @@ export default function ClassMembersPage() {
             >
               Преподаватель
             </button>
+            {selectedMember.role !== "creator" && (
+              <button
+                className={styles.typeButton}
+                type="button"
+                onClick={() => setMemberToTransfer(selectedMember)}
+                disabled={isSubmitting}
+              >
+                Владелец
+              </button>
+            )}
           </div>
 
           <div className={styles.modalActions}>
-            {selectedMember.role !== "creator" && (
-              <button
-                className={styles.dangerButton}
-                type="button"
-                onClick={() => {
-                  setMemberToTransfer(selectedMember)
-                  setSelectedMember(null)
-                }}
-                disabled={isSubmitting}
-              >
-                Сделать владельцем
-              </button>
-            )}
             <button className={styles.secondaryButton} type="button" onClick={() => setSelectedMember(null)} disabled={isSubmitting}>
               Отмена
             </button>

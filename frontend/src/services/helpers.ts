@@ -21,3 +21,8 @@ export function truncate(text: string, maxChars: number): string {
   if (text.length <= maxChars) return text
   return text.slice(0, maxChars).trimEnd() + "..."
 }
+
+// Отображаемое имя пользователя: "Имя Фамилия", иначе email как запасной вариант
+export function formatUserName(user: { first_name?: string | null; last_name?: string | null; email: string }): string {
+  return `${user.first_name ?? ""} ${user.last_name ?? ""}`.trim() || user.email
+}

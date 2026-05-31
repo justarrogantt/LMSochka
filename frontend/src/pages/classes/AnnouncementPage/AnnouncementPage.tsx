@@ -173,7 +173,7 @@ export default function AnnouncementPage() {
       )}
 
       {canManage && activeModal === "edit" && (
-        <Modal title="Редактировать объявление" onClose={closeModal} disabled={isSubmitting}>
+        <Modal title="Редактировать объявление" onClose={closeModal} disabled={isSubmitting} size="lg">
           <label className={styles.field}>
             <div className={styles.fieldLabel}>Заголовок</div>
             <input

@@ -8,6 +8,8 @@ import { ApiSilentError } from "../../../services/api"
 import { register as registerRequest } from "./services/register.api"
 
 type RegisterForm = {
+  firstName: string
+  lastName: string
   email: string
   password: string
   repeatPassword: string
@@ -16,6 +18,8 @@ type RegisterForm = {
 type RegisterErrors = Partial<Record<keyof RegisterForm, string>>
 
 const defaultForm: RegisterForm = {
+  firstName: "",
+  lastName: "",
   email: "",
   password: "",
   repeatPassword: ""
@@ -23,8 +27,13 @@ const defaultForm: RegisterForm = {
 
 const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 const passwordMinLength = 8
+const nameMaxLength = 50
 
 const validationErrors = {
+  firstNameRequired: "Введите имя.",
+  firstNameInvalid: "Имя не длиннее 50 символов.",
+  lastNameRequired: "Введите фамилию.",
+  lastNameInvalid: "Фамилия не длиннее 50 символов.",
   emailRequired: "Введите электронную почту.",
   emailInvalid: "Введите корректную электронную почту.",
   passwordRequired: "Введите пароль.",
@@ -51,10 +60,12 @@ export default function RegisterPage() {
   // Обновляет поле и сразу очищает старые ошибки.
   function updateForm(event: ChangeEvent<HTMLInputElement>) {
     const { name, value } = event.target
+    // В имени/фамилии допускаем пробелы (двойные имена), в остальных полях вырезаем.
+    const isNameField = name === "firstName" || name === "lastName"
 
     setUserData((prev) => ({
       ...prev,
-      [name]: value.replace(/\s/g, "")
+      [name]: isNameField ? value : value.replace(/\s/g, "")
     }))
 
     setInputErrors((prev) => ({
@@ -67,6 +78,18 @@ export default function RegisterPage() {
   // Проверяет поля до запроса, чтобы не дергать бэк пустыми данными.
   function checkForm(formData: RegisterForm) {
     const newErrors: RegisterErrors = {}
+
+    if (!formData.firstName.trim()) {
+      newErrors.firstName = validationErrors.firstNameRequired
+    } else if (formData.firstName.trim().length > nameMaxLength) {
+      newErrors.firstName = validationErrors.firstNameInvalid
+    }
+
+    if (!formData.lastName.trim()) {
+      newErrors.lastName = validationErrors.lastNameRequired
+    } else if (formData.lastName.trim().length > nameMaxLength) {
+      newErrors.lastName = validationErrors.lastNameInvalid
+    }
 
     if (!formData.email.trim()) {
       newErrors.email = validationErrors.emailRequired
@@ -102,7 +125,9 @@ export default function RegisterPage() {
       setIsSubmitting(true)
       const authData = await registerRequest({
         email: userData.email,
-        password: userData.password
+        password: userData.password,
+        first_name: userData.firstName.trim(),
+        last_name: userData.lastName.trim()
       })
 
       setUser(authData.user)
@@ -133,6 +158,36 @@ export default function RegisterPage() {
   return (
     <AuthLayout title="Создать аккаунт" subtitle="Зарегистрируйся, чтобы получить доступ к учебной платформе.">
       <form className={styles.form} onSubmit={onSubmit}>
+        <label className={`${styles.field} ${inputErrors.firstName ? styles.fieldError : ""}`} htmlFor="firstName">
+          <div className={styles.fieldTitle}>Имя</div>
+          <input
+            className={styles.input}
+            id="firstName"
+            name="firstName"
+            placeholder="Иван"
+            type="text"
+            autoComplete="given-name"
+            maxLength={50}
+            value={userData.firstName}
+            onChange={updateForm}
+          />
+        </label>
+
+        <label className={`${styles.field} ${inputErrors.lastName ? styles.fieldError : ""}`} htmlFor="lastName">
+          <div className={styles.fieldTitle}>Фамилия</div>
+          <input
+            className={styles.input}
+            id="lastName"
+            name="lastName"
+            placeholder="Иванов"
+            type="text"
+            autoComplete="family-name"
+            maxLength={50}
+            value={userData.lastName}
+            onChange={updateForm}
+          />
+        </label>
+
         <label className={`${styles.field} ${inputErrors.email ? styles.fieldError : ""}`} htmlFor="email">
           <div className={styles.fieldTitle}>Электронная почта</div>
           <input

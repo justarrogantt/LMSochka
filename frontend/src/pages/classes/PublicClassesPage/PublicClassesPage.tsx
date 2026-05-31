@@ -1,6 +1,7 @@
 import { useEffect, useState, type FormEvent } from "react"
 import { useNavigate } from "react-router-dom"
 import ArrowIcon from "../../../assets/icons/classes/arrow.svg?react"
+import SearchIcon from "../../../assets/icons/layout/search.svg?react"
 import Loading from "../../../components/Loading/Loading"
 import Pagination from "../../../components/Pagination/Pagination"
 import { useToast } from "../../../components/Toast/ToastProvider"
@@ -18,7 +19,6 @@ type PublicClassCardProps = {
   onJoin: () => void
 }
 
-// Карточка открытого курса в каталоге
 function PublicClassCard({ item, isJoining, onOpen, onJoin }: PublicClassCardProps) {
   return (
     <div className={styles.card}>
@@ -47,26 +47,14 @@ export default function PublicClassesPage() {
   const navigate = useNavigate()
   const showToast = useToast()
 
-  // Курсы каталога
   const [classes, setClasses] = useState<PublicClassDto[]>([])
-
-  // Лоадер страницы
   const [isLoading, setIsLoading] = useState(true)
-
-  // Текст в поле поиска. Сам запрос уходит только по кнопке "Найти".
   const [search, setSearch] = useState("")
-
-  // Последний применённый поиск нужен для пагинации.
   const [appliedSearch, setAppliedSearch] = useState("")
-
-  // Пагинация каталога открытых курсов
   const [currentPage, setCurrentPage] = useState(1)
   const [totalItems, setTotalItems] = useState(0)
-
-  // Id курсов, в которые сейчас выполняется вступление
   const [submittingIds, setSubmittingIds] = useState<Set<number>>(new Set())
 
-  // Загрузка страницы каталога открытых курсов
   async function loadPublicClasses(page: number, searchText: string) {
     setIsLoading(true)
 
@@ -83,12 +71,10 @@ export default function PublicClassesPage() {
     }
   }
 
-  // Начальная загрузка каталога.
   useEffect(() => {
     void loadPublicClasses(1, "")
   }, [])
 
-  // Отправка поиска на бэк.
   function submitSearch(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
 
@@ -97,7 +83,6 @@ export default function PublicClassesPage() {
     void loadPublicClasses(1, nextSearch)
   }
 
-  // Вступление в открытый курс (после успеха помечаем карточку как участник)
   async function joinById(classId: number) {
     if (submittingIds.has(classId)) return
     setSubmittingIds((prev) => new Set(prev).add(classId))
@@ -134,7 +119,16 @@ export default function PublicClassesPage() {
       <form className={styles.search} onSubmit={submitSearch}>
         <label className={styles.searchField}>
           <div className={styles.searchLabel}>Поиск курса</div>
-          <input className={styles.searchInput} placeholder="Например, Python" type="search" value={search} onChange={(event) => setSearch(event.target.value)} />
+          <div className={styles.searchControl}>
+            <SearchIcon className={styles.searchFieldIcon} />
+            <input
+              className={styles.searchInput}
+              placeholder="Например, Python"
+              type="search"
+              value={search}
+              onChange={(event) => setSearch(event.target.value)}
+            />
+          </div>
         </label>
         <button className={styles.primaryButton} type="submit" disabled={isLoading}>
           Найти

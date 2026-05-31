@@ -5,13 +5,14 @@ import BellIcon from "../../assets/icons/layout/bell.svg?react"
 import CoursesIcon from "../../assets/icons/layout/courses.svg?react"
 import ExitIcon from "../../assets/icons/layout/exit.svg?react"
 import GradesIcon from "../../assets/icons/layout/grades.svg?react"
+import HelpIcon from "../../assets/icons/layout/help.svg?react"
 import HomeIcon from "../../assets/icons/layout/home.svg?react"
 import SidebarIcon from "../../assets/icons/layout/sidebar.svg?react"
-import UserIcon from "../../assets/icons/layout/user.svg?react"
 import { useToast } from "../../components/Toast/ToastProvider"
 import { useAuth } from "../../contexts/AuthContext"
 import { Api, ApiError, ApiSilentError } from "../../services/api"
 import { logout as logoutRequest } from "../../services/auth.api"
+import { formatUserName } from "../../services/helpers"
 import styles from "./AppLayout.module.css"
 
 const menuItems = [
@@ -32,19 +33,22 @@ const menuItems = [
     title: "Оценки",
     icon: GradesIcon,
     end: true
+  },
+  {
+    path: "/help",
+    title: "Помощь",
+    icon: HelpIcon,
+    end: true
   }
 ]
 
-// Ключ настройки сайдбара в localStorage.
 const SIDEBAR_OPEN_STORAGE_KEY = "sidebar_open"
 
-// Берём сохранённое состояние сайдбара. Если значения нет, сайдбар закрыт.
 function getInitialSidebarOpen() {
   const saved = localStorage.getItem(SIDEBAR_OPEN_STORAGE_KEY)
   return saved === "true"
 }
 
-// Сохраняем выбранное состояние, чтобы оно не сбрасывалось после перезагрузки.
 function saveSidebarOpen(isOpen: boolean) {
   localStorage.setItem(SIDEBAR_OPEN_STORAGE_KEY, String(isOpen))
 }
@@ -53,17 +57,15 @@ export default function AppLayout() {
   const { user, setUser } = useAuth()
   const navigate = useNavigate()
   const showToast = useToast()
-  const userEmail = user?.email ?? ""
+  const userName = user ? formatUserName(user) : ""
+  const userInitial = userName.trim().charAt(0).toUpperCase() || "U"
 
-  // Открыт ли сайдбар. Если настройки ещё нет, по умолчанию он закрыт.
   const [isSidebarOpen, setIsSidebarOpen] = useState<boolean>(getInitialSidebarOpen)
 
-  // Фиксируем дефолтное состояние в localStorage при первом входе.
   useEffect(() => {
     saveSidebarOpen(isSidebarOpen)
   }, [])
 
-  // Переключаем сайдбар и сразу сохраняем новое состояние.
   function toggleSidebar() {
     setIsSidebarOpen((prev) => {
       const next = !prev
@@ -122,10 +124,8 @@ export default function AppLayout() {
           </button>
 
           <NavLink className={styles.userCard} to="/profile" aria-label="Открыть профиль">
-            <div className={styles.avatar} aria-hidden="true">
-              <UserIcon className={styles.avatarIcon} />
-            </div>
-            <div className={styles.userEmail}>{userEmail}</div>
+            <div className={styles.avatar} aria-hidden="true">{userInitial}</div>
+            <div className={styles.userEmail}>{userName}</div>
           </NavLink>
         </div>
       </header>
@@ -162,18 +162,6 @@ export default function AppLayout() {
             <main className={styles.content}>
               <Outlet />
             </main>
-
-            <footer className={styles.footer}>
-              <a className={`${styles.footerLink} ${styles.footerBrand}`} href="/">
-                a4dev
-              </a>
-              <a className={styles.footerLink} href="/">
-                Помощь
-              </a>
-              <a className={styles.footerLink} href="/">
-                Контакты
-              </a>
-            </footer>
           </div>
         </div>
       </div>

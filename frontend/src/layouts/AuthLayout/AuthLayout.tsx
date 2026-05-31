@@ -29,20 +29,6 @@ export default function AuthLayout({ title, subtitle, children }: AuthLayoutProp
           {children}
         </section>
       </main>
-
-      <div className={styles.footer}>
-        <div className={styles.footerInner}>
-          <a className={`${styles.footerLink} ${styles.footerBrand}`} href="/">
-            a4dev
-          </a>
-          <a className={styles.footerLink} href="/">
-            Помощь
-          </a>
-          <a className={styles.footerLink} href="/">
-            Контакты
-          </a>
-        </div>
-      </div>
     </div>
   )
 }

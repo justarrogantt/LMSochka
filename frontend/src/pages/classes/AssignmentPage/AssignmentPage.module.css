@@ -436,6 +436,59 @@
   color: var(--color-success);
 }
 
+/* ── Тулбар списка решений: фильтры + поиск ── */
+.subToolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.subSearch {
+  flex: 0 1 260px;
+  display: flex;
+}
+
+.searchControl {
+  width: 100%;
+  position: relative;
+  display: flex;
+}
+
+.searchInput {
+  width: 100%;
+  min-height: 40px;
+  padding: 0 14px 0 40px;
+  border: 1px solid var(--color-line-strong);
+  border-radius: var(--radius-md);
+  outline: none;
+  background: var(--color-surface-2);
+  color: var(--color-text);
+  font: inherit;
+  transition:
+    border-color 0.16s ease,
+    box-shadow 0.16s ease,
+    background 0.16s ease;
+}
+
+.searchFieldIcon {
+  width: 16px;
+  height: 16px;
+  position: absolute;
+  left: 14px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--color-muted);
+  pointer-events: none;
+}
+
+.searchInput:focus {
+  border-color: var(--color-accent);
+  background: var(--color-surface);
+  box-shadow: 0 0 0 4px var(--color-accent-ring);
+}
+
 /* ── Фильтры списка решений ── */
 .filters {
   display: flex;
