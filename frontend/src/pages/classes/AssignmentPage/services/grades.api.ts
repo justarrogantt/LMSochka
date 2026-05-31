@@ -1,62 +1,80 @@
-// Мок-реализация выставления оценок (grades).
-// Оперирует тем же in-memory хранилищем, что и submissions.api.
-import { applyGrade, clearGrade, getGradedBy, locateSubmission, mockDelay } from "./submissionsMock"
-import type { SubmissionDto, SubmissionStudent } from "./submissions.api"
+import { z } from "zod"
+import { Api } from "../../../../services/api"
+import { parseApiResponse, throwApiResponseError } from "../../../../services/response"
+import type { Errors } from "../../../../types/api.types"
+import type { SubmissionDto } from "./submissions.api"
 
-// Оценка как отдельная сущность (повторяет GradeDTO с бэка)
-export type GradeDto = {
-  submission_id: number
-  value: number
-  comment: string | null
-  graded_by: SubmissionStudent
-  graded_at: string
-  updated_at: string | null
-}
+// Краткая карточка проверяющего в ответе оценки.
+const GradeUserSchema = z.object({
+  id: z.number(),
+  email: z.string().email(),
+  first_name: z.string().nullable(),
+  last_name: z.string().nullable()
+}).strip()
 
-// Тело выставления оценки
+// Оценка как отдельная сущность.
+const GradeSchema = z.object({
+  submission_id: z.number(),
+  value: z.number(),
+  comment: z.string().nullable(),
+  graded_by: GradeUserSchema,
+  graded_at: z.string(),
+  updated_at: z.string().nullable()
+}).strip()
+
+// Схема решения нужна для ответа DELETE /grade.
+const SubmissionSchema = z.object({
+  id: z.number(),
+  assignment_id: z.number(),
+  student: GradeUserSchema,
+  answer_text: z.string(),
+  attachment_url: z.string().nullable(),
+  status: z.enum(["draft", "submitted", "returned", "graded"]),
+  return_comment: z.string().nullable(),
+  submitted_at: z.string().nullable(),
+  is_late: z.boolean(),
+  grade: z.object({
+    value: z.number(),
+    comment: z.string().nullable(),
+    graded_at: z.string(),
+    updated_at: z.string().nullable()
+  }).strip().nullable(),
+  created_at: z.string(),
+  updated_at: z.string().nullable()
+}).strip()
+
+export type GradeDto = z.infer<typeof GradeSchema>
+
 export type UpsertGradeBody = {
   value: number
   comment: string | null
 }
 
-// Выставить/обновить оценку (преподаватель)
-export async function upsertGrade(
-  submissionId: number,
-  gradedBy: SubmissionStudent,
-  body: UpsertGradeBody
-): Promise<GradeDto> {
-  await mockDelay()
-  const submission = applyGrade(submissionId, body.value, body.comment, gradedBy)
-  const grade = submission.grade!
+const UPSERT_GRADE_ERRORS: Errors = {
+  default: "Не удалось сохранить оценку",
+  409: "Оценивать можно только отправленное или уже оценённое решение",
+  422: "Проверьте значение оценки"
+}
 
-  return {
-    submission_id: submission.id,
-    value: grade.value,
-    comment: grade.comment,
-    graded_by: gradedBy,
-    graded_at: grade.graded_at,
-    updated_at: grade.updated_at
+const DELETE_GRADE_ERRORS: Errors = {
+  default: "Не удалось снять оценку",
+  404: "Оценка не найдена"
+}
+
+export async function upsertGrade(submissionId: number, body: UpsertGradeBody): Promise<GradeDto> {
+  try {
+    const response = await Api.fetchPut(`/api/submissions/${submissionId}/grade`, body, UPSERT_GRADE_ERRORS)
+    return await parseApiResponse(response, GradeSchema)
+  } catch (error) {
+    throwApiResponseError(error)
   }
 }
 
-// Снять оценку (преподаватель). Возвращаем обновлённое решение, как и бэк
 export async function deleteGrade(submissionId: number): Promise<SubmissionDto> {
-  await mockDelay()
-  return clearGrade(submissionId)
-}
-
-// Получить оценку решения
-export async function getGrade(submissionId: number): Promise<GradeDto> {
-  await mockDelay()
-  const submission = locateSubmission(submissionId)
-  if (!submission || !submission.grade) throw new Error("Оценка не найдена")
-
-  return {
-    submission_id: submission.id,
-    value: submission.grade.value,
-    comment: submission.grade.comment,
-    graded_by: getGradedBy(submissionId),
-    graded_at: submission.grade.graded_at,
-    updated_at: submission.grade.updated_at
+  try {
+    const response = await Api.fetchDelete(`/api/submissions/${submissionId}/grade`, DELETE_GRADE_ERRORS)
+    return await parseApiResponse(response, SubmissionSchema)
+  } catch (error) {
+    throwApiResponseError(error)
   }
 }

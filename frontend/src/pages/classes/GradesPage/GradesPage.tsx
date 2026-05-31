@@ -8,6 +8,7 @@ import { formatDateTime } from "../../../services/helpers"
 import type { ClassLayoutContext } from "../../../layouts/ClassLayout/ClassLayout"
 import {
   getGradebook,
+  getStudentGradebook,
   type GradebookAssignment,
   type GradebookCell,
   type GradebookDto,
@@ -55,7 +56,7 @@ export default function GradesPage() {
 
   const canViewGradebook = classDetail?.permissions.can_view_gradebook ?? false
 
-  // Загрузка журнала. Студент без права на весь журнал получает только свою строку
+  // Загрузка журнала. Преподаватель получает весь журнал, студент — свою строку из списка заданий.
   useEffect(() => {
     if (!classDetail?.id) {
       setIsLoading(false)
@@ -65,11 +66,17 @@ export default function GradesPage() {
     async function load() {
       setIsLoading(true)
       try {
-        const viewer =
-          !canViewGradebook && user
-            ? { id: user.id, email: user.email, first_name: user.first_name, last_name: user.last_name }
+        const data = canViewGradebook
+          ? await getGradebook(classDetail!.id)
+          : user
+            ? await getStudentGradebook(classDetail!.id, {
+                id: user.id,
+                email: user.email,
+                first_name: user.first_name,
+                last_name: user.last_name
+              })
             : null
-        const data = await getGradebook(classDetail!.id, viewer)
+        if (!data) return
         setGradebook(data)
       } catch (error) {
         if (error instanceof ApiSilentError) return

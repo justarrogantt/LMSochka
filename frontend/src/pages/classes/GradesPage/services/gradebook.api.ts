@@ -1,40 +1,69 @@
-// Мок-реализация журнала оценок (gradebook).
-// Генерирует детерминированную матрицу студент × задание по id курса.
-// Повторяет GradebookDTO с бэка; вместо запроса — задержка + локальные данные.
+import { z } from "zod"
+import { Api } from "../../../../services/api"
+import { parseApiResponse, throwApiResponseError } from "../../../../services/response"
+import type { Errors } from "../../../../types/api.types"
 
 export type GradebookStatus = "draft" | "submitted" | "returned" | "graded"
 
-export type GradebookAssignment = {
-  id: number
-  title: string
-  max_grade: number
-  due_at: string | null
-}
+// Задание в журнале оценок.
+const GradebookAssignmentSchema = z.object({
+  id: z.number(),
+  title: z.string(),
+  max_grade: z.number(),
+  due_at: z.string().nullable()
+}).strip()
 
-export type GradebookStudent = {
-  id: number
-  email: string
-  first_name: string | null
-  last_name: string | null
-  is_active: boolean
-}
+// Студент в журнале оценок.
+const GradebookStudentSchema = z.object({
+  id: z.number(),
+  email: z.string().email(),
+  first_name: z.string().nullable(),
+  last_name: z.string().nullable(),
+  is_active: z.boolean()
+}).strip()
 
-export type GradebookCell = {
-  student_id: number
-  assignment_id: number
-  status: GradebookStatus
-  value: number | null
-  is_late: boolean
-  submitted_at: string | null
-}
+// Ячейка журнала: статус и оценка студента по заданию.
+const GradebookCellSchema = z.object({
+  student_id: z.number(),
+  assignment_id: z.number(),
+  status: z.enum(["draft", "submitted", "returned", "graded"]),
+  value: z.number().nullable(),
+  is_late: z.boolean(),
+  submitted_at: z.string().nullable()
+}).strip()
 
-export type GradebookDto = {
-  assignments: GradebookAssignment[]
-  students: GradebookStudent[]
-  cells: GradebookCell[]
-}
+// Полная таблица оценок курса.
+const GradebookSchema = z.object({
+  assignments: z.array(GradebookAssignmentSchema),
+  students: z.array(GradebookStudentSchema),
+  cells: z.array(GradebookCellSchema)
+}).strip()
 
-// Карточка текущего студента — для режима «вижу только свою строку»
+// Ответ списка заданий для студента. Используем его, чтобы собрать личную строку оценок.
+const StudentAssignmentsPageSchema = z.object({
+  items: z.array(z.object({
+    id: z.number(),
+    title: z.string(),
+    max_grade: z.number(),
+    due_at: z.string().nullable(),
+    my_submission: z.object({
+      submission_id: z.number(),
+      status: z.enum(["draft", "submitted", "returned", "graded"]),
+      submitted_at: z.string().nullable(),
+      is_late: z.boolean(),
+      grade: z.number().nullable()
+    }).strip().nullable()
+  }).strip()),
+  total: z.number(),
+  page: z.number(),
+  limit: z.number()
+}).strip()
+
+export type GradebookAssignment = z.infer<typeof GradebookAssignmentSchema>
+export type GradebookStudent = z.infer<typeof GradebookStudentSchema>
+export type GradebookCell = z.infer<typeof GradebookCellSchema>
+export type GradebookDto = z.infer<typeof GradebookSchema>
+
 export type GradebookViewer = {
   id: number
   email: string
@@ -42,113 +71,52 @@ export type GradebookViewer = {
   last_name: string | null
 }
 
-const MOCK_DELAY_MS = 450
-
-function mockDelay(): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, MOCK_DELAY_MS))
+const GRADEBOOK_ERRORS: Errors = {
+  default: "Не удалось загрузить журнал оценок",
+  403: "Журнал оценок доступен только преподавателям"
 }
 
-// Простой детерминированный ГПСЧ, чтобы журнал одного курса был стабилен
-function mulberry32(seed: number): () => number {
-  let state = seed >>> 0
-  return () => {
-    state |= 0
-    state = (state + 0x6d2b79f5) | 0
-    let t = Math.imul(state ^ (state >>> 15), 1 | state)
-    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t
-    return ((t ^ (t >>> 14)) >>> 0) / 4294967296
+const STUDENT_GRADES_ERRORS: Errors = {
+  default: "Не удалось загрузить ваши оценки"
+}
+
+export async function getGradebook(classId: number): Promise<GradebookDto> {
+  try {
+    const response = await Api.fetchGet(`/api/classes/${classId}/gradebook`, GRADEBOOK_ERRORS)
+    return await parseApiResponse(response, GradebookSchema)
+  } catch (error) {
+    throwApiResponseError(error)
   }
 }
 
-// Выдуманные задания курса
-const MOCK_ASSIGNMENTS: Array<{ title: string; max_grade: number; due_at: string | null }> = [
-  { title: "Введение в предмет", max_grade: 100, due_at: "2026-04-10T18:00:00" },
-  { title: "Практическая работа №1", max_grade: 100, due_at: "2026-04-24T18:00:00" },
-  { title: "Контрольная работа", max_grade: 50, due_at: "2026-05-08T18:00:00" },
-  { title: "Проект", max_grade: 100, due_at: "2026-05-22T18:00:00" },
-  { title: "Итоговый тест", max_grade: 30, due_at: null }
-]
+export async function getStudentGradebook(classId: number, viewer: GradebookViewer): Promise<GradebookDto> {
+  try {
+    const response = await Api.fetchGet(
+      `/api/classes/${classId}/assignments?page=1&limit=100`,
+      STUDENT_GRADES_ERRORS
+    )
+    const page = await parseApiResponse(response, StudentAssignmentsPageSchema)
+    const assignments = page.items.map((item) => ({
+      id: item.id,
+      title: item.title,
+      max_grade: item.max_grade,
+      due_at: item.due_at
+    }))
+    const cells = page.items.map((item) => ({
+      student_id: viewer.id,
+      assignment_id: item.id,
+      status: item.my_submission?.status ?? "draft",
+      value: item.my_submission?.grade ?? null,
+      is_late: item.my_submission?.is_late ?? false,
+      submitted_at: item.my_submission?.submitted_at ?? null
+    }))
 
-// Выдуманные студенты курса
-const MOCK_STUDENTS: Array<{ first_name: string | null; last_name: string | null; email: string }> = [
-  { first_name: "Анна", last_name: "Смирнова", email: "a.smirnova@example.com" },
-  { first_name: "Иван", last_name: "Петров", email: "i.petrov@example.com" },
-  { first_name: "Мария", last_name: "Кузнецова", email: "m.kuznetsova@example.com" },
-  { first_name: "Дмитрий", last_name: "Волков", email: "d.volkov@example.com" },
-  { first_name: null, last_name: null, email: "e.popova@example.com" },
-  { first_name: "Сергей", last_name: "Фёдоров", email: "s.fedorov@example.com" }
-]
-
-// Сгенерировать ячейки одного студента по всем заданиям
-function buildCells(
-  assignments: GradebookAssignment[],
-  studentId: number,
-  random: () => number
-): GradebookCell[] {
-  return assignments.map((assignment) => {
-    const roll = random()
-    let status: GradebookStatus
-    if (roll < 0.15) status = "draft"
-    else if (roll < 0.4) status = "submitted"
-    else if (roll < 0.55) status = "returned"
-    else status = "graded"
-
-    const isLate = random() < 0.2
-    const hasWork = status !== "draft"
-    const value =
-      status === "graded" ? Math.round((0.5 + random() * 0.5) * assignment.max_grade) : null
-
-    return {
-      student_id: studentId,
-      assignment_id: assignment.id,
-      status,
-      value,
-      is_late: hasWork && isLate,
-      submitted_at: hasWork ? assignment.due_at : null
-    }
-  })
-}
-
-// Получить журнал оценок курса.
-// Если передан viewer (студент без права на полный журнал) — вернётся только его строка.
-export async function getGradebook(classId: number, viewer: GradebookViewer | null = null): Promise<GradebookDto> {
-  await mockDelay()
-
-  const random = mulberry32(classId * 7919 + 13)
-
-  const assignments: GradebookAssignment[] = MOCK_ASSIGNMENTS.map((item, index) => ({
-    id: classId * 100 + index + 1,
-    title: item.title,
-    max_grade: item.max_grade,
-    due_at: item.due_at
-  }))
-
-  // Режим студента — единственная строка с его данными
-  if (viewer) {
-    const student: GradebookStudent = {
-      id: viewer.id,
-      email: viewer.email,
-      first_name: viewer.first_name,
-      last_name: viewer.last_name,
-      is_active: true
-    }
     return {
       assignments,
-      students: [student],
-      cells: buildCells(assignments, viewer.id, mulberry32(viewer.id * 31 + classId))
+      students: [{ ...viewer, is_active: true }],
+      cells
     }
+  } catch (error) {
+    throwApiResponseError(error)
   }
-
-  // Режим преподавателя — весь список студентов
-  const students: GradebookStudent[] = MOCK_STUDENTS.map((item, index) => ({
-    id: classId * 1000 + index + 1,
-    email: item.email,
-    first_name: item.first_name,
-    last_name: item.last_name,
-    is_active: true
-  }))
-
-  const cells = students.flatMap((student) => buildCells(assignments, student.id, random))
-
-  return { assignments, students, cells }
 }

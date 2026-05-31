@@ -7,7 +7,6 @@ import Loading from "../../../components/Loading/Loading"
 import Modal from "../../../components/Modal/Modal"
 import Pagination from "../../../components/Pagination/Pagination"
 import { useToast } from "../../../components/Toast/ToastProvider"
-import { useAuth } from "../../../contexts/AuthContext"
 import { ApiSilentError } from "../../../services/api"
 import { formatDateTime } from "../../../services/helpers"
 import type { ClassLayoutContext } from "../../../layouts/ClassLayout/ClassLayout"
@@ -78,7 +77,6 @@ function studentName(student: SubmissionStudent) {
 export default function AssignmentPage() {
   const { classId, assignmentId } = useParams<{ classId: string; assignmentId: string }>()
   const { classDetail } = useOutletContext<ClassLayoutContext>()
-  const { user } = useAuth()
   const navigate = useNavigate()
   const showToast = useToast()
 
@@ -129,11 +127,6 @@ export default function AssignmentPage() {
   const canManage = classDetail?.permissions.can_create_assignment ?? false
   const canSubmit = classDetail?.permissions.can_submit_solution ?? false
   const canGrade = classDetail?.permissions.can_grade_submissions ?? false
-
-  // Текущий пользователь как краткая карточка студента/проверяющего
-  const me: SubmissionStudent | null = user
-    ? { id: user.id, email: user.email, first_name: user.first_name, last_name: user.last_name }
-    : null
 
   // Загрузка задания по ID
   useEffect(() => {
@@ -302,10 +295,10 @@ export default function AssignmentPage() {
 
   // Сохранить черновик решения
   async function onSaveDraft() {
-    if (!me || isStudentBusy) return
+    if (isStudentBusy) return
     setIsSavingDraft(true)
     try {
-      const saved = await saveMySubmission(parsedAssignmentId, me, buildSubmissionBody())
+      const saved = await saveMySubmission(parsedAssignmentId, buildSubmissionBody())
       setMySubmission(saved)
       showToast({ type: "neutral", message: "Черновик сохранён" })
     } catch (error) {
@@ -317,10 +310,11 @@ export default function AssignmentPage() {
 
   // Отправить решение на проверку
   async function onSubmitWork() {
-    if (!me || isStudentBusy) return
+    if (isStudentBusy) return
     setIsSendingWork(true)
     try {
-      const sent = await submitMySubmission(parsedAssignmentId, me, buildSubmissionBody(), assignment?.due_at ?? null)
+      await saveMySubmission(parsedAssignmentId, buildSubmissionBody())
+      const sent = await submitMySubmission(parsedAssignmentId)
       setMySubmission(sent)
       showToast({ type: "neutral", message: "Решение отправлено на проверку" })
     } catch (error) {
@@ -356,10 +350,10 @@ export default function AssignmentPage() {
 
   // Выставить/обновить оценку
   async function onSaveGrade() {
-    if (!selected || !me || !canSaveGrade) return
+    if (!selected || !canSaveGrade) return
     setIsGrading(true)
     try {
-      const grade = await upsertGrade(selected.id, me, { value: Number(gradeValue), comment: gradeComment.trim() || null })
+      const grade = await upsertGrade(selected.id, { value: Number(gradeValue), comment: gradeComment.trim() || null })
       const updated: SubmissionDto = {
         ...selected,
         status: "graded",
