@@ -13,8 +13,8 @@ class SaveSubmissionRequest(BaseModel):
 
 
 class ReturnSubmissionRequest(BaseModel):
-    # Комментарий пока не храним отдельным полем в submissions.
-    # Поле оставляем в контракте, чтобы не ломать фронт до модуля grades.
+    # Комментарий преподавателя при возврате на доработку — хранится в
+    # submissions.return_comment и отдаётся в SubmissionDTO.return_comment.
     comment: str | None = Field(default=None, max_length=2000)
 
 

@@ -60,6 +60,7 @@ SECRET_KEY=test-secret-key-that-is-long-enough-32bytes make test
 | PATCH | `/{id}/members/{userId}/role` | `ClassMembersDTO` | сменить роль на `student`/`teacher`. Только `creator`. Менять `creator` нельзя. Ответ — обновлённая секция участников + counts. |
 | DELETE | `/{id}/members/{userId}` | `ClassMembersDTO` | кикнуть участника (soft delete). Только `creator`. `creator` убрать нельзя. **200 OK** с актуальным списком. |
 | POST | `/{id}/leave` | `{class_id, status}` | самовыход. `student`/`teacher`. `creator` — 403 (только delete класса). **200 OK** с `{class_id, status: "left"}`. После leave можно вернуться обратно (`/join` или `/join-open`) — реактивация как `student`. |
+| POST | `/{id}/transfer-ownership` | `ClassDetailDTO` | передать класс другому участнику (`new_owner_id`). Только `creator`. Новый владелец → `creator`, прежний → `teacher`. Ответ — свежий DetailDTO от лица бывшего создателя (прав уже меньше, `join_code` скрыт). 404 если получатель не активный участник, 409 если передаёшь сам себе. |
 
 > **Контракт для оптимистичных обновлений на фронте:** все mutation-ручки (`POST`/`PATCH`/`DELETE`, где есть смысл) возвращают тот же DTO, что использует фронт для отрисовки соответствующего экрана. После любой мутации фронту не нужен дополнительный `GET` — он сразу обновляет state. Исключение: `DELETE /classes/{id}` остаётся `204` (класс пропал, обновлять нечего — фронт сам удалит карточку).
 
@@ -83,6 +84,11 @@ SECRET_KEY=test-secret-key-that-is-long-enough-32bytes make test
 
 > Если по заданию уже есть хотя бы одна оценка, менять `max_grade` нельзя (`422`).
 
+`AssignmentDTO` обогащён под роль смотрящего (одним запросом на всю страницу, без N+1):
+- **студент** получает `my_submission` (`{submission_id, status, submitted_at, is_late, grade}`) — или `null`, если ещё не создавал решение. Хватает для бейджа в списке без отдельного GET по каждому заданию.
+- **teacher/creator** получают `stats` (`{students_total, submitted_count, graded_count}`) — прогресс сдачи. `submitted_count` = статус `submitted`+`graded`, `graded_count` = `graded`.
+- Неприменимое поле всегда `null` (студенту не приходит `stats`, преподавателю — `my_submission`).
+
 ### Submissions (`/api`)
 | Метод | Путь | Описание |
 |---|---|---|
@@ -91,7 +97,7 @@ SECRET_KEY=test-secret-key-that-is-long-enough-32bytes make test
 | GET | `/assignments/{aid}/my-submission` | получить своё решение. Только `student`. Если ещё не создавал — `200 null`. |
 | GET | `/assignments/{aid}/submissions?page=&limit=&status=` | список решений по заданию для `teacher/creator`. Фильтр `status` опционален (`draft/submitted/returned/graded`). Сортировка `submitted_at DESC NULLS LAST`. |
 | GET | `/submissions/{sid}` | одно решение: видно владельцу-студенту или `teacher/creator` класса задания. |
-| POST | `/submissions/{sid}/return` | вернуть решение на доработку (`submitted/graded -> returned`) с опц. `comment`. Только `teacher/creator`. |
+| POST | `/submissions/{sid}/return` | вернуть решение на доработку (`submitted/graded -> returned`) с опц. `comment`. Только `teacher/creator`. Если решение было оценено — оценка снимается (на доработке прежний балл неактуален). |
 
 Статусы решения: `draft`, `submitted`, `returned`, `graded`.
 `is_late` считается на бэке: `submitted_at > due_at` (если у задания есть `due_at`).
@@ -100,7 +106,8 @@ SECRET_KEY=test-secret-key-that-is-long-enough-32bytes make test
 ### Grades (`/api`)
 | Метод | Путь | Описание |
 |---|---|---|
-| PUT | `/submissions/{sid}/grade` | поставить или обновить оценку (`value`, `comment`). Только `teacher/creator`. Валидация: `0 <= value <= assignment.max_grade`. |
+| PUT | `/submissions/{sid}/grade` | поставить или обновить оценку (`value`, `comment`). Только `teacher/creator`. Валидация: `0 <= value <= assignment.max_grade`. Переводит решение в `graded`. |
+| DELETE | `/submissions/{sid}/grade` | снять оценку (исправление ошибки). Только `teacher/creator`. Решение из `graded` возвращается в `submitted`. Отдаёт обновлённый `SubmissionDTO`. 404 если оценки не было. |
 | GET | `/submissions/{sid}/grade` | получить оценку. Доступ: владелец-студент решения или `teacher/creator` класса. |
 
 ### Gradebook (`/api/classes/{class_id}/gradebook`)
@@ -132,7 +139,7 @@ SECRET_KEY=test-secret-key-that-is-long-enough-32bytes make test
 Поля в API используют `snake_case` (`join_code`, `creator_id`, `students_count`). Енумы `type` и `role` — строки в нижнем регистре (`open`/`closed`, `creator`/`teacher`/`student`). См. Pydantic-схемы в `app/schemas/class_schemas.py`.
 
 ## Безопасность
-- Пароли хранятся как bcrypt-хеш (cost=12).
+- Пароли хранятся как bcrypt-хеш (cost=12). Перед bcrypt пароль прехешируется `sha256 → base64`: снимает 72-байтный лимит bcrypt (важно для кириллицы/эмодзи, иначе bcrypt 5.x бросает `ValueError`) и не теряет «хвост» длинного пароля.
 - JWT подписан симметричным ключом из `.env`. Access TTL 15 мин, refresh — 7 дней.
 - Refresh — одноразовый (rotation). При повторном использовании старого refresh все сессии юзера отзываются.
 - В БД хранится только sha256 от refresh-токена.

@@ -2,18 +2,51 @@ from datetime import datetime
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.database.models import AssignmentsTable, UsersTable
-from app.database.repositories import assignment_repo, grade_repo
+from app.database.models import (
+    AssignmentsTable,
+    ClassMembersTable,
+    ClassRole,
+    GradesTable,
+    SubmissionsTable,
+    UsersTable,
+)
+from app.database.repositories import (
+    assignment_repo,
+    class_repo,
+    grade_repo,
+    submission_repo,
+)
 from app.schemas.assignment_schemas import (
     AssignmentDTO,
+    AssignmentStatsDTO,
+    MySubmissionBriefDTO,
     UpdateAssignmentRequest,
 )
 from app.schemas.errors import ServiceError
 from app.schemas.pagination import PageDTO
 from app.schemas.user_schemas import UserBriefDTO
+from app.services.submission_service import _is_late
 
 
-def _dto(asg: AssignmentsTable, author: UsersTable) -> AssignmentDTO:
+def _my_submission_dto(
+    sub: SubmissionsTable, grade: GradesTable | None, asg: AssignmentsTable
+) -> MySubmissionBriefDTO:
+    return MySubmissionBriefDTO(
+        submission_id=sub.id,
+        status=sub.status,
+        submitted_at=sub.submitted_at,
+        is_late=_is_late(sub, asg),
+        grade=grade.value if grade is not None else None,
+    )
+
+
+def _dto(
+    asg: AssignmentsTable,
+    author: UsersTable,
+    *,
+    my_submission: MySubmissionBriefDTO | None = None,
+    stats: AssignmentStatsDTO | None = None,
+) -> AssignmentDTO:
     return AssignmentDTO(
         id=asg.id,
         class_id=asg.class_id,
@@ -25,6 +58,8 @@ def _dto(asg: AssignmentsTable, author: UsersTable) -> AssignmentDTO:
         max_grade=asg.max_grade,
         created_at=asg.created_at,
         updated_at=asg.updated_at,
+        my_submission=my_submission,
+        stats=stats,
     )
 
 
@@ -51,30 +86,91 @@ async def create_assignment(
     )
     await db.commit()
     await db.refresh(asg)
-    return _dto(asg, author)
+    # создаёт только teacher/creator — сразу отдаём пустую сводку прогресса,
+    # чтобы карточка на фронте была того же формата, что и в списке
+    counts = await class_repo.count_by_role(class_id, db)
+    stats = AssignmentStatsDTO(
+        students_total=counts[ClassRole.STUDENT], submitted_count=0, graded_count=0
+    )
+    return _dto(asg, author, stats=stats)
 
 
 async def list_assignments(
-    class_id: int, page: int, limit: int, offset: int, db: AsyncSession
+    class_id: int,
+    member: ClassMembersTable,
+    page: int,
+    limit: int,
+    offset: int,
+    db: AsyncSession,
 ) -> PageDTO[AssignmentDTO]:
     rows = await assignment_repo.list_for_class(class_id, limit, offset, db)
     total = await assignment_repo.count_for_class(class_id, db)
+    aids = [a.id for a, _ in rows]
+
+    if member.role == ClassRole.STUDENT:
+        # студент видит свой статус по каждому заданию (один запрос на всю страницу)
+        my_subs = await submission_repo.map_student_submissions_for_assignments(
+            aids, member.user_id, db
+        )
+        items = [
+            _dto(
+                a,
+                u,
+                my_submission=(
+                    _my_submission_dto(*my_subs[a.id], a)
+                    if a.id in my_subs
+                    else None
+                ),
+            )
+            for a, u in rows
+        ]
+    else:
+        # teacher/creator видят прогресс сдачи (групповой запрос + один на counts)
+        stats_map = await submission_repo.stats_for_assignments(aids, db)
+        counts = await class_repo.count_by_role(class_id, db)
+        students_total = counts[ClassRole.STUDENT]
+        items = [
+            _dto(a, u, stats=_stats_for(a.id, stats_map, students_total))
+            for a, u in rows
+        ]
+
     return PageDTO[AssignmentDTO](
-        items=[_dto(a, u) for a, u in rows],
-        total=total,
-        page=page,
-        limit=limit,
+        items=items, total=total, page=page, limit=limit
+    )
+
+
+def _stats_for(
+    aid: int, stats_map: dict[int, tuple[int, int]], students_total: int
+) -> AssignmentStatsDTO:
+    submitted, graded = stats_map.get(aid, (0, 0))
+    return AssignmentStatsDTO(
+        students_total=students_total,
+        submitted_count=submitted,
+        graded_count=graded,
     )
 
 
 async def get_assignment(
-    class_id: int, aid: int, db: AsyncSession
+    class_id: int, aid: int, member: ClassMembersTable, db: AsyncSession
 ) -> AssignmentDTO:
     row = await assignment_repo.get_with_author(aid, class_id, db)
     if row is None:
         raise ServiceError("Задание не найдено", 404)
     asg, author = row
-    return _dto(asg, author)
+
+    if member.role == ClassRole.STUDENT:
+        sub = await submission_repo.get_by_assignment_and_student(
+            asg.id, member.user_id, db
+        )
+        my_submission = None
+        if sub is not None:
+            grade = await grade_repo.get_by_submission(sub.id, db)
+            my_submission = _my_submission_dto(sub, grade, asg)
+        return _dto(asg, author, my_submission=my_submission)
+
+    stats_map = await submission_repo.stats_for_assignments([asg.id], db)
+    counts = await class_repo.count_by_role(class_id, db)
+    return _dto(asg, author, stats=_stats_for(asg.id, stats_map, counts[ClassRole.STUDENT]))
 
 
 async def update_assignment(
@@ -121,7 +217,7 @@ async def delete_assignment(class_id: int, aid: int, db: AsyncSession) -> None:
     asg = await assignment_repo.get_by_id(aid, class_id, db)
     if asg is None:
         raise ServiceError("Задание не найдено", 404)
-    # TODO(submissions): связанные решения и оценки остаются в БД для аудита,
-    # но фильтруются из API через soft delete каскадно. Когда модули будут готовы —
-    # убедиться, что /my-submission и /submissions для удалённого задания дают 404.
+    # Решения и оценки остаются в БД для аудита, но из API уходят: все запросы
+    # к решениям джойнятся с assignments через _ASSIGNMENT_ACTIVE, поэтому
+    # /my-submission и /submissions для удалённого задания дают 404.
     await assignment_repo.soft_delete(asg, db)

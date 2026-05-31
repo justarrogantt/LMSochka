@@ -7,6 +7,7 @@ from app.dependencies import get_current_user
 from app.schemas.errors import ServiceError
 from app.schemas.grade_schemas import GradeDTO, UpsertGradeRequest
 from app.schemas.gradebook_schemas import GradebookDTO
+from app.schemas.submission_schemas import SubmissionDTO
 from app.services import grade_service
 
 grades_router = APIRouter(tags=["Grades", "Gradebook"])
@@ -22,6 +23,23 @@ async def put_grade(
     user, _ = context
     try:
         return await grade_service.put_grade(sid, body, user, db)
+    except ServiceError as e:
+        raise HTTPException(status_code=e.status_code, detail=str(e)) from e
+
+
+@grades_router.delete("/submissions/{sid}/grade")
+async def delete_grade(
+    sid: int,
+    context: tuple[UsersTable, str] = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> SubmissionDTO:
+    """Снять оценку (teacher/creator). Решение возвращается в очередь на проверку.
+
+    Отдаём обновлённый SubmissionDTO — фронт сразу перерисует карточку решения.
+    """
+    user, _ = context
+    try:
+        return await grade_service.delete_grade(sid, user, db)
     except ServiceError as e:
         raise HTTPException(status_code=e.status_code, detail=str(e)) from e
 

@@ -256,6 +256,24 @@ async def list_students_for_gradebook(
     return [(u, m) for u, m in result.all()]
 
 
+async def transfer_ownership(
+    cls: ClassesTable,
+    old_creator: ClassMembersTable,
+    new_creator: ClassMembersTable,
+    db: AsyncSession,
+) -> None:
+    """Передаём роль создателя: новый владелец → creator, прежний → teacher.
+
+    Всё в одной транзакции, чтобы не остаться без creator или с двумя сразу.
+    creator_id на классе тоже переносим — он завязан на права и FK.
+    """
+    old_creator.role = ClassRole.TEACHER
+    new_creator.role = ClassRole.CREATOR
+    cls.creator_id = new_creator.user_id
+    db.add_all([old_creator, new_creator, cls])
+    await db.commit()
+
+
 async def soft_delete(cls: ClassesTable, db: AsyncSession) -> None:
     """Помечаем класс удалённым.
 

@@ -1,4 +1,4 @@
-from sqlalchemy import func, select
+from sqlalchemy import case, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database.models import (
@@ -104,6 +104,64 @@ async def count_for_assignment(
         query = query.where(SubmissionsTable.status == status)
     result = await db.execute(query)
     return int(result.scalar_one())
+
+
+async def map_student_submissions_for_assignments(
+    assignment_ids: list[int], student_id: int, db: AsyncSession
+) -> dict[int, tuple[SubmissionsTable, GradesTable | None]]:
+    """Решения одного студента по набору заданий: {assignment_id: (submission, grade)}.
+
+    Один запрос вместо N — нужно для бейджей в списке заданий студента.
+    """
+    if not assignment_ids:
+        return {}
+    result = await db.execute(
+        select(SubmissionsTable, GradesTable)
+        .join(AssignmentsTable, AssignmentsTable.id == SubmissionsTable.assignment_id)
+        .outerjoin(GradesTable, GradesTable.submission_id == SubmissionsTable.id)
+        .where(
+            SubmissionsTable.assignment_id.in_(assignment_ids),
+            SubmissionsTable.student_id == student_id,
+            _ASSIGNMENT_ACTIVE,
+        )
+    )
+    return {sub.assignment_id: (sub, grade) for sub, grade in result.all()}
+
+
+async def stats_for_assignments(
+    assignment_ids: list[int], db: AsyncSession
+) -> dict[int, tuple[int, int]]:
+    """Прогресс сдачи по набору заданий: {assignment_id: (submitted_count, graded_count)}.
+
+    submitted_count — статус submitted или graded (студент сдал),
+    graded_count — статус graded. Один групповой запрос вместо N.
+    """
+    if not assignment_ids:
+        return {}
+    submitted_expr = func.sum(
+        case(
+            (
+                SubmissionsTable.status.in_(
+                    [SubmissionStatus.SUBMITTED, SubmissionStatus.GRADED]
+                ),
+                1,
+            ),
+            else_=0,
+        )
+    )
+    graded_expr = func.sum(
+        case((SubmissionsTable.status == SubmissionStatus.GRADED, 1), else_=0)
+    )
+    result = await db.execute(
+        select(SubmissionsTable.assignment_id, submitted_expr, graded_expr)
+        .join(AssignmentsTable, AssignmentsTable.id == SubmissionsTable.assignment_id)
+        .where(
+            SubmissionsTable.assignment_id.in_(assignment_ids),
+            _ASSIGNMENT_ACTIVE,
+        )
+        .group_by(SubmissionsTable.assignment_id)
+    )
+    return {aid: (int(s or 0), int(g or 0)) for aid, s, g in result.all()}
 
 
 async def list_for_gradebook(

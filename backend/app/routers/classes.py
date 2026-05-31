@@ -13,6 +13,7 @@ from app.schemas.class_schemas import (
     LeaveClassResponseDTO,
     MyClassDTO,
     PublicClassDTO,
+    TransferOwnershipRequest,
     UpdateClassRequest,
     UpdateMemberRoleRequest,
 )
@@ -201,6 +202,26 @@ async def remove_member(
     _, cls, _ = ctx
     try:
         return await class_service.remove_member(cls.id, user_id, db)
+    except ServiceError as e:
+        raise HTTPException(status_code=e.status_code, detail=str(e)) from e
+
+
+@classes_router.post("/{class_id}/transfer-ownership")
+async def transfer_ownership(
+    body: TransferOwnershipRequest,
+    ctx: tuple[UsersTable, ClassesTable, ClassMembersTable] = Depends(
+        require_class_role(ClassRole.CREATOR)
+    ),
+    db: AsyncSession = Depends(get_db),
+) -> ClassDetailDTO:
+    """Передать роль создателя другому участнику. Только текущий creator.
+
+    Новый владелец становится creator, прежний — teacher. Ответ — свежий
+    ClassDetailDTO от лица бывшего создателя (его прав уже меньше).
+    """
+    _, cls, member = ctx
+    try:
+        return await class_service.transfer_ownership(cls, member, body.new_owner_id, db)
     except ServiceError as e:
         raise HTTPException(status_code=e.status_code, detail=str(e)) from e
 

@@ -2,6 +2,7 @@ from datetime import datetime
 
 from pydantic import BaseModel, Field, HttpUrl, model_validator
 
+from app.database.models import SubmissionStatus
 from app.schemas.user_schemas import UserBriefDTO
 
 
@@ -38,6 +39,32 @@ class UpdateAssignmentRequest(BaseModel):
         return self
 
 
+class MySubmissionBriefDTO(BaseModel):
+    """Краткая сводка решения текущего студента для карточки задания в списке.
+
+    Позволяет фронту нарисовать бейдж (Сдано / Возвращено / Оценено N/M /
+    Просрочено) без отдельного GET /my-submission по каждому заданию.
+    """
+
+    submission_id: int
+    status: SubmissionStatus
+    submitted_at: datetime | None
+    is_late: bool
+    grade: float | None
+
+
+class AssignmentStatsDTO(BaseModel):
+    """Сводка по заданию для преподавателя: прогресс сдачи по активным студентам.
+
+    submitted_count — сколько студентов уже сдали (статус submitted/graded),
+    graded_count — сколько из них оценено. students_total — активных студентов.
+    """
+
+    students_total: int
+    submitted_count: int
+    graded_count: int
+
+
 class AssignmentDTO(BaseModel):
     id: int
     class_id: int
@@ -49,3 +76,8 @@ class AssignmentDTO(BaseModel):
     max_grade: float
     created_at: datetime
     updated_at: datetime | None
+    # Заполняется только когда задание смотрит студент и у него есть решение.
+    # У преподавателя/создателя — всегда null.
+    my_submission: MySubmissionBriefDTO | None = None
+    # Заполняется только для teacher/creator. У студента — всегда null.
+    stats: AssignmentStatsDTO | None = None
