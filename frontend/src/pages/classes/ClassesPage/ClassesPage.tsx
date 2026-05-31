@@ -187,6 +187,9 @@ export default function ClassesPage() {
   // Данные курсов с бэка
   const [classes, setClasses] = useState<MyClassDto[]>([])
 
+  // Локальный поиск по списку моих курсов
+  const [courseSearch, setCourseSearch] = useState("")
+
   // Лоадер страницы
   const [isLoading, setIsLoading] = useState(true)
 
@@ -283,7 +286,11 @@ export default function ClassesPage() {
     }
   }
 
+  const filteredClasses = classes.filter((item) =>
+    item.name.toLowerCase().includes(courseSearch.trim().toLowerCase())
+  )
   const hasClasses = classes.length > 0
+  const hasFilteredClasses = filteredClasses.length > 0
 
   return (
     <div className={styles.page}>
@@ -294,6 +301,16 @@ export default function ClassesPage() {
         </div>
 
         <div className={styles.actions}>
+          <label className={styles.headerSearch}>
+            <input
+              className={styles.searchInput}
+              type="search"
+              placeholder="Поиск по моим курсам"
+              value={courseSearch}
+              onChange={(event) => setCourseSearch(event.target.value)}
+            />
+          </label>
+
           <button className={styles.secondaryButton} type="button" onClick={() => setActiveModal("join")}>
             <KeyIcon className={`${styles.buttonIcon} ${styles.keyIcon}`} />
             Вступить по коду
@@ -311,15 +328,16 @@ export default function ClassesPage() {
 
       {isLoading && <Loading />}
 
-      {!isLoading && hasClasses && (
+      {!isLoading && hasFilteredClasses && (
         <div className={styles.cards}>
-          {classes.map((item) => (
+          {filteredClasses.map((item) => (
             <ClassCard key={item.id} item={item} onOpen={(classId) => navigate(`/classes/${classId}`)} />
           ))}
         </div>
       )}
 
       {!isLoading && !hasClasses && <div className={styles.emptyMessage}>Вы пока не состоите ни в одном курсе</div>}
+      {!isLoading && hasClasses && !hasFilteredClasses && <div className={styles.emptyMessage}>Курсы не найдены</div>}
 
       {activeModal === "create" && (
         <CreateClassModal

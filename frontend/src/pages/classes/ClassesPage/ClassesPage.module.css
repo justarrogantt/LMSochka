@@ -7,8 +7,8 @@
 
 .pageHead {
   display: flex;
-  align-items: flex-end;
-  justify-content: space-between;
+  flex-direction: column;
+  align-items: flex-start;
   gap: 18px;
 }
 
@@ -34,10 +34,42 @@
 }
 
 .actions {
-  flex: 0 0 auto;
+  width: 100%;
   display: flex;
   align-items: center;
   gap: 10px;
+}
+
+.headerSearch {
+  flex: 1 1 auto;
+  min-width: 220px;
+  display: flex;
+}
+
+.actions > .secondaryButton,
+.actions > .primaryButton {
+  flex: 0 0 auto;
+}
+
+.searchInput {
+  width: 100%;
+  min-height: 44px;
+  padding: 0 14px;
+  border: 1px solid var(--color-line-strong);
+  border-radius: var(--radius-md);
+  outline: none;
+  background: var(--color-surface-2);
+  color: var(--color-text);
+  transition:
+    border-color 0.16s ease,
+    box-shadow 0.16s ease,
+    background 0.16s ease;
+}
+
+.searchInput:focus {
+  border-color: var(--color-accent);
+  background: var(--color-surface);
+  box-shadow: 0 0 0 4px var(--color-accent-ring);
 }
 
 .primaryButton,

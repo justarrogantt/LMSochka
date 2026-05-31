@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react"
+import { useEffect, useState, type FormEvent } from "react"
 import { useNavigate } from "react-router-dom"
 import ArrowIcon from "../../../assets/icons/classes/arrow.svg?react"
 import Loading from "../../../components/Loading/Loading"
@@ -53,8 +53,11 @@ export default function PublicClassesPage() {
   // Лоадер страницы
   const [isLoading, setIsLoading] = useState(true)
 
-  // Поисковая строка. Фильтрация идёт на бэке через query-параметр search.
+  // Текст в поле поиска. Сам запрос уходит только по кнопке "Найти".
   const [search, setSearch] = useState("")
+
+  // Последний применённый поиск нужен для пагинации.
+  const [appliedSearch, setAppliedSearch] = useState("")
 
   // Пагинация каталога открытых курсов
   const [currentPage, setCurrentPage] = useState(1)
@@ -80,10 +83,19 @@ export default function PublicClassesPage() {
     }
   }
 
-  // При изменении поиска возвращаемся на первую страницу.
+  // Начальная загрузка каталога.
   useEffect(() => {
-    void loadPublicClasses(1, search)
-  }, [search])
+    void loadPublicClasses(1, "")
+  }, [])
+
+  // Отправка поиска на бэк.
+  function submitSearch(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+
+    const nextSearch = search.trim()
+    setAppliedSearch(nextSearch)
+    void loadPublicClasses(1, nextSearch)
+  }
 
   // Вступление в открытый курс (после успеха помечаем карточку как участник)
   async function joinById(classId: number) {
@@ -119,10 +131,15 @@ export default function PublicClassesPage() {
         </div>
       </div>
 
-      <label className={styles.search}>
-        <div className={styles.searchLabel}>Поиск курса</div>
-        <input className={styles.searchInput} placeholder="Например, Python" type="search" value={search} onChange={(event) => setSearch(event.target.value)} />
-      </label>
+      <form className={styles.search} onSubmit={submitSearch}>
+        <label className={styles.searchField}>
+          <div className={styles.searchLabel}>Поиск курса</div>
+          <input className={styles.searchInput} placeholder="Например, Python" type="search" value={search} onChange={(event) => setSearch(event.target.value)} />
+        </label>
+        <button className={styles.primaryButton} type="submit" disabled={isLoading}>
+          Найти
+        </button>
+      </form>
 
       {isLoading && <Loading />}
 
@@ -141,7 +158,7 @@ export default function PublicClassesPage() {
         {!isLoading && classes.length === 0 && <div className={styles.emptyMessage}>Тут пока пусто</div>}
       </div>
 
-      <Pagination page={currentPage} total={totalItems} limit={LIMIT} onChange={(page) => void loadPublicClasses(page, search)} />
+      <Pagination page={currentPage} total={totalItems} limit={LIMIT} onChange={(page) => void loadPublicClasses(page, appliedSearch)} />
     </div>
   )
 }
