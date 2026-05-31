@@ -274,7 +274,7 @@ async def test_get_members(client):
 @pytest.mark.asyncio
 async def test_public_classes_and_search(client):
     creator_token = await _register(client, "creator@example.com")
-    for name in ["Python intro", "Python advanced", "Math basics"]:
+    for name in ["Python intro", "Python advanced", "Math basics", "Математика"]:
         await client.post(
             "/api/classes",
             json={"name": name, "type": "open"},
@@ -291,9 +291,9 @@ async def test_public_classes_and_search(client):
     r = await client.get("/api/classes/public", headers=_auth(student_token))
     assert r.status_code == 200
     body = r.json()
-    assert body["total"] == 3
+    assert body["total"] == 4
     names = sorted(c["name"] for c in body["items"])
-    assert names == ["Math basics", "Python advanced", "Python intro"]
+    assert names == ["Math basics", "Python advanced", "Python intro", "Математика"]
 
     # поиск
     r = await client.get(
@@ -304,17 +304,26 @@ async def test_public_classes_and_search(client):
     assert len(found) == 2
     assert all("Python" in c["name"] for c in found)
     assert all(c["is_member"] is False for c in found)
+    python_class_id = found[0]["id"]
+
+    # поиск по кириллице в другом регистре
+    r = await client.get(
+        "/api/classes/public?search=МАТЕМ", headers=_auth(student_token)
+    )
+    assert r.status_code == 200
+    found = r.json()["items"]
+    assert len(found) == 1
+    assert found[0]["name"] == "Математика"
 
     # после вступления is_member становится True
-    class_id = found[0]["id"]
     await client.post(
-        f"/api/classes/{class_id}/join-open", headers=_auth(student_token)
+        f"/api/classes/{python_class_id}/join-open", headers=_auth(student_token)
     )
     r = await client.get(
         "/api/classes/public?search=python", headers=_auth(student_token)
     )
     by_id = {c["id"]: c for c in r.json()["items"]}
-    assert by_id[class_id]["is_member"] is True
+    assert by_id[python_class_id]["is_member"] is True
 
 
 @pytest.mark.asyncio

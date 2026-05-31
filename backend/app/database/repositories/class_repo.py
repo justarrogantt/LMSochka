@@ -19,6 +19,18 @@ _NOT_DELETED = ClassesTable.deleted_at.is_(None)
 _MEMBER_ACTIVE = ClassMembersTable.deleted_at.is_(None)
 
 
+def _normalize_search(search: str | None) -> str | None:
+    if not search:
+        return None
+
+    normalized = search.strip().casefold()
+    return normalized or None
+
+
+def _matches_search(name: str, search: str) -> bool:
+    return search in name.casefold()
+
+
 async def get_by_id(class_id: int, db: AsyncSession) -> ClassesTable | None:
     result = await db.execute(
         select(ClassesTable).where(ClassesTable.id == class_id, _NOT_DELETED)
@@ -196,11 +208,22 @@ async def list_public(
     search: str | None, limit: int, offset: int, db: AsyncSession
 ) -> list[ClassesTable]:
     """Открытые классы с опциональным поиском по name (case-insensitive подстрока)."""
+    normalized_search = _normalize_search(search)
     query = select(ClassesTable).where(
         ClassesTable.type == ClassType.OPEN, _NOT_DELETED
     )
-    if search:
-        query = query.where(ClassesTable.name.ilike(f"%{search.strip()}%"))
+
+    if normalized_search:
+        result = await db.execute(
+            query.order_by(ClassesTable.created_at.desc(), ClassesTable.id.desc())
+        )
+        classes = [
+            cls
+            for cls in result.scalars().all()
+            if _matches_search(cls.name, normalized_search)
+        ]
+        return classes[offset : offset + limit]
+
     result = await db.execute(
         query.order_by(ClassesTable.created_at.desc(), ClassesTable.id.desc())
         .limit(limit)
@@ -210,11 +233,21 @@ async def list_public(
 
 
 async def count_public(search: str | None, db: AsyncSession) -> int:
+    normalized_search = _normalize_search(search)
     query = select(func.count(ClassesTable.id)).where(
         ClassesTable.type == ClassType.OPEN, _NOT_DELETED
     )
-    if search:
-        query = query.where(ClassesTable.name.ilike(f"%{search.strip()}%"))
+    if normalized_search:
+        names_query = select(ClassesTable.name).where(
+            ClassesTable.type == ClassType.OPEN, _NOT_DELETED
+        )
+        result = await db.execute(names_query)
+        return sum(
+            1
+            for name in result.scalars().all()
+            if _matches_search(name, normalized_search)
+        )
+
     result = await db.execute(query)
     return int(result.scalar_one())
 
