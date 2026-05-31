@@ -1,29 +1,56 @@
 .app {
+  --sidebar-width: 256px;
+
   height: 100vh;
   display: flex;
+  flex-direction: column;
   overflow: hidden;
   background: var(--color-page);
 }
 
-.main {
-  order: 2;
-  min-width: 0;
-  height: 100vh;
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
+.appCollapsed {
+  --sidebar-width: 80px;
 }
 
+/* ───────────────── Шапка (во всю ширину) ───────────────── */
+
 .header {
-  min-height: 86px;
-  padding: 0 42px;
+  flex: 0 0 auto;
+  min-height: 76px;
+  padding: 0 24px 0 16px;
   background: var(--color-surface);
   border-bottom: 1px solid var(--color-line);
   display: flex;
-  flex-wrap: nowrap;
   align-items: center;
-  gap: 24px;
+  gap: 16px;
+  z-index: 1;
+}
+
+.collapseButton {
+  width: 50px;
+  height: 50px;
+  flex: 0 0 50px;
+  border: none;
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--color-muted);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition:
+    background 0.16s ease,
+    color 0.16s ease;
+}
+
+.collapseButton:hover {
+  background: var(--color-soft);
+  color: var(--color-text);
+}
+
+.collapseIcon {
+  width: 27px;
+  height: 27px;
 }
 
 .brand {
@@ -31,66 +58,58 @@
   flex: 1 1 auto;
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: 12px;
   color: var(--color-text);
   text-decoration: none;
-  overflow: hidden;
-  text-overflow: ellipsis;
 }
 
 .brandLogo {
-  width: 52px;
-  height: 44px;
+  width: 48px;
+  height: 40px;
+  flex: 0 0 48px;
   object-fit: contain;
   display: block;
-  
 }
 
 .brandText {
   min-width: 0;
+  font-family: var(--font-heading);
+  font-size: 30px;
+  font-weight: 800;
+  letter-spacing: 0.5px;
+  white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  display: flex;
-  align-items: center;
-  font-family: var(--font-heading);
-  font-size: 32px;
-  font-weight: 700;
-  white-space: nowrap;
-}
-
-.scrollArea {
-  flex: 1;
-  min-height: 0;
-  display: flex;
-  flex-direction: column;
-  overflow-y: auto;
 }
 
 .userActions {
   min-width: 0;
-  margin-left: auto;
+  flex: 0 0 auto;
   display: flex;
   align-items: center;
-  gap: 14px;
+  gap: 12px;
 }
 
 .iconButton {
-  width: 42px;
-  height: 42px;
-  flex: 0 0 42px;
+  width: 46px;
+  height: 46px;
+  flex: 0 0 46px;
   border: 1px solid var(--color-line);
-  border-radius: 14px;
+  border-radius: var(--radius-md);
   background: var(--color-surface);
-  color: var(--color-text);
+  color: var(--color-muted);
   display: flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  transition: background 0.16s ease;
+  transition:
+    background 0.16s ease,
+    color 0.16s ease;
 }
 
 .iconButton:hover {
-  background: var(--color-soft-hover);
+  background: var(--color-soft);
+  color: var(--color-text);
 }
 
 .bellIcon {
@@ -99,34 +118,32 @@
 }
 
 .userCard {
-  max-width: 330px;
+  max-width: 320px;
   min-width: 0;
-  padding: 6px 12px 6px 7px;
+  padding: 6px 16px 6px 6px;
   border: 1px solid var(--color-line);
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   background: var(--color-surface);
   color: var(--color-text);
   display: flex;
   align-items: center;
-  gap: 9px;
+  gap: 10px;
   text-decoration: none;
   cursor: pointer;
-  transition: background 0.16s ease;
+  transition:
+    background 0.16s ease,
+    border-color 0.16s ease;
 }
 
 .userCard:hover {
-  background: var(--color-soft-hover);
-}
-
-.userCard:hover .avatar {
-  background: var(--color-soft-hover);
-  color: var(--color-text);
+  background: var(--color-soft);
+  border-color: var(--color-line-strong);
 }
 
 .avatar {
-  width: 30px;
-  height: 30px;
-  flex: 0 0 30px;
+  width: 34px;
+  height: 34px;
+  flex: 0 0 34px;
   border-radius: 50%;
   background: var(--color-accent-soft);
   color: var(--color-accent-hover);
@@ -136,6 +153,12 @@
   transition:
     background 0.16s ease,
     color 0.16s ease;
+}
+
+/* При наведении на карточку профиля фон аватара совпадает с фоном карточки */
+.userCard:hover .avatar {
+  background: var(--color-soft);
+  color: var(--color-text);
 }
 
 .avatarIcon {
@@ -153,26 +176,170 @@
   font-weight: 600;
 }
 
-.content {
+/* ───────────────── Тело: сайдбар + контент ───────────────── */
+
+.shell {
   flex: 1;
-  padding: 34px 42px 42px;
+  min-height: 0;
+  display: flex;
+}
+
+.sidebar {
+  width: var(--sidebar-width);
+  flex: 0 0 var(--sidebar-width);
+  /* На 1px заходим под шапку, чтобы между шапкой и сайдбаром не было линии-шва */
+  margin-top: -1px;
+  padding: 18px 16px;
+  background: var(--color-surface);
+  border-right: 1px solid var(--color-line);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  overflow: hidden;
+}
+
+.menu {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  min-height: 0;
+  padding-top: 1px;
+}
+
+.menuButton {
+  min-height: 46px;
+  padding: 0 14px;
+  border-radius: var(--radius-md);
+  color: var(--color-muted);
+  display: flex;
+  align-items: center;
+  gap: 13px;
+  text-decoration: none;
+  font-size: 14px;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  transition:
+    background 0.16s ease,
+    color 0.16s ease;
+}
+
+.menuButton:hover {
+  background: var(--color-soft);
+  color: var(--color-text);
+}
+
+.menuButtonActive,
+.menuButtonActive:hover {
+  background: var(--color-accent-soft);
+  color: var(--color-accent-active);
+}
+
+.menuIcon {
+  width: 22px;
+  height: 22px;
+  flex: 0 0 22px;
+  color: currentColor;
+}
+
+.menuLabel {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.appCollapsed .menuButton {
+  justify-content: center;
+  padding: 0;
+  gap: 0;
+}
+
+.appCollapsed .menuLabel {
+  display: none;
+}
+
+.logoutButton {
+  flex: 0 0 auto;
+  min-height: 46px;
+  padding: 0 14px;
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+  color: var(--color-text);
+  display: flex;
+  align-items: center;
+  gap: 13px;
+  font-size: 14px;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  cursor: pointer;
+  transition:
+    background 0.16s ease,
+    border-color 0.16s ease,
+    color 0.16s ease;
+}
+
+.logoutButton:hover {
+  background: var(--color-soft);
+  border-color: var(--color-line-strong);
+  color: var(--color-danger);
+}
+
+.logoutIcon {
+  width: 18px;
+  height: 18px;
+  flex: 0 0 18px;
+  color: currentColor;
+}
+
+.appCollapsed .logoutButton {
+  justify-content: center;
+  padding: 0;
+  gap: 0;
+}
+
+.main {
+  order: 2;
+  min-width: 0;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.scrollArea {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+}
+
+.content {
+  width: 100%;
+  max-width: 1200px;
+  margin: 0 auto;
+  flex: 1;
+  padding: 32px 40px 40px;
   display: flex;
   flex-direction: column;
 }
 
 .footer {
-  min-height: 60px;
-  padding: 10px 42px;
+  min-height: 66px;
+  padding: 14px 40px;
   border-top: 1px solid var(--color-line);
   background: var(--color-surface);
   display: flex;
   align-items: center;
-  gap: 42px;
+  gap: 38px;
 }
 
 .footerLink {
   color: var(--color-muted);
-  font-size: 14px;
+  font-size: 14.5px;
   text-decoration: none;
   transition: color 0.16s ease;
 }
@@ -184,72 +351,4 @@
 .footerBrand {
   color: var(--color-text);
   font-weight: 600;
-}
-
-.sidebar {
-  order: 1;
-  width: 250px;
-  flex: 0 0 250px;
-  height: 100vh;
-  padding: 24px 16px 16px 16px;
-  border-right: 1px solid var(--color-line);
-  background: var(--color-surface);
-  display: flex;
-  flex-direction: column;
-}
-
-.menu {
-  display: flex;
-  flex-direction: column;
-  gap: 7px;
-}
-
-.menuButton {
-  min-height: 46px;
-  padding: 0 13px;
-  border-radius: 12px;
-  color: #34383d;
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  text-decoration: none;
-  font-size: 14px;
-  font-weight: 600;
-  transition:
-    background 0.16s ease,
-    color 0.16s ease;
-}
-
-.menuButton:hover {
-  background: var(--color-soft-hover);
-}
-
-.menuButtonActive {
-  background: var(--color-soft);
-  color: var(--color-accent-hover);
-}
-
-.menuIcon {
-  width: 23px;
-  height: 23px;
-  flex: 0 0 23px;
-  color: currentColor;
-}
-
-.logoutButton {
-  width: 100%;
-  min-height: 42px;
-  margin-top: auto;
-  border: 1px solid var(--color-line-strong);
-  border-radius: 12px;
-  background: var(--color-surface);
-  color: var(--color-text);
-  font-size: 14px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: background 0.16s ease;
-}
-
-.logoutButton:hover {
-  background: var(--color-soft-hover);
 }

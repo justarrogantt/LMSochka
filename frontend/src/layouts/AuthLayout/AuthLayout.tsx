@@ -1,6 +1,5 @@
 import type { ReactNode } from "react"
 import logo from "../../assets/logo.svg"
-import mascot from "../../assets/mascot.png"
 import styles from "./AuthLayout.module.css"
 
 type AuthLayoutProps = {
@@ -9,32 +8,30 @@ type AuthLayoutProps = {
   children: ReactNode
 }
 
-// Общий каркас для login/register: бренд, поля, маскот и нижние ссылки.
+// Общий каркас для login/register: бренд, поля и нижние ссылки.
 export default function AuthLayout({ title, subtitle, children }: AuthLayoutProps) {
   return (
     <div className={styles.page}>
       <div className={styles.header}>
-        <div className={styles.container}>
+        <div className={styles.headerInner}>
           <div className={styles.brand}>
             <img className={styles.brandLogo} src={logo} alt="4LMS logo" />
-            <div className={styles.brandText}>LMS</div>
+            <div className={styles.brandText}>Learning Management System</div>
           </div>
         </div>
       </div>
 
-      <main className={`${styles.main} ${styles.container}`}>
+      <main className={styles.main}>
         <section className={styles.authCard}>
           <div className={styles.title}>{title}</div>
           <div className={styles.subtitle}>{subtitle}</div>
 
           {children}
         </section>
-
-        <img className={styles.mascotImage} src={mascot} alt="Маскот проекта" />
       </main>
 
       <div className={styles.footer}>
-        <div className={`${styles.container} ${styles.footerInner}`}>
+        <div className={styles.footerInner}>
           <a className={`${styles.footerLink} ${styles.footerBrand}`} href="/">
             a4dev
           </a>

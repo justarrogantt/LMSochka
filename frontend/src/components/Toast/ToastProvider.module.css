@@ -11,26 +11,49 @@
 
 .toast {
   max-width: min(600px, 100%);
-  border-radius: 999px;
-  padding: 11px 16px;
+  border-radius: var(--radius-pill);
+  padding: 12px 20px;
   font-family: var(--font-base, inherit);
   font-size: 13px;
   font-weight: 700;
   line-height: 1.2;
   text-align: center;
+  box-shadow: var(--toast-shadow);
+}
+
+/* ── Светлая тема ─────────────────── */
+:root {
+  --toast-shadow: 0 8px 28px rgba(11, 16, 21, 0.22);
+  --toast-neutral-bg: #1e2730;
+  --toast-neutral-color: #ffffff;
+  --toast-success-bg: var(--color-success);
+  --toast-success-color: #ffffff;
+  --toast-error-bg: var(--color-danger);
+  --toast-error-color: #ffffff;
+}
+
+/* ── Тёмная тема ──────────────────── */
+:root[data-theme="dark"] {
+  --toast-shadow: 0 8px 28px rgba(0, 0, 0, 0.5);
+  --toast-neutral-bg: #dde3e8;
+  --toast-neutral-color: #111619;
+  --toast-success-bg: #2e8f62;
+  --toast-success-color: #ffffff;
+  --toast-error-bg: #b85555;
+  --toast-error-color: #ffffff;
 }
 
 .neutral {
-  background: var(--toast-neutral-bg, #1f2937);
-  color: var(--toast-neutral-text, #ffffff);
+  background: var(--toast-neutral-bg);
+  color: var(--toast-neutral-color);
 }
 
 .success {
-  background: var(--toast-success-bg, #059669);
-  color: var(--toast-success-text, #ffffff);
+  background: var(--toast-success-bg);
+  color: var(--toast-success-color);
 }
 
 .error {
-  background: var(--toast-error-bg, #dd3535);
-  color: var(--toast-error-text, #ffffff);
+  background: var(--toast-error-bg);
+  color: var(--toast-error-color);
 }

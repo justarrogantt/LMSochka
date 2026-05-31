@@ -15,21 +15,101 @@
 :root {
   --font-base: "Inter", sans-serif;
   --font-heading: "Archivo", sans-serif;
-  --color-page: #f7f9fa;
+
+  /* Поверхности — мягкий пастельный серо-бирюзовый */
+  --color-page: #e9eff0;
   --color-surface: #ffffff;
-  --color-text: #151719;
-  --color-muted: #777d84;
-  --color-muted-light: #a7adb4;
-  --color-line: #e7e9ec;
-  --color-line-strong: #d9dee3;
-  --color-soft: #f2f3f4;
-  --color-soft-hover: #eceeef;
-  --color-accent: #0086bf;
-  --color-accent-hover: #0078ac;
-  --color-accent-soft: #eef8fc;
-  --color-danger: #c73535;
-  --shadow-soft: 0 14px 34px rgba(20, 30, 40, 0.08);
-  --shadow-medium: 0 18px 46px rgba(20, 30, 40, 0.12);
+  --color-surface-2: #f1f7f8;
+
+  /* Текст — почти чёрный */
+  --color-text: #131a1d;
+  --color-muted: #69737b;
+  --color-muted-light: #9ba4ab;
+
+  /* Границы */
+  --color-line: #e6ecee;
+  --color-line-strong: #d6dee1;
+
+  /* Мягкие заливки — нейтральный серый (для ховеров) */
+  --color-soft: #eeeff1;
+  --color-soft-hover: #e3e5e8;
+
+  /* Акцент — пастельный бирюзовый */
+  --color-accent: #2a9fb5;
+  --color-accent-hover: #228fa3;
+  --color-accent-active: #1d7d90;
+  --color-accent-soft: #e8f5f7;
+  --color-accent-soft-hover: #d8eef1;
+  --color-accent-ring: rgba(42, 159, 181, 0.22);
+
+  /* Статусы — пастельные */
+  --color-danger: #d76b6b;
+  --color-danger-hover: #c95757;
+  --color-danger-soft: #fbeeee;
+  --color-success: #4caf87;
+  --color-success-soft: #e9f6f0;
+  --color-warning: #d39a4a;
+  --color-warning-soft: #fbf3e6;
+
+  /* Радиусы — единая шкала (контролы 14, карточки 20, крупные блоки 26) */
+  --radius-sm: 14px;
+  --radius-md: 14px;
+  --radius-lg: 20px;
+  --radius-xl: 26px;
+  --radius-pill: 999px;
+
+  /* Тени — мягкие */
+  --shadow-xs: 0 1px 2px rgba(19, 26, 29, 0.04);
+  --shadow-soft: 0 1px 2px rgba(19, 26, 29, 0.03), 0 12px 30px rgba(19, 26, 29, 0.06);
+  --shadow-medium: 0 16px 48px rgba(19, 26, 29, 0.16);
+  --shadow-accent: 0 8px 22px rgba(42, 159, 181, 0.24);
+}
+
+/* ───────────────── Тёмная тема ───────────────── */
+:root[data-theme="dark"] {
+  color-scheme: dark;
+
+  --color-page: #0f1518;
+  --color-surface: #161d21;
+  --color-surface-2: #1c252a;
+
+  --color-text: #eef2f3;
+  --color-muted: #9aa6ad;
+  --color-muted-light: #6c777e;
+
+  --color-line: #2a343b;
+  --color-line-strong: #38484f;
+
+  --color-soft: #1f292e;
+  --color-soft-hover: #283339;
+
+  --color-accent: #2fb0c9;
+  --color-accent-hover: #46bcd2;
+  --color-accent-active: #8ad8e5;
+  --color-accent-soft: rgba(47, 176, 201, 0.16);
+  --color-accent-soft-hover: rgba(47, 176, 201, 0.24);
+  --color-accent-ring: rgba(47, 176, 201, 0.32);
+
+  /* Danger: насыщенный красный чтобы работал как фон кнопки с белым текстом */
+  --color-danger: #c94040;
+  --color-danger-hover: #d94e4e;
+  --color-danger-soft: rgba(210, 70, 70, 0.18);
+
+  /* Success / Warning: яркие, но не кричащие */
+  --color-success: #3da874;
+  --color-success-soft: rgba(61, 168, 116, 0.16);
+  --color-warning: #c98c38;
+  --color-warning-soft: rgba(201, 140, 56, 0.18);
+
+  --shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.4);
+  --shadow-soft: 0 1px 2px rgba(0, 0, 0, 0.3), 0 12px 30px rgba(0, 0, 0, 0.42);
+  --shadow-medium: 0 16px 48px rgba(0, 0, 0, 0.55);
+  --shadow-accent: 0 8px 22px rgba(47, 176, 201, 0.3);
+}
+
+/* Логотип (img): инвертируем в тёмной теме чтобы стал белым */
+:root[data-theme="dark"] img[alt="4LMS logo"] {
+  filter: invert(1) brightness(2);
 }
 
 * {
@@ -45,11 +125,81 @@ body {
 body {
   min-height: 100vh;
   font-family: var(--font-base);
+  font-weight: 440;
   color: var(--color-text);
   background: var(--color-page);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+  transition:
+    background 0.2s ease,
+    color 0.2s ease;
+  /* Длинные слова и ссылки переносятся, а не ломают вёрстку */
+  overflow-wrap: break-word;
+  word-break: break-word;
 }
 
 button,
-input {
+input,
+textarea {
   font: inherit;
+}
+
+/* Плавный переход при смене темы для всех элементов */
+*,
+*::before,
+*::after {
+  transition:
+    background-color 0.2s ease,
+    border-color 0.2s ease,
+    color 0.2s ease,
+    box-shadow 0.2s ease;
+}
+
+/* Но не трогаем transform и opacity — они нужны для кнопок/анимаций без задержки */
+button,
+a,
+input,
+textarea {
+  transition:
+    background-color 0.16s ease,
+    border-color 0.16s ease,
+    color 0.16s ease,
+    box-shadow 0.16s ease,
+    opacity 0.16s ease;
+}
+
+:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+
+::selection {
+  background: var(--color-accent-soft-hover);
+  color: var(--color-accent-active);
+}
+
+/* Тонкий скроллбар в едином стиле */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-line-strong) transparent;
+}
+
+*::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+*::-webkit-scrollbar-thumb {
+  border: 3px solid transparent;
+  border-radius: var(--radius-pill);
+  background-clip: padding-box;
+  background-color: var(--color-line-strong);
+}
+
+*::-webkit-scrollbar-thumb:hover {
+  background-color: var(--color-muted-light);
+}
+
+*::-webkit-scrollbar-track {
+  background: transparent;
 }

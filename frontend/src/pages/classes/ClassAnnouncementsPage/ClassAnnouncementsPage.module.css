@@ -1,0 +1,277 @@
+.page {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.pageHead {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 18px;
+}
+
+.titleBlock {
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+}
+
+.title {
+  font-family: var(--font-heading);
+  font-size: 30px;
+  line-height: 1.1;
+  font-weight: 700;
+}
+
+.text {
+  color: var(--color-muted);
+  font-size: 15px;
+  line-height: 1.5;
+}
+
+.primaryButton {
+  min-height: 44px;
+  padding: 0 18px;
+  border: 1px solid var(--color-accent);
+  border-radius: var(--radius-md);
+  background: var(--color-accent);
+  color: #ffffff;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition:
+    background 0.16s ease,
+    border-color 0.16s ease,
+    opacity 0.16s ease;
+}
+
+.buttonIcon {
+  width: 19px;
+  height: 19px;
+  flex: 0 0 19px;
+  color: currentColor;
+}
+
+.primaryButton:hover {
+  opacity: 0.88;
+}
+
+.primaryButton:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.secondaryButton {
+  min-height: 44px;
+  padding: 0 18px;
+  border: 1px solid var(--color-line-strong);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+  color: var(--color-text);
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition:
+    background 0.16s ease,
+    opacity 0.16s ease;
+}
+
+.secondaryButton:hover {
+  background: var(--color-soft);
+}
+
+.secondaryButton:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.cards {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.emptyMessage {
+  min-height: 220px;
+  color: var(--color-muted);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  font-size: 18px;
+  font-weight: 700;
+}
+
+.card {
+  padding: 20px;
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-soft);
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  cursor: pointer;
+  transition:
+    border-color 0.16s ease,
+    box-shadow 0.16s ease;
+}
+
+.card:hover {
+  border-color: var(--color-accent);
+  box-shadow: 0 14px 34px rgba(0, 134, 191, 0.12);
+}
+
+.cardHead {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.cardActions {
+  display: flex;
+  gap: 8px;
+}
+
+.cardTitle {
+  min-width: 0;
+  font-size: 18px;
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+
+.iconButton {
+  width: 36px;
+  height: 36px;
+  flex: 0 0 36px;
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface);
+  color: var(--color-muted);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition:
+    background 0.16s ease,
+    color 0.16s ease,
+    border-color 0.16s ease;
+}
+
+.iconButton:hover {
+  background: var(--color-soft);
+  color: var(--color-text);
+}
+
+.icon {
+  width: 14px;
+  height: 14px;
+  color: currentColor;
+}
+
+.meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  color: var(--color-muted);
+  font-size: 13px;
+}
+
+.content {
+  color: var(--color-muted);
+  font-size: 15px;
+  line-height: 1.5;
+}
+
+.modalText {
+  color: var(--color-text);
+  font-size: 15px;
+  line-height: 1.5;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.fieldLabel {
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.input,
+.textarea {
+  width: 100%;
+  border: 1px solid var(--color-line-strong);
+  border-radius: var(--radius-md);
+  outline: none;
+  background: var(--color-surface-2);
+  color: var(--color-text);
+  font: inherit;
+  transition:
+    border-color 0.16s ease,
+    box-shadow 0.16s ease,
+    background 0.16s ease;
+}
+
+.input {
+  min-height: 46px;
+  padding: 0 14px;
+}
+
+.textarea {
+  min-height: 130px;
+  resize: vertical;
+  padding: 11px 14px;
+  line-height: 1.45;
+}
+
+.input:focus,
+.textarea:focus {
+  border-color: var(--color-accent);
+  background: var(--color-surface);
+  box-shadow: 0 0 0 4px var(--color-accent-ring);
+}
+
+.modalActions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+.dangerButton {
+  min-height: 44px;
+  padding: 0 18px;
+  border: 1px solid var(--color-danger);
+  border-radius: var(--radius-md);
+  background: var(--color-danger);
+  color: #ffffff;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition:
+    background 0.16s ease,
+    opacity 0.16s ease;
+}
+
+.dangerButton:hover {
+  background: var(--color-danger-hover);
+}
+
+.dangerButton:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.modal button:disabled {
+  opacity: 0.45;
+  pointer-events: none;
+}
