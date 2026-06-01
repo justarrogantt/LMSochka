@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, Response
+from fastapi import APIRouter, Depends, HTTPException, Query, Response
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database.database import get_db
@@ -6,11 +6,13 @@ from app.database.models import ClassesTable, ClassMembersTable, ClassRole, User
 from app.dependencies import require_class_member, require_class_role
 from app.schemas.assignment_schemas import (
     AssignmentDTO,
+    AssignmentPageDTO,
+    AssignmentReviewStatus,
     CreateAssignmentRequest,
     UpdateAssignmentRequest,
 )
 from app.schemas.errors import ServiceError
-from app.schemas.pagination import PageDTO, PageParams
+from app.schemas.pagination import PageParams
 from app.services import assignment_service
 
 # Прибили к классу: путь читаемый, права рулятся общими зависимостями
@@ -47,20 +49,33 @@ async def create_assignment(
 @assignments_router.get("")
 async def list_assignments(
     params: PageParams = Depends(),
+    review_status: AssignmentReviewStatus | None = Query(
+        default=None,
+        description="pending — показать только задания с решениями на проверке",
+    ),
     ctx: tuple[UsersTable, ClassesTable, ClassMembersTable] = Depends(
         require_class_member
     ),
     db: AsyncSession = Depends(get_db),
-) -> PageDTO[AssignmentDTO]:
+) -> AssignmentPageDTO:
     """Список заданий класса. Любой участник. Сортировка — свежие сверху.
 
     Студент видит в каждом задании своё решение (`my_submission`),
     teacher/creator — прогресс сдачи (`stats`).
     """
     _, cls, member = ctx
-    return await assignment_service.list_assignments(
-        cls.id, member, params.page, params.limit, params.offset, db
-    )
+    try:
+        return await assignment_service.list_assignments(
+            cls.id,
+            member,
+            params.page,
+            params.limit,
+            params.offset,
+            review_status,
+            db,
+        )
+    except ServiceError as e:
+        raise HTTPException(status_code=e.status_code, detail=str(e)) from e
 
 
 @assignments_router.get("/{aid}")

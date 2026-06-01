@@ -157,7 +157,9 @@ async def test_teacher_sees_submission_stats(client):
     stats = item["stats"]
     assert stats["students_total"] == 3
     assert stats["submitted_count"] == 2  # двое сдали (черновик не считается)
+    assert stats["pending_review_count"] == 1
     assert stats["graded_count"] == 1
+    assert stats["returned_count"] == 0
 
 
 @pytest.mark.asyncio
@@ -175,7 +177,13 @@ async def test_create_assignment_returns_empty_stats(client):
     )
     assert r.status_code == 201
     stats = r.json()["stats"]
-    assert stats == {"students_total": 1, "submitted_count": 0, "graded_count": 0}
+    assert stats == {
+        "students_total": 1,
+        "submitted_count": 0,
+        "pending_review_count": 0,
+        "graded_count": 0,
+        "returned_count": 0,
+    }
 
 
 # --- DELETE оценки ------------------------------------------------------------

@@ -69,6 +69,21 @@ async def _make_assignment(
     return r.json()
 
 
+async def _save_and_submit(client, student_token: str, aid: int) -> int:
+    r = await client.put(
+        f"/api/assignments/{aid}/my-submission",
+        json={"answer_text": "решение"},
+        headers=_auth(student_token),
+    )
+    assert r.status_code == 200, r.text
+    sid = r.json()["id"]
+    r = await client.post(
+        f"/api/assignments/{aid}/my-submission/submit", headers=_auth(student_token)
+    )
+    assert r.status_code == 200, r.text
+    return sid
+
+
 # --- POST ---------------------------------------------------------------------
 
 
@@ -226,6 +241,7 @@ async def test_list_assignments_pagination(client):
     assert r.status_code == 200
     body = r.json()
     assert body["total"] == 25
+    assert body["pending_review_total"] == 0
     assert body["page"] == 1
     assert body["limit"] == 20
     assert len(body["items"]) == 20
@@ -238,6 +254,7 @@ async def test_list_assignments_pagination(client):
         headers=_auth(creator_token),
     )
     assert r.json()["total"] == 25
+    assert r.json()["pending_review_total"] == 0
     assert len(r.json()["items"]) == 5
 
 
@@ -267,6 +284,71 @@ async def test_student_can_read_list(client):
     )
     assert r.status_code == 200
     assert r.json()["total"] == 1
+    assert r.json()["pending_review_total"] == 0
+
+
+@pytest.mark.asyncio
+async def test_teacher_pending_review_filter_and_total(client):
+    creator_token, _ = await _register(client, "creator@example.com")
+    class_id = await _create_class(client, creator_token)
+    a1 = await _make_assignment(client, creator_token, class_id, title="A1")
+    a2 = await _make_assignment(client, creator_token, class_id, title="A2")
+    await _make_assignment(client, creator_token, class_id, title="A3")
+
+    s1_token, _ = await _register(client, "s1@example.com")
+    await _join_open(client, s1_token, class_id)
+    await _save_and_submit(client, s1_token, a1["id"])
+
+    s2_token, _ = await _register(client, "s2@example.com")
+    await _join_open(client, s2_token, class_id)
+    await _save_and_submit(client, s2_token, a2["id"])
+
+    # сначала в pending две работы
+    r = await client.get(
+        f"/api/classes/{class_id}/assignments",
+        headers=_auth(creator_token),
+    )
+    assert r.status_code == 200
+    assert r.json()["pending_review_total"] == 2
+
+    # после оценки одной работы pending_total уменьшается до 1
+    sub = await client.get(
+        f"/api/assignments/{a1['id']}/submissions", headers=_auth(creator_token)
+    )
+    sid = sub.json()["items"][0]["id"]
+    r = await client.put(
+        f"/api/submissions/{sid}/grade",
+        json={"value": 10},
+        headers=_auth(creator_token),
+    )
+    assert r.status_code == 200
+
+    r = await client.get(
+        f"/api/classes/{class_id}/assignments?review_status=pending",
+        headers=_auth(creator_token),
+    )
+    assert r.status_code == 200
+    body = r.json()
+    assert body["total"] == 1
+    assert body["pending_review_total"] == 1
+    assert len(body["items"]) == 1
+    assert body["items"][0]["id"] == a2["id"]
+
+
+@pytest.mark.asyncio
+async def test_student_cannot_use_pending_review_filter(client):
+    creator_token, _ = await _register(client, "creator@example.com")
+    class_id = await _create_class(client, creator_token)
+    await _make_assignment(client, creator_token, class_id, title="A1")
+
+    student_token, _ = await _register(client, "student@example.com")
+    await _join_open(client, student_token, class_id)
+
+    r = await client.get(
+        f"/api/classes/{class_id}/assignments?review_status=pending",
+        headers=_auth(student_token),
+    )
+    assert r.status_code == 403
 
 
 @pytest.mark.asyncio

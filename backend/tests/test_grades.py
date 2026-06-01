@@ -244,6 +244,13 @@ async def test_gradebook_includes_inactive_students(client):
 
     by_id = {s["id"]: s for s in body["students"]}
     assert by_id[student_id]["is_active"] is False
+    assert by_id[student_id]["summary"] == {
+        "average_percent": 77.0,
+        "graded_count": 1,
+        "submitted_count": 1,
+        "pending_review_count": 0,
+        "total_assignments": 1,
+    }
 
     cells = body["cells"]
     assert len(cells) == 1
@@ -251,6 +258,37 @@ async def test_gradebook_includes_inactive_students(client):
     assert cells[0]["assignment_id"] == aid
     assert cells[0]["status"] == "graded"
     assert cells[0]["value"] == 77
+    assert cells[0]["percent"] == 77.0
+
+
+@pytest.mark.asyncio
+async def test_gradebook_summary_and_percent_for_pending_submission(client):
+    creator_token, teacher_token, student_token, student_id, class_id = await _setup(client)
+    aid = await _make_assignment(client, creator_token, class_id, max_grade=80)
+    await _create_and_submit(client, student_token, aid)
+
+    r = await client.get(
+        f"/api/classes/{class_id}/gradebook",
+        headers=_auth(teacher_token),
+    )
+    assert r.status_code == 200, r.text
+    body = r.json()
+
+    by_id = {s["id"]: s for s in body["students"]}
+    assert by_id[student_id]["summary"] == {
+        "average_percent": None,
+        "graded_count": 0,
+        "submitted_count": 1,
+        "pending_review_count": 1,
+        "total_assignments": 1,
+    }
+
+    cells = [c for c in body["cells"] if c["student_id"] == student_id]
+    assert len(cells) == 1
+    assert cells[0]["assignment_id"] == aid
+    assert cells[0]["status"] == "submitted"
+    assert cells[0]["value"] is None
+    assert cells[0]["percent"] is None
 
 
 @pytest.mark.asyncio
