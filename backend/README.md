@@ -77,7 +77,7 @@ SECRET_KEY=test-secret-key-that-is-long-enough-32bytes make test
 | Метод | Путь | Описание |
 |---|---|---|
 | POST | `/` | создать задание (`title`, `description` опц., `material_url` опц., `due_at` опц., `max_grade > 0`). Только `teacher`/`creator`. |
-| GET | `/?page=&limit=` | список заданий класса. Любой участник. Пагинация и сортировка как у объявлений. |
+| GET | `/?page=&limit=&review_status=` | список заданий класса. Любой участник. Пагинация и сортировка как у объявлений. `review_status=pending` — только задания с решениями на проверке (доступно teacher/creator). |
 | GET | `/{aid}` | одно задание. Любой участник. 404 если нет/удалено/из другого класса. |
 | PATCH | `/{aid}` | редактировать `title`/`description`/`material_url`/`due_at`/`max_grade`. `teacher`/`creator`. `material_url=null` и `due_at=null` сбрасывают поле. |
 | DELETE | `/{aid}` | soft delete. `teacher`/`creator`. Решения и оценки остаются в БД для аудита. |
@@ -86,7 +86,8 @@ SECRET_KEY=test-secret-key-that-is-long-enough-32bytes make test
 
 `AssignmentDTO` обогащён под роль смотрящего (одним запросом на всю страницу, без N+1):
 - **студент** получает `my_submission` (`{submission_id, status, submitted_at, is_late, grade}`) — или `null`, если ещё не создавал решение. Хватает для бейджа в списке без отдельного GET по каждому заданию.
-- **teacher/creator** получают `stats` (`{students_total, submitted_count, graded_count}`) — прогресс сдачи. `submitted_count` = статус `submitted`+`graded`, `graded_count` = `graded`.
+- **teacher/creator** получают `stats` (`{students_total, submitted_count, pending_review_count, graded_count, returned_count}`) — прогресс сдачи.
+- В ответе списка заданий есть `pending_review_total` — сколько заданий по курсу сейчас имеют хотя бы одно решение со статусом `submitted`.
 - Неприменимое поле всегда `null` (студенту не приходит `stats`, преподавателю — `my_submission`).
 
 ### Submissions (`/api`)
@@ -113,7 +114,7 @@ SECRET_KEY=test-secret-key-that-is-long-enough-32bytes make test
 ### Gradebook (`/api/classes/{class_id}/gradebook`)
 | Метод | Путь | Описание |
 |---|---|---|
-| GET | `/api/classes/{class_id}/gradebook` | сводная таблица по классу: `assignments`, `students` (включая `is_active=false` ушедших), `cells` со статусами/баллами/late-флагом. Только `teacher/creator`. |
+| GET | `/api/classes/{class_id}/gradebook` | сводная таблица по классу: `assignments`, `students` (включая `is_active=false` ушедших + `summary`), `cells` со статусами/баллами/late-флагом + `percent`. Только `teacher/creator`. |
 
 #### Пагинация
 Растущие списки оборачиваем в `{ items, total, page, limit }` (см. `app/schemas/pagination.py`). Дефолт `page=1, limit=20, max limit=100`. Маленькие списки (`/my`, `/members`) остаются массивом.
