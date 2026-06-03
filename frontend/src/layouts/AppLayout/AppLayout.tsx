@@ -5,7 +5,6 @@ import BellIcon from "../../assets/icons/layout/bell.svg?react"
 import CoursesIcon from "../../assets/icons/layout/courses.svg?react"
 import ExitIcon from "../../assets/icons/layout/exit.svg?react"
 import GradesIcon from "../../assets/icons/layout/grades.svg?react"
-import HelpIcon from "../../assets/icons/layout/help.svg?react"
 import HomeIcon from "../../assets/icons/layout/home.svg?react"
 import SidebarIcon from "../../assets/icons/layout/sidebar.svg?react"
 import { useToast } from "../../components/Toast/ToastProvider"
@@ -32,12 +31,6 @@ const menuItems = [
     path: "/grades",
     title: "Оценки",
     icon: GradesIcon,
-    end: true
-  },
-  {
-    path: "/help",
-    title: "Помощь",
-    icon: HelpIcon,
     end: true
   }
 ]

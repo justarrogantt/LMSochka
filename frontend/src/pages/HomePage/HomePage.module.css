@@ -2,27 +2,170 @@
   flex: 1;
   display: flex;
   flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 12px;
-  min-height: 320px;
-  padding: 48px;
-  border: 1px dashed var(--color-line-strong);
-  border-radius: var(--radius-xl);
-  background: var(--color-surface);
-  text-align: center;
+  gap: 26px;
 }
 
-.title {
-  margin: 0;
+/* ───────────────── Приветственный блок ───────────────── */
+.hero {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 24px;
+  padding: 32px;
+  border-radius: var(--radius-xl);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-soft);
+}
+
+.heroText {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.greeting {
   font-family: var(--font-heading);
-  font-size: 30px;
+  font-size: 28px;
   line-height: 1.1;
   font-weight: 700;
 }
 
-.text {
-  margin: 0;
+.subtitle {
   color: var(--color-muted);
   font-size: 15px;
+  line-height: 1.5;
+}
+
+/* ───────────────── Секции ───────────────── */
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.sectionTitle {
+  font-family: var(--font-heading);
+  font-size: 20px;
+  line-height: 1.2;
+  font-weight: 700;
+}
+
+/* ───────────────── Шаги онбординга ───────────────── */
+.steps {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.step {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 18px 20px;
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface);
+  color: var(--color-text);
+  text-decoration: none;
+  transition:
+    border-color 0.16s ease,
+    background 0.16s ease,
+    box-shadow 0.16s ease;
+}
+
+.step:hover {
+  border-color: var(--color-accent);
+  background: var(--color-surface-2);
+  box-shadow: var(--shadow-xs);
+}
+
+.stepNumber {
+  flex: 0 0 auto;
+  width: 38px;
+  height: 38px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-pill);
+  background: var(--color-accent-soft);
+  color: var(--color-accent-active);
+  font-family: var(--font-heading);
+  font-size: 16px;
+  font-weight: 700;
+}
+
+.stepBody {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.stepTitle {
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.stepText {
+  color: var(--color-muted);
+  font-size: 14px;
+  line-height: 1.45;
+}
+
+.stepArrow {
+  flex: 0 0 auto;
+  width: 18px;
+  height: 18px;
+  color: var(--color-muted-light);
+  transition:
+    color 0.16s ease,
+    transform 0.16s ease;
+}
+
+.step:hover .stepArrow {
+  color: var(--color-accent);
+  transform: translateX(3px);
+}
+
+/* ───────────────── Возможности платформы ───────────────── */
+.features {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+}
+
+.feature {
+  flex: 1 1 240px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 20px;
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface);
+}
+
+.featureTitle {
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.featureText {
+  color: var(--color-muted);
+  font-size: 14px;
+  line-height: 1.45;
+}
+
+/* ───────────────── Адаптив ───────────────── */
+@media (max-width: 640px) {
+  .hero {
+    gap: 18px;
+    padding: 24px;
+  }
+
+  .greeting {
+    font-size: 26px;
+  }
 }

@@ -15,7 +15,6 @@ import AnnouncementPage from "./pages/classes/AnnouncementPage/AnnouncementPage"
 import GradesPage from "./pages/classes/GradesPage/GradesPage"
 import GradesOverviewPage from "./pages/GradesOverviewPage/GradesOverviewPage"
 import ProfilePage from "./pages/ProfilePage/ProfilePage"
-import HelpPage from "./pages/HelpPage/HelpPage"
 import ProtectedRoute from "./routes/ProtectedRoute"
 import PublicRoute from "./routes/PublicRoute"
 
@@ -45,7 +44,6 @@ export default function RootRouter() {
           </Route>
           <Route path="/grades" element={<GradesOverviewPage />} />
           <Route path="/profile" element={<ProfilePage />} />
-          <Route path="/help" element={<HelpPage />} />
         </Route>
       </Route>
     </Routes>
