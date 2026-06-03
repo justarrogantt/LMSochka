@@ -6,9 +6,12 @@ from app.database.models import UsersTable
 from app.dependencies import get_current_user
 from app.schemas.auth_schemas import (
     AuthSuccessDTO,
+    ChangePasswordRequest,
     LoginRequest,
     RefreshRequest,
     RegisterRequest,
+    StatusDTO,
+    UpdateMeRequest,
     UserDTO,
 )
 from app.schemas.errors import ServiceError
@@ -89,3 +92,42 @@ async def me(
     """Текущий пользователь по access-токену."""
     user, _ = context
     return UserDTO.model_validate(user)
+
+
+@auth_router.patch("/me")
+async def update_me(
+    body: UpdateMeRequest,
+    context: tuple[UsersTable, str] = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> UserDTO:
+    user, _ = context
+    try:
+        return await auth_service.update_me(
+            user,
+            email=body.email,
+            first_name=body.first_name,
+            last_name=body.last_name,
+            db=db,
+        )
+    except ServiceError as e:
+        raise HTTPException(status_code=e.status_code, detail=str(e)) from e
+
+
+@auth_router.post("/change-password")
+async def change_password(
+    body: ChangePasswordRequest,
+    context: tuple[UsersTable, str] = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> StatusDTO:
+    user, jti = context
+    try:
+        await auth_service.change_password(
+            user,
+            current_jti=jti,
+            current_password=body.current_password,
+            new_password=body.new_password,
+            db=db,
+        )
+        return StatusDTO(status="ok")
+    except ServiceError as e:
+        raise HTTPException(status_code=e.status_code, detail=str(e)) from e

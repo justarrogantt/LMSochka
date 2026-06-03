@@ -11,6 +11,7 @@ from app.schemas.announcement_schemas import AnnouncementDTO
 from app.schemas.errors import ServiceError
 from app.schemas.pagination import PageDTO
 from app.schemas.user_schemas import UserBriefDTO
+from app.services import notification_service
 
 
 def _dto(ann: AnnouncementsTable, author: UsersTable) -> AnnouncementDTO:
@@ -26,7 +27,12 @@ def _dto(ann: AnnouncementsTable, author: UsersTable) -> AnnouncementDTO:
 
 
 async def create_announcement(
-    class_id: int, author: UsersTable, title: str, content: str, db: AsyncSession
+    class_id: int,
+    class_name: str,
+    author: UsersTable,
+    title: str,
+    content: str,
+    db: AsyncSession,
 ) -> AnnouncementDTO:
     ann = await announcement_repo.create(
         class_id=class_id,
@@ -38,6 +44,13 @@ async def create_announcement(
     )
     await db.commit()
     await db.refresh(ann)
+    await notification_service.notify_announcement_created(
+        class_id=class_id,
+        announcement_id=ann.id,
+        author_id=author.id,
+        class_name=class_name,
+        db=db,
+    )
     return _dto(ann, author)
 
 

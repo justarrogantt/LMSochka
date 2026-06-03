@@ -41,6 +41,8 @@ SECRET_KEY=test-secret-key-that-is-long-enough-32bytes make test
 | POST | `/refresh` | обмен refresh на новую пару (rotation) |
 | POST | `/logout` | отзыв текущей сессии (нужен access) |
 | GET | `/me` | текущий пользователь (нужен access) |
+| PATCH | `/me` | частично обновить профиль (`email`, `first_name`, `last_name`). Пустое тело -> `422`, duplicate email -> `409`. |
+| POST | `/change-password` | сменить пароль (`current_password`, `new_password`). При успехе отзываются все прочие сессии пользователя, текущая остаётся активной. |
 
 Все защищённые ручки требуют заголовок `Authorization: Bearer <access_token>`.
 
@@ -115,6 +117,25 @@ SECRET_KEY=test-secret-key-that-is-long-enough-32bytes make test
 | Метод | Путь | Описание |
 |---|---|---|
 | GET | `/api/classes/{class_id}/gradebook` | сводная таблица по классу: `assignments`, `students` (включая `is_active=false` ушедших + `summary`), `cells` со статусами/баллами/late-флагом + `percent`. Только `teacher/creator`. |
+
+### Me (`/api/me`)
+| Метод | Путь | Описание |
+|---|---|---|
+| GET | `/grades` | сводка оценок текущего пользователя по всем активным курсам: `courses[{class_id, class_name, role, average_percent, graded_count, assignments_count, pending_count}]`. |
+
+### Notifications (`/api`)
+| Метод | Путь | Описание |
+|---|---|---|
+| GET | `/notifications?page=&limit=` | история уведомлений текущего пользователя. Пагинация + `unread_count`. |
+| POST | `/notifications/read-all` | пометить все уведомления прочитанными. Ответ: `{updated_count, unread_count}`. |
+| POST | `/notifications/{id}/read` | пометить одно уведомление прочитанным. Идемпотентно, возвращает `NotificationDTO`. |
+| WS | `/ws/notifications?token=<access_jwt>` | live-уведомления по WebSocket. При невалидном/протухшем токене соединение закрывается кодом `1008`. |
+
+Типы уведомлений:
+- `announcement` — новое объявление в курсе
+- `assignment` — новое задание в курсе
+- `grade` — выставлена или обновлена оценка
+- `submission_returned` — решение вернули на доработку
 
 #### Пагинация
 Растущие списки оборачиваем в `{ items, total, page, limit }` (см. `app/schemas/pagination.py`). Дефолт `page=1, limit=20, max limit=100`. Маленькие списки (`/my`, `/members`) остаются массивом.
