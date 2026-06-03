@@ -130,7 +130,7 @@ export default function PublicClassesPage() {
             />
           </div>
         </label>
-        <button className={styles.primaryButton} type="submit" disabled={isLoading}>
+        <button className={styles.searchSubmit} type="submit" disabled={isLoading}>
           Найти
         </button>
       </form>
