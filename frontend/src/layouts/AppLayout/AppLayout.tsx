@@ -1,14 +1,15 @@
 import { useEffect, useState } from "react"
 import { NavLink, Outlet, useNavigate } from "react-router-dom"
 import logo from "../../assets/logo.svg"
-import BellIcon from "../../assets/icons/layout/bell.svg?react"
 import CoursesIcon from "../../assets/icons/layout/courses.svg?react"
 import ExitIcon from "../../assets/icons/layout/exit.svg?react"
 import GradesIcon from "../../assets/icons/layout/grades.svg?react"
 import HomeIcon from "../../assets/icons/layout/home.svg?react"
 import SidebarIcon from "../../assets/icons/layout/sidebar.svg?react"
+import NotificationsBell from "../../components/NotificationsBell/NotificationsBell"
 import { useToast } from "../../components/Toast/ToastProvider"
 import { useAuth } from "../../contexts/AuthContext"
+import { NotificationsProvider } from "../../contexts/NotificationsContext"
 import { Api, ApiError, ApiSilentError } from "../../services/api"
 import { logout as logoutRequest } from "../../services/auth.api"
 import { formatUserName } from "../../services/helpers"
@@ -94,70 +95,70 @@ export default function AppLayout() {
   const sidebarToggleLabel = isSidebarOpen ? "Свернуть меню" : "Развернуть меню"
 
   return (
-    <div className={appClassName}>
-      <header className={styles.header}>
-        <button
-          className={styles.collapseButton}
-          type="button"
-          onClick={toggleSidebar}
-          aria-label={sidebarToggleLabel}
-          title={sidebarToggleLabel}
-        >
-          <SidebarIcon className={styles.collapseIcon} />
-        </button>
-
-        <NavLink className={styles.brand} to="/" aria-label="Главная страница LMS">
-          <img className={styles.brandLogo} src={logo} alt="4LMS logo" />
-          <div className={styles.brandText}>LMS</div>
-        </NavLink>
-
-        <div className={styles.userActions}>
-          <button className={styles.iconButton} type="button" aria-label="Уведомления">
-            <BellIcon className={styles.bellIcon} />
+    <NotificationsProvider>
+      <div className={appClassName}>
+        <header className={styles.header}>
+          <button
+            className={styles.collapseButton}
+            type="button"
+            onClick={toggleSidebar}
+            aria-label={sidebarToggleLabel}
+            title={sidebarToggleLabel}
+          >
+            <SidebarIcon className={styles.collapseIcon} />
           </button>
 
-          <NavLink className={styles.userCard} to="/profile" aria-label="Открыть профиль">
-            <div className={styles.avatar} aria-hidden="true">{userInitial}</div>
-            <div className={styles.userEmail}>{userName}</div>
+          <NavLink className={styles.brand} to="/" aria-label="Главная страница LMS">
+            <img className={styles.brandLogo} src={logo} alt="4LMS logo" />
+            <div className={styles.brandText}>LMS</div>
           </NavLink>
-        </div>
-      </header>
 
-      <div className={styles.shell}>
-        <aside className={styles.sidebar}>
-          <nav className={styles.menu} aria-label="Основное меню">
-            {menuItems.map((item) => {
-              const Icon = item.icon
+          <div className={styles.userActions}>
+            <NotificationsBell />
 
-              return (
-                <NavLink
-                  key={item.path}
-                  className={({ isActive }) => `${styles.menuButton} ${isActive ? styles.menuButtonActive : ""}`}
-                  to={item.path}
-                  end={item.end}
-                  title={item.title}
-                >
-                  <Icon className={styles.menuIcon} />
-                  <span className={styles.menuLabel}>{item.title}</span>
-                </NavLink>
-              )
-            })}
-          </nav>
+            <NavLink className={styles.userCard} to="/profile" aria-label="Открыть профиль">
+              <div className={styles.avatar} aria-hidden="true">{userInitial}</div>
+              <div className={styles.userEmail}>{userName}</div>
+            </NavLink>
+          </div>
+        </header>
 
-          <button className={styles.logoutButton} type="button" onClick={logout} title="Выйти">
-            <ExitIcon className={styles.logoutIcon} />
-            <span className={styles.menuLabel}>Выйти</span>
-          </button>
-        </aside>
+        <div className={styles.shell}>
+          <aside className={styles.sidebar}>
+            <nav className={styles.menu} aria-label="Основное меню">
+              {menuItems.map((item) => {
+                const Icon = item.icon
 
-        <div className={styles.main}>
-          <div className={styles.scrollArea}>
-            <main className={styles.content}>
-              <Outlet />
-            </main>
+                return (
+                  <NavLink
+                    key={item.path}
+                    className={({ isActive }) => `${styles.menuButton} ${isActive ? styles.menuButtonActive : ""}`}
+                    to={item.path}
+                    end={item.end}
+                    title={item.title}
+                  >
+                    <Icon className={styles.menuIcon} />
+                    <span className={styles.menuLabel}>{item.title}</span>
+                  </NavLink>
+                )
+              })}
+            </nav>
+
+            <button className={styles.logoutButton} type="button" onClick={logout} title="Выйти">
+              <ExitIcon className={styles.logoutIcon} />
+              <span className={styles.menuLabel}>Выйти</span>
+            </button>
+          </aside>
+
+          <div className={styles.main}>
+            <div className={styles.scrollArea}>
+              <main className={styles.content}>
+                <Outlet />
+              </main>
+            </div>
           </div>
         </div>
       </div>
-    </div>
+    </NotificationsProvider>
   )
 }

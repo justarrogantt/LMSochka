@@ -4,12 +4,15 @@ from pydantic import BaseModel, ConfigDict, EmailStr, Field, model_validator
 
 from app.config import settings
 
+# Имя/фамилия: только русские или латинские буквы, пробел и дефис (двойные имена).
+NAME_PATTERN = r"^[A-Za-zА-Яа-яЁё \-]+$"
+
 
 class RegisterRequest(BaseModel):
     email: EmailStr
     password: str = Field(min_length=settings.PASSWORD_MIN_LENGTH, max_length=128)
-    first_name: str | None = Field(default=None, max_length=50)
-    last_name: str | None = Field(default=None, max_length=50)
+    first_name: str | None = Field(default=None, max_length=50, pattern=NAME_PATTERN)
+    last_name: str | None = Field(default=None, max_length=50, pattern=NAME_PATTERN)
 
 
 class LoginRequest(BaseModel):
@@ -23,8 +26,8 @@ class RefreshRequest(BaseModel):
 
 class UpdateMeRequest(BaseModel):
     email: EmailStr | None = None
-    first_name: str | None = Field(default=None, max_length=50)
-    last_name: str | None = Field(default=None, max_length=50)
+    first_name: str | None = Field(default=None, max_length=50, pattern=NAME_PATTERN)
+    last_name: str | None = Field(default=None, max_length=50, pattern=NAME_PATTERN)
 
     @model_validator(mode="after")
     def _not_empty(self) -> "UpdateMeRequest":

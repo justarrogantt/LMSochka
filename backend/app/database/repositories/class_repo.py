@@ -47,6 +47,23 @@ async def get_by_code(code: str, db: AsyncSession) -> ClassesTable | None:
     return result.scalar_one_or_none()
 
 
+async def get_active_by_name_for_creator(
+    name: str, creator_id: int, db: AsyncSession
+) -> ClassesTable | None:
+    """Активный курс этого создателя с таким же названием (регистронезависимо).
+
+    Нужен, чтобы не плодить дубликаты курсов с одинаковым именем у одного автора.
+    """
+    result = await db.execute(
+        select(ClassesTable).where(
+            func.lower(ClassesTable.name) == name.strip().lower(),
+            ClassesTable.creator_id == creator_id,
+            _NOT_DELETED,
+        )
+    )
+    return result.scalar_one_or_none()
+
+
 async def create_class(
     name: str,
     class_type: ClassType,

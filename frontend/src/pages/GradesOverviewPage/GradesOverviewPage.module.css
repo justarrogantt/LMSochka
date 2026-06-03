@@ -25,6 +25,7 @@
 }
 
 .emptyMessage {
+  flex: 1;
   min-height: 220px;
   color: var(--color-muted);
   display: flex;
@@ -32,6 +33,58 @@
   justify-content: center;
   text-align: center;
   font-size: 18px;
+  font-weight: 700;
+}
+
+/* Поле поиска по курсам */
+.searchControl {
+  position: relative;
+  display: flex;
+}
+
+.searchIcon {
+  position: absolute;
+  left: 14px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 18px;
+  height: 18px;
+  color: var(--color-muted-light);
+  pointer-events: none;
+}
+
+.searchInput {
+  width: 100%;
+  min-height: 44px;
+  padding: 0 14px 0 42px;
+  border: 1px solid var(--color-line-strong);
+  border-radius: var(--radius-md);
+  outline: none;
+  background: var(--color-surface-2);
+  color: var(--color-text);
+  transition:
+    border-color 0.16s ease,
+    box-shadow 0.16s ease,
+    background 0.16s ease;
+}
+
+.searchInput:focus {
+  border-color: var(--color-accent);
+  background: var(--color-surface);
+  box-shadow: 0 0 0 4px var(--color-accent-ring);
+}
+
+/* Секция «Где я учусь» / «Где я преподаю» */
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.sectionTitle {
+  font-family: var(--font-heading);
+  font-size: 20px;
+  line-height: 1.2;
   font-weight: 700;
 }
 

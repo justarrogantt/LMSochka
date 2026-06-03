@@ -22,7 +22,9 @@ export default defineConfig(({ mode }) => {
         [env.VITE_API_PREFIX]: {
           target: env.VITE_API_URL,
           changeOrigin: true,
-          secure: false
+          secure: false,
+          // ws: true — чтобы через тот же префикс /api проксировался и WebSocket уведомлений
+          ws: true
         }
       }
     }

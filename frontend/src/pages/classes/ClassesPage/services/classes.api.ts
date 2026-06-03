@@ -30,6 +30,7 @@ const MY_CLASSES_ERRORS: Errors = {
 
 const CREATE_CLASS_ERRORS: Errors = {
   default: "Не удалось создать курс",
+  409: "У вас уже есть курс с таким названием",
   422: "Проверьте поля курса"
 }
 

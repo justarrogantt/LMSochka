@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react"
+import { useEffect, useState } from "react"
 import { Link, useOutletContext } from "react-router-dom"
 import SearchIcon from "../../../assets/icons/layout/search.svg?react"
 import SelectArrowIcon from "../../../assets/icons/select-arrow.svg?react"
@@ -76,11 +76,9 @@ export default function GradesPage() {
     void load()
   }, [classDetail?.id, canViewGradebook, user?.id])
 
-  const cellMap = useMemo(() => {
-    const map = new Map<string, GradebookCell>()
-    gradebook?.cells.forEach((cell) => map.set(cellKey(cell.student_id, cell.assignment_id), cell))
-    return map
-  }, [gradebook])
+  // Быстрый доступ к ячейке по паре студент+задание
+  const cellMap = new Map<string, GradebookCell>()
+  gradebook?.cells.forEach((cell) => cellMap.set(cellKey(cell.student_id, cell.assignment_id), cell))
 
   const hasData = gradebook && gradebook.students.length > 0
 

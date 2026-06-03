@@ -26,14 +26,18 @@ const defaultForm: RegisterForm = {
 }
 
 const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+// Имя/фамилия — только русские или латинские буквы, пробел и дефис
+const nameRegex = /^[A-Za-zА-Яа-яЁё \-]+$/
 const passwordMinLength = 8
 const nameMaxLength = 50
 
 const validationErrors = {
   firstNameRequired: "Введите имя.",
   firstNameInvalid: "Имя не длиннее 50 символов.",
+  firstNameChars: "Имя — только русские или латинские буквы.",
   lastNameRequired: "Введите фамилию.",
   lastNameInvalid: "Фамилия не длиннее 50 символов.",
+  lastNameChars: "Фамилия — только русские или латинские буквы.",
   emailRequired: "Введите электронную почту.",
   emailInvalid: "Введите корректную электронную почту.",
   passwordRequired: "Введите пароль.",
@@ -83,12 +87,16 @@ export default function RegisterPage() {
       newErrors.firstName = validationErrors.firstNameRequired
     } else if (formData.firstName.trim().length > nameMaxLength) {
       newErrors.firstName = validationErrors.firstNameInvalid
+    } else if (!nameRegex.test(formData.firstName.trim())) {
+      newErrors.firstName = validationErrors.firstNameChars
     }
 
     if (!formData.lastName.trim()) {
       newErrors.lastName = validationErrors.lastNameRequired
     } else if (formData.lastName.trim().length > nameMaxLength) {
       newErrors.lastName = validationErrors.lastNameInvalid
+    } else if (!nameRegex.test(formData.lastName.trim())) {
+      newErrors.lastName = validationErrors.lastNameChars
     }
 
     if (!formData.email.trim()) {

@@ -33,6 +33,18 @@
   gap: 22px;
 }
 
+.settingsCard {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+/* Тонкая линия между настройками */
+.divider {
+  height: 1px;
+  background: var(--color-line);
+}
+
 .avatar {
   width: 78px;
   height: 78px;
@@ -175,4 +187,170 @@
   height: 18px;
   flex: 0 0 18px;
   color: currentColor;
+}
+
+/* Кнопка «Редактировать» в карточке профиля */
+.editButton {
+  flex: 0 0 auto;
+  margin-left: auto;
+  align-self: flex-start;
+  min-height: 40px;
+  padding: 0 16px;
+  border: 1px solid var(--color-line-strong);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+  color: var(--color-text);
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+  transition:
+    background 0.16s ease,
+    border-color 0.16s ease,
+    color 0.16s ease;
+}
+
+.editButton:hover {
+  background: var(--color-accent-soft);
+  border-color: var(--color-accent);
+  color: var(--color-accent-active);
+}
+
+.editIcon {
+  width: 16px;
+  height: 16px;
+  flex: 0 0 16px;
+}
+
+/* ───────────────── Поля и кнопки в модалках ───────────────── */
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 14px;
+}
+
+.fieldLabel {
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--color-muted);
+}
+
+.input {
+  width: 100%;
+  min-height: 44px;
+  padding: 0 14px;
+  border: 1px solid var(--color-line-strong);
+  border-radius: var(--radius-md);
+  outline: none;
+  background: var(--color-surface-2);
+  color: var(--color-text);
+  transition:
+    border-color 0.16s ease,
+    box-shadow 0.16s ease,
+    background 0.16s ease;
+}
+
+.input:focus {
+  border-color: var(--color-accent);
+  background: var(--color-surface);
+  box-shadow: 0 0 0 4px var(--color-accent-ring);
+}
+
+/* Поле с ошибкой валидации */
+.inputError,
+.inputError:focus {
+  border-color: var(--color-danger);
+  box-shadow: 0 0 0 4px var(--color-danger-soft);
+}
+
+.fieldErrorText {
+  color: var(--color-danger);
+  font-size: 12.5px;
+  font-weight: 500;
+}
+
+/* Ошибка от сервера (email занят, неверный пароль и т.п.) */
+.serverError {
+  margin-top: 4px;
+  padding: 10px 14px;
+  border-radius: var(--radius-md);
+  background: var(--color-danger-soft);
+  color: var(--color-danger);
+  font-size: 13.5px;
+  font-weight: 500;
+}
+
+/* Подзаголовок блока смены пароля внутри модалки */
+.passwordHead {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: 14px;
+}
+
+.passwordTitle {
+  font-size: 15px;
+  font-weight: 700;
+}
+
+.passwordHint {
+  color: var(--color-muted);
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.modalActions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 20px;
+}
+
+.primaryButton,
+.secondaryButton {
+  min-height: 44px;
+  padding: 0 18px;
+  border-radius: var(--radius-md);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+  transition:
+    background 0.16s ease,
+    border-color 0.16s ease,
+    color 0.16s ease,
+    opacity 0.16s ease;
+}
+
+.primaryButton {
+  border: 1px solid var(--color-accent);
+  background: var(--color-accent);
+  color: #ffffff;
+}
+
+.primaryButton:hover {
+  opacity: 0.88;
+}
+
+.secondaryButton {
+  border: 1px solid var(--color-line-strong);
+  background: var(--color-surface);
+  color: var(--color-text);
+}
+
+.secondaryButton:hover {
+  background: var(--color-soft);
+}
+
+.primaryButton:disabled,
+.secondaryButton:disabled {
+  opacity: 0.6;
+  cursor: default;
 }

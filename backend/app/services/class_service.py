@@ -74,6 +74,11 @@ async def create_class(
     Возвращает MyClassDTO, чтобы фронт мог вставить карточку в /classes/my
     без отдельного GET. join_code creator-у виден сразу.
     """
+    # не даём создателю два активных курса с одинаковым названием
+    existing = await class_repo.get_active_by_name_for_creator(name, creator_id, db)
+    if existing is not None:
+        raise ServiceError("У вас уже есть курс с таким названием", 409)
+
     # код приглашения нужен только закрытым классам, открытые ищутся по id
     join_code = (
         await _generate_unique_code(db) if class_type == ClassType.CLOSED else None

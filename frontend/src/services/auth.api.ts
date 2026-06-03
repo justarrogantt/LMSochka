@@ -4,7 +4,7 @@ import { parseApiResponse, throwApiResponseError } from "./response"
 import type { Errors } from "../types/api.types"
 
 // Текущий пользователь, которого отдаёт /auth/me.
-const UserSchema = z.object({
+export const UserSchema = z.object({
   id: z.number(),
   email: z.string().email(),
   first_name: z.string().nullable(),

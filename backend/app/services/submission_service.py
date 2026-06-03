@@ -206,7 +206,7 @@ async def return_submission(
             student_id=sub.student_id,
             class_id=asg.class_id,
             class_name=cls.name,
-            submission_id=sub.id,
+            assignment_id=asg.id,
             db=db,
         )
     return _dto(sub, student, asg, grade)

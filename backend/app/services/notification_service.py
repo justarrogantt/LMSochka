@@ -54,6 +54,9 @@ class NotificationConnectionManager:
 
 ws_manager = NotificationConnectionManager()
 
+# Сколько последних уведомлений храним на пользователя, чтобы лента не росла бесконечно
+NOTIFICATIONS_KEEP_PER_USER = 50
+
 
 def _dto(notification: NotificationsTable) -> NotificationDTO:
     return NotificationDTO.model_validate(notification)
@@ -88,6 +91,8 @@ async def _create_and_send_many(
         for user_id in user_ids
     ]
     saved = await notification_repo.create_many(notifications, db)
+    # подрезаем старые, чтобы у пользователя оставались только последние N
+    await notification_repo.trim_for_users(user_ids, NOTIFICATIONS_KEEP_PER_USER, db)
     dtos = [_dto(notification) for notification in saved]
     for notification, dto in zip(saved, dtos, strict=False):
         await ws_manager.send(notification.user_id, dto)
@@ -148,11 +153,12 @@ async def notify_grade_created(
     student_id: int,
     class_id: int,
     class_name: str,
-    submission_id: int,
+    assignment_id: int,
     value: float,
     max_grade: float,
     db: AsyncSession,
 ) -> None:
+    # entity_id = id задания: фронт ведёт студента прямо на страницу задания с оценкой
     await _create_and_send_many(
         user_ids=[student_id],
         notification_type=NotificationType.GRADE,
@@ -161,7 +167,7 @@ async def notify_grade_created(
             f"в курсе «{class_name}»"
         ),
         class_id=class_id,
-        entity_id=submission_id,
+        entity_id=assignment_id,
         db=db,
     )
 
@@ -171,15 +177,16 @@ async def notify_submission_returned(
     student_id: int,
     class_id: int,
     class_name: str,
-    submission_id: int,
+    assignment_id: int,
     db: AsyncSession,
 ) -> None:
+    # entity_id = id задания: ведём студента на страницу задания, чтобы доработать решение
     await _create_and_send_many(
         user_ids=[student_id],
         notification_type=NotificationType.SUBMISSION_RETURNED,
         title=f"Решение вернули на доработку в курсе «{class_name}»",
         class_id=class_id,
-        entity_id=submission_id,
+        entity_id=assignment_id,
         db=db,
     )
 

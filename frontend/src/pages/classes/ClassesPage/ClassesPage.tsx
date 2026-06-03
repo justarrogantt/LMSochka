@@ -256,6 +256,7 @@ export default function ClassesPage() {
       setActiveModal(null)
       showToast({ type: "neutral", message: "Курс создан" })
     } catch (error) {
+      if (error instanceof ApiSilentError) return
       showToast({
         type: "error",
         message: (error as Error).message

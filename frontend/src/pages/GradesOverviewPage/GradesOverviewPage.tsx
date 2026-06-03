@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react"
 import { Link } from "react-router-dom"
+import SearchIcon from "../../assets/icons/layout/search.svg?react"
 import Loading from "../../components/Loading/Loading"
 import { useToast } from "../../components/Toast/ToastProvider"
 import { ApiSilentError } from "../../services/api"
@@ -14,7 +15,7 @@ function averageClassName(value: number | null) {
 }
 
 function formatAverage(value: number | null) {
-  return value === null ? "—" : `${value}%`
+  return value === null ? "—" : `${Math.round(value)}%`
 }
 
 function CourseCard({ course }: { course: CourseGradesSummary }) {
@@ -37,9 +38,25 @@ function CourseCard({ course }: { course: CourseGradesSummary }) {
   )
 }
 
+// Секция с заголовком и сеткой курсов — общая для «учусь» и «преподаю».
+function GradesSection({ title, courses }: { title: string; courses: CourseGradesSummary[] }) {
+  return (
+    <div className={styles.section}>
+      <div className={styles.sectionTitle}>{title}</div>
+      <div className={styles.cards}>
+        {courses.map((course) => (
+          <CourseCard key={course.class_id} course={course} />
+        ))}
+      </div>
+    </div>
+  )
+}
+
 export default function GradesOverviewPage() {
   const [courses, setCourses] = useState<CourseGradesSummary[]>([])
   const [isLoading, setIsLoading] = useState(true)
+  // Локальный поиск по названию курса (на бэке поиска по сводке нет)
+  const [search, setSearch] = useState("")
   const showToast = useToast()
 
   useEffect(() => {
@@ -59,6 +76,16 @@ export default function GradesOverviewPage() {
     void load()
   }, [])
 
+  // Фильтруем по названию + делим по роли: у студента и преподавателя цифры значат разное
+  const query = search.trim().toLowerCase()
+  const filtered = query
+    ? courses.filter((course) => course.class_name.toLowerCase().includes(query))
+    : courses
+  const studyCourses = filtered.filter((course) => course.role === "student")
+  const teachCourses = filtered.filter((course) => course.role !== "student")
+
+  const hasResults = studyCourses.length > 0 || teachCourses.length > 0
+
   return (
     <div className={styles.page}>
       <div className={styles.titleBlock}>
@@ -66,19 +93,32 @@ export default function GradesOverviewPage() {
         <div className={styles.text}>Сводка по оценкам и работам на проверке во всех ваших курсах.</div>
       </div>
 
-      {isLoading && <Loading />}
-
       {!isLoading && courses.length > 0 && (
-        <div className={styles.cards}>
-          {courses.map((course) => (
-            <CourseCard key={course.class_id} course={course} />
-          ))}
+        <div className={styles.searchControl}>
+          <SearchIcon className={styles.searchIcon} />
+          <input
+            className={styles.searchInput}
+            type="text"
+            value={search}
+            onChange={(event) => setSearch(event.target.value)}
+            placeholder="Поиск по курсам"
+          />
         </div>
       )}
+
+      {isLoading && <Loading />}
 
       {!isLoading && courses.length === 0 && (
         <div className={styles.emptyMessage}>Курсов с оценками пока нет</div>
       )}
+
+      {!isLoading && courses.length > 0 && !hasResults && (
+        <div className={styles.emptyMessage}>По запросу «{search.trim()}» курсов не найдено</div>
+      )}
+
+      {studyCourses.length > 0 && <GradesSection title="Где я учусь" courses={studyCourses} />}
+
+      {teachCourses.length > 0 && <GradesSection title="Где я преподаю" courses={teachCourses} />}
     </div>
   )
 }

@@ -77,7 +77,7 @@ async def put_grade(
             student_id=sub.student_id,
             class_id=asg.class_id,
             class_name=cls.name,
-            submission_id=sub.id,
+            assignment_id=asg.id,
             value=grade.value,
             max_grade=asg.max_grade,
             db=db,

@@ -1,4 +1,4 @@
-from sqlalchemy import func, select, update
+from sqlalchemy import delete, func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database.models import NotificationsTable
@@ -15,6 +15,32 @@ async def create_many(
     for notification in notifications:
         await db.refresh(notification)
     return notifications
+
+
+async def trim_for_users(user_ids: list[int], keep: int, db: AsyncSession) -> None:
+    """Оставляем у каждого пользователя только последние `keep` уведомлений.
+
+    Так лента не растёт бесконечно: старые (за пределами окна) удаляем физически.
+    """
+    for user_id in set(user_ids):
+        keep_ids_result = await db.execute(
+            select(NotificationsTable.id)
+            .where(NotificationsTable.user_id == user_id)
+            .order_by(NotificationsTable.created_at.desc(), NotificationsTable.id.desc())
+            .limit(keep)
+        )
+        keep_ids = list(keep_ids_result.scalars().all())
+        # пока не накопилось больше лимита — удалять нечего
+        if len(keep_ids) < keep:
+            continue
+
+        await db.execute(
+            delete(NotificationsTable).where(
+                NotificationsTable.user_id == user_id,
+                NotificationsTable.id.notin_(keep_ids),
+            )
+        )
+    await db.commit()
 
 
 async def list_for_user(
