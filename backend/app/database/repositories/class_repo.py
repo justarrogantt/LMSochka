@@ -204,6 +204,26 @@ async def count_by_role(class_id: int, db: AsyncSession) -> dict[ClassRole, int]
     return counts
 
 
+async def list_member_user_ids(
+    class_id: int,
+    *,
+    roles: tuple[ClassRole, ...] | None,
+    exclude_user_id: int | None,
+    include_inactive: bool,
+    db: AsyncSession,
+) -> list[int]:
+    query = select(ClassMembersTable.user_id).where(ClassMembersTable.class_id == class_id)
+    if roles:
+        query = query.where(ClassMembersTable.role.in_(roles))
+    if exclude_user_id is not None:
+        query = query.where(ClassMembersTable.user_id != exclude_user_id)
+    if not include_inactive:
+        query = query.where(_MEMBER_ACTIVE)
+
+    result = await db.execute(query.order_by(ClassMembersTable.user_id))
+    return list(result.scalars().all())
+
+
 async def list_public(
     search: str | None, limit: int, offset: int, db: AsyncSession
 ) -> list[ClassesTable]:
@@ -266,6 +286,24 @@ async def get_member_class_ids(
         )
     )
     return set(result.scalars().all())
+
+
+async def count_active_students_for_classes(
+    class_ids: list[int], db: AsyncSession
+) -> dict[int, int]:
+    if not class_ids:
+        return {}
+
+    result = await db.execute(
+        select(ClassMembersTable.class_id, func.count())
+        .where(
+            ClassMembersTable.class_id.in_(class_ids),
+            ClassMembersTable.role == ClassRole.STUDENT,
+            _MEMBER_ACTIVE,
+        )
+        .group_by(ClassMembersTable.class_id)
+    )
+    return {class_id: int(cnt) for class_id, cnt in result.all()}
 
 
 async def list_students_for_gradebook(

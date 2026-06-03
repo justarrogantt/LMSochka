@@ -141,3 +141,46 @@ async def refresh_tokens(
 
 async def logout(jti: str, db: AsyncSession) -> None:
     await session_repo.revoke_by_jti(jti, db)
+
+
+async def update_me(
+    user: UsersTable,
+    *,
+    email: str | None,
+    first_name: str | None,
+    last_name: str | None,
+    db: AsyncSession,
+) -> UserDTO:
+    normalized_email = None
+    if email is not None:
+        normalized_email = email.lower().strip()
+        if normalized_email != user.email:
+            existing = await user_repo.get_by_email(normalized_email, db)
+            if existing is not None and existing.id != user.id:
+                raise ServiceError("Пользователь с таким email уже существует", 409)
+
+    updated_user = await user_repo.update_profile(
+        user,
+        email=normalized_email,
+        first_name=first_name.strip() if first_name is not None else None,
+        last_name=last_name.strip() if last_name is not None else None,
+        db=db,
+    )
+    return UserDTO.model_validate(updated_user)
+
+
+async def change_password(
+    user: UsersTable,
+    *,
+    current_jti: str,
+    current_password: str,
+    new_password: str,
+    db: AsyncSession,
+) -> None:
+    if not verify_password(current_password, user.password_hash):
+        raise ServiceError("Неверный текущий пароль", 400)
+
+    user.password_hash = hash_password(new_password)
+    db.add(user)
+    await db.commit()
+    await session_repo.revoke_others_for_user(user.id, current_jti, db)

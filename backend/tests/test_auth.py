@@ -143,3 +143,132 @@ async def test_passwords_differing_after_72_bytes_are_distinct(client):
         json={"email": email, "password": base + "QQQ"},
     )
     assert r.status_code == 401
+
+
+@pytest.mark.asyncio
+async def test_patch_me_updates_fields_and_keeps_token_valid(client):
+    r = await client.post(
+        "/api/auth/register",
+        json={"email": "patchme@example.com", "password": "password123"},
+    )
+    access = r.json()["access_token"]
+
+    r = await client.patch(
+        "/api/auth/me",
+        json={
+            "email": "  NEW@Example.COM  ",
+            "first_name": " Анна ",
+            "last_name": " Иванова ",
+        },
+        headers={"Authorization": f"Bearer {access}"},
+    )
+    assert r.status_code == 200, r.text
+    body = r.json()
+    assert body["email"] == "new@example.com"
+    assert body["first_name"] == "Анна"
+    assert body["last_name"] == "Иванова"
+
+    r = await client.get(
+        "/api/auth/me", headers={"Authorization": f"Bearer {access}"}
+    )
+    assert r.status_code == 200
+    assert r.json()["email"] == "new@example.com"
+
+
+@pytest.mark.asyncio
+async def test_patch_me_empty_body_and_duplicate_email(client):
+    r1 = await client.post(
+        "/api/auth/register",
+        json={"email": "u1@example.com", "password": "password123"},
+    )
+    access = r1.json()["access_token"]
+
+    await client.post(
+        "/api/auth/register",
+        json={"email": "u2@example.com", "password": "password123"},
+    )
+
+    r = await client.patch(
+        "/api/auth/me",
+        json={},
+        headers={"Authorization": f"Bearer {access}"},
+    )
+    assert r.status_code == 422
+
+    r = await client.patch(
+        "/api/auth/me",
+        json={"email": "u2@example.com"},
+        headers={"Authorization": f"Bearer {access}"},
+    )
+    assert r.status_code == 409
+
+
+@pytest.mark.asyncio
+async def test_change_password_revokes_other_sessions_but_keeps_current(client):
+    r = await client.post(
+        "/api/auth/register",
+        json={"email": "changepass@example.com", "password": "password123"},
+    )
+    access1 = r.json()["access_token"]
+    refresh1 = r.json()["refresh_token"]
+
+    r = await client.post(
+        "/api/auth/login",
+        json={"email": "changepass@example.com", "password": "password123"},
+    )
+    access2 = r.json()["access_token"]
+
+    r = await client.post(
+        "/api/auth/change-password",
+        json={
+            "current_password": "password123",
+            "new_password": "new-password-123",
+        },
+        headers={"Authorization": f"Bearer {access2}"},
+    )
+    assert r.status_code == 200, r.text
+    assert r.json() == {"status": "ok"}
+
+    r = await client.get(
+        "/api/auth/me", headers={"Authorization": f"Bearer {access2}"}
+    )
+    assert r.status_code == 200
+
+    r = await client.get(
+        "/api/auth/me", headers={"Authorization": f"Bearer {access1}"}
+    )
+    assert r.status_code == 401
+
+    r = await client.post("/api/auth/refresh", json={"refresh_token": refresh1})
+    assert r.status_code == 401
+
+    r = await client.post(
+        "/api/auth/login",
+        json={"email": "changepass@example.com", "password": "password123"},
+    )
+    assert r.status_code == 401
+
+    r = await client.post(
+        "/api/auth/login",
+        json={"email": "changepass@example.com", "password": "new-password-123"},
+    )
+    assert r.status_code == 200
+
+
+@pytest.mark.asyncio
+async def test_change_password_with_wrong_current_password(client):
+    r = await client.post(
+        "/api/auth/register",
+        json={"email": "wrongcurrent@example.com", "password": "password123"},
+    )
+    access = r.json()["access_token"]
+
+    r = await client.post(
+        "/api/auth/change-password",
+        json={
+            "current_password": "wrong-password",
+            "new_password": "new-password-123",
+        },
+        headers={"Authorization": f"Bearer {access}"},
+    )
+    assert r.status_code == 400

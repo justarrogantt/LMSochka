@@ -31,3 +31,24 @@ async def create_user(
     await db.commit()
     await db.refresh(user)
     return user
+
+
+async def update_profile(
+    user: UsersTable,
+    *,
+    email: str | None,
+    first_name: str | None,
+    last_name: str | None,
+    db: AsyncSession,
+) -> UsersTable:
+    if email is not None:
+        user.email = email
+    if first_name is not None:
+        user.first_name = first_name
+    if last_name is not None:
+        user.last_name = last_name
+
+    db.add(user)
+    await db.commit()
+    await db.refresh(user)
+    return user
