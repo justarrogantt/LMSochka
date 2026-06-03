@@ -5,7 +5,12 @@ from app.database.models import (
     SubmissionStatus,
     UsersTable,
 )
-from app.database.repositories import assignment_repo, class_repo, grade_repo, submission_repo
+from app.database.repositories import (
+    assignment_repo,
+    class_repo,
+    grade_repo,
+    submission_repo,
+)
 from app.schemas.errors import ServiceError
 from app.schemas.grade_schemas import GradeDTO, UpsertGradeRequest
 from app.schemas.gradebook_schemas import (
@@ -13,6 +18,7 @@ from app.schemas.gradebook_schemas import (
     GradebookCellDTO,
     GradebookDTO,
     GradebookStudentDTO,
+    GradebookStudentSummaryDTO,
 )
 from app.schemas.submission_schemas import SubmissionDTO
 from app.schemas.user_schemas import UserBriefDTO
@@ -141,17 +147,54 @@ async def get_gradebook(
     submissions_rows = await submission_repo.list_for_gradebook(assignment_ids, student_ids, db)
 
     assignments_by_id = {a.id: a for a in assignments}
+    total_assignments = len(assignments)
+    summary_map: dict[int, dict[str, float | int]] = {
+        u.id: {
+            "graded_count": 0,
+            "submitted_count": 0,
+            "pending_review_count": 0,
+            "percent_sum": 0.0,
+            "percent_count": 0,
+        }
+        for u, _ in students_rows
+    }
+
     cells: list[GradebookCellDTO] = []
     for sub, grade in submissions_rows:
         asg = assignments_by_id.get(sub.assignment_id)
         if asg is None:
             continue
+        summary = summary_map.setdefault(
+            sub.student_id,
+            {
+                "graded_count": 0,
+                "submitted_count": 0,
+                "pending_review_count": 0,
+                "percent_sum": 0.0,
+                "percent_count": 0,
+            },
+        )
+
+        if sub.status in {SubmissionStatus.SUBMITTED, SubmissionStatus.GRADED}:
+            summary["submitted_count"] += 1
+        if sub.status == SubmissionStatus.SUBMITTED:
+            summary["pending_review_count"] += 1
+
+        percent: float | None = None
+        if sub.status == SubmissionStatus.GRADED:
+            summary["graded_count"] += 1
+            if grade is not None and asg.max_grade > 0:
+                percent = round((grade.value / asg.max_grade) * 100, 2)
+                summary["percent_sum"] += percent
+                summary["percent_count"] += 1
+
         cells.append(
             GradebookCellDTO(
                 student_id=sub.student_id,
                 assignment_id=sub.assignment_id,
                 status=sub.status,
                 value=grade.value if grade is not None else None,
+                percent=percent,
                 is_late=_is_late(sub, asg),
                 submitted_at=sub.submitted_at,
             )
@@ -174,6 +217,19 @@ async def get_gradebook(
                 first_name=u.first_name,
                 last_name=u.last_name,
                 is_active=m.deleted_at is None,
+                summary=GradebookStudentSummaryDTO(
+                    average_percent=(
+                        round(
+                            summary_map[u.id]["percent_sum"] / summary_map[u.id]["percent_count"], 2
+                        )
+                        if summary_map[u.id]["percent_count"] > 0
+                        else None
+                    ),
+                    graded_count=int(summary_map[u.id]["graded_count"]),
+                    submitted_count=int(summary_map[u.id]["submitted_count"]),
+                    pending_review_count=int(summary_map[u.id]["pending_review_count"]),
+                    total_assignments=total_assignments,
+                ),
             )
             for u, m in students_rows
         ],

@@ -1,8 +1,10 @@
 from datetime import datetime
+from enum import StrEnum
 
 from pydantic import BaseModel, Field, HttpUrl, model_validator
 
 from app.database.models import SubmissionStatus
+from app.schemas.pagination import PageDTO
 from app.schemas.user_schemas import UserBriefDTO
 
 
@@ -56,13 +58,22 @@ class MySubmissionBriefDTO(BaseModel):
 class AssignmentStatsDTO(BaseModel):
     """Сводка по заданию для преподавателя: прогресс сдачи по активным студентам.
 
-    submitted_count — сколько студентов уже сдали (статус submitted/graded),
-    graded_count — сколько из них оценено. students_total — активных студентов.
+    submitted_count — сколько студентов уже сдали (submitted/graded),
+    pending_review_count — сколько решений сейчас ждут проверки (submitted),
+    graded_count — сколько из них оценено (graded),
+    returned_count — сколько решений возвращено на доработку (returned).
+    students_total — активных студентов.
     """
 
     students_total: int
     submitted_count: int
+    pending_review_count: int
     graded_count: int
+    returned_count: int
+
+
+class AssignmentReviewStatus(StrEnum):
+    PENDING = "pending"
 
 
 class AssignmentDTO(BaseModel):
@@ -81,3 +92,9 @@ class AssignmentDTO(BaseModel):
     my_submission: MySubmissionBriefDTO | None = None
     # Заполняется только для teacher/creator. У студента — всегда null.
     stats: AssignmentStatsDTO | None = None
+
+
+class AssignmentPageDTO(PageDTO[AssignmentDTO]):
+    # Сколько заданий по курсу имеют хотя бы одно submitted-решение.
+    # Нужен для вкладки "На проверке (N)".
+    pending_review_total: int

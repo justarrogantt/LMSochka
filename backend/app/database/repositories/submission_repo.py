@@ -130,11 +130,16 @@ async def map_student_submissions_for_assignments(
 
 async def stats_for_assignments(
     assignment_ids: list[int], db: AsyncSession
-) -> dict[int, tuple[int, int]]:
-    """Прогресс сдачи по набору заданий: {assignment_id: (submitted_count, graded_count)}.
+) -> dict[int, tuple[int, int, int, int]]:
+    """Прогресс сдачи по заданиям.
 
-    submitted_count — статус submitted или graded (студент сдал),
-    graded_count — статус graded. Один групповой запрос вместо N.
+    Возвращает:
+    {assignment_id: (submitted_count, graded_count, pending_review_count, returned_count)}
+
+    submitted_count — submitted/graded (студент сдал),
+    pending_review_count — только submitted,
+    graded_count — только graded,
+    returned_count — только returned.
     """
     if not assignment_ids:
         return {}
@@ -152,8 +157,20 @@ async def stats_for_assignments(
     graded_expr = func.sum(
         case((SubmissionsTable.status == SubmissionStatus.GRADED, 1), else_=0)
     )
+    pending_expr = func.sum(
+        case((SubmissionsTable.status == SubmissionStatus.SUBMITTED, 1), else_=0)
+    )
+    returned_expr = func.sum(
+        case((SubmissionsTable.status == SubmissionStatus.RETURNED, 1), else_=0)
+    )
     result = await db.execute(
-        select(SubmissionsTable.assignment_id, submitted_expr, graded_expr)
+        select(
+            SubmissionsTable.assignment_id,
+            submitted_expr,
+            graded_expr,
+            pending_expr,
+            returned_expr,
+        )
         .join(AssignmentsTable, AssignmentsTable.id == SubmissionsTable.assignment_id)
         .where(
             SubmissionsTable.assignment_id.in_(assignment_ids),
@@ -161,7 +178,10 @@ async def stats_for_assignments(
         )
         .group_by(SubmissionsTable.assignment_id)
     )
-    return {aid: (int(s or 0), int(g or 0)) for aid, s, g in result.all()}
+    return {
+        aid: (int(s or 0), int(g or 0), int(p or 0), int(r or 0))
+        for aid, s, g, p, r in result.all()
+    }
 
 
 async def list_for_gradebook(

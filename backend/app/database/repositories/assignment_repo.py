@@ -1,12 +1,26 @@
 from datetime import UTC, datetime
 
-from sqlalchemy import func, select
+from sqlalchemy import exists, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.database.models import AssignmentsTable, UsersTable
+from app.database.models import (
+    AssignmentsTable,
+    SubmissionsTable,
+    SubmissionStatus,
+    UsersTable,
+)
 
 # Скрываем soft-deleted во всех выборках. Для аудита позже добавим include_deleted=True.
 _NOT_DELETED = AssignmentsTable.deleted_at.is_(None)
+
+
+def _has_pending_submission_expr():
+    return exists(
+        select(1).where(
+            SubmissionsTable.assignment_id == AssignmentsTable.id,
+            SubmissionsTable.status == SubmissionStatus.SUBMITTED,
+        )
+    )
 
 
 async def create(
@@ -77,13 +91,23 @@ async def get_with_author(
 
 
 async def list_for_class(
-    class_id: int, limit: int, offset: int, db: AsyncSession
+    class_id: int,
+    limit: int,
+    offset: int,
+    *,
+    only_pending_review: bool,
+    db: AsyncSession,
 ) -> list[tuple[AssignmentsTable, UsersTable]]:
     """Страница заданий с авторами, свежие сверху."""
-    result = await db.execute(
+    query = (
         select(AssignmentsTable, UsersTable)
         .join(UsersTable, UsersTable.id == AssignmentsTable.author_id)
         .where(AssignmentsTable.class_id == class_id, _NOT_DELETED)
+    )
+    if only_pending_review:
+        query = query.where(_has_pending_submission_expr())
+    result = await db.execute(
+        query
         .order_by(AssignmentsTable.created_at.desc(), AssignmentsTable.id.desc())
         .limit(limit)
         .offset(offset)
@@ -103,11 +127,25 @@ async def list_for_class_plain(
     return list(result.scalars().all())
 
 
-async def count_for_class(class_id: int, db: AsyncSession) -> int:
+async def count_for_class(
+    class_id: int, *, only_pending_review: bool, db: AsyncSession
+) -> int:
     """Total для PageDTO. Отдельным запросом — count и фетч не на одном узле."""
+    query = select(func.count(AssignmentsTable.id)).where(
+        AssignmentsTable.class_id == class_id, _NOT_DELETED
+    )
+    if only_pending_review:
+        query = query.where(_has_pending_submission_expr())
+    result = await db.execute(query)
+    return int(result.scalar_one())
+
+
+async def count_pending_review_for_class(class_id: int, db: AsyncSession) -> int:
     result = await db.execute(
         select(func.count(AssignmentsTable.id)).where(
-            AssignmentsTable.class_id == class_id, _NOT_DELETED
+            AssignmentsTable.class_id == class_id,
+            _NOT_DELETED,
+            _has_pending_submission_expr(),
         )
     )
     return int(result.scalar_one())

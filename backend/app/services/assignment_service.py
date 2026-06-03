@@ -18,12 +18,13 @@ from app.database.repositories import (
 )
 from app.schemas.assignment_schemas import (
     AssignmentDTO,
+    AssignmentPageDTO,
+    AssignmentReviewStatus,
     AssignmentStatsDTO,
     MySubmissionBriefDTO,
     UpdateAssignmentRequest,
 )
 from app.schemas.errors import ServiceError
-from app.schemas.pagination import PageDTO
 from app.schemas.user_schemas import UserBriefDTO
 from app.services.submission_service import _is_late
 
@@ -90,7 +91,11 @@ async def create_assignment(
     # чтобы карточка на фронте была того же формата, что и в списке
     counts = await class_repo.count_by_role(class_id, db)
     stats = AssignmentStatsDTO(
-        students_total=counts[ClassRole.STUDENT], submitted_count=0, graded_count=0
+        students_total=counts[ClassRole.STUDENT],
+        submitted_count=0,
+        pending_review_count=0,
+        graded_count=0,
+        returned_count=0,
     )
     return _dto(asg, author, stats=stats)
 
@@ -101,10 +106,28 @@ async def list_assignments(
     page: int,
     limit: int,
     offset: int,
+    review_status: AssignmentReviewStatus | None,
     db: AsyncSession,
-) -> PageDTO[AssignmentDTO]:
-    rows = await assignment_repo.list_for_class(class_id, limit, offset, db)
-    total = await assignment_repo.count_for_class(class_id, db)
+) -> AssignmentPageDTO:
+    only_pending_review = review_status == AssignmentReviewStatus.PENDING
+    if only_pending_review and member.role == ClassRole.STUDENT:
+        raise ServiceError(
+            "Фильтр review_status=pending доступен только teacher/creator",
+            403,
+        )
+
+    rows = await assignment_repo.list_for_class(
+        class_id,
+        limit,
+        offset,
+        only_pending_review=only_pending_review,
+        db=db,
+    )
+    total = await assignment_repo.count_for_class(
+        class_id,
+        only_pending_review=only_pending_review,
+        db=db,
+    )
     aids = [a.id for a, _ in rows]
 
     if member.role == ClassRole.STUDENT:
@@ -124,6 +147,7 @@ async def list_assignments(
             )
             for a, u in rows
         ]
+        pending_review_total = 0
     else:
         # teacher/creator видят прогресс сдачи (групповой запрос + один на counts)
         stats_map = await submission_repo.stats_for_assignments(aids, db)
@@ -133,20 +157,29 @@ async def list_assignments(
             _dto(a, u, stats=_stats_for(a.id, stats_map, students_total))
             for a, u in rows
         ]
+        pending_review_total = await assignment_repo.count_pending_review_for_class(
+            class_id, db
+        )
 
-    return PageDTO[AssignmentDTO](
-        items=items, total=total, page=page, limit=limit
+    return AssignmentPageDTO(
+        items=items,
+        total=total,
+        page=page,
+        limit=limit,
+        pending_review_total=pending_review_total,
     )
 
 
 def _stats_for(
-    aid: int, stats_map: dict[int, tuple[int, int]], students_total: int
+    aid: int, stats_map: dict[int, tuple[int, int, int, int]], students_total: int
 ) -> AssignmentStatsDTO:
-    submitted, graded = stats_map.get(aid, (0, 0))
+    submitted, graded, pending_review, returned = stats_map.get(aid, (0, 0, 0, 0))
     return AssignmentStatsDTO(
         students_total=students_total,
         submitted_count=submitted,
+        pending_review_count=pending_review,
         graded_count=graded,
+        returned_count=returned,
     )
 
 
