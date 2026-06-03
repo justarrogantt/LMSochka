@@ -22,7 +22,7 @@ from app.schemas.gradebook_schemas import (
 )
 from app.schemas.submission_schemas import SubmissionDTO
 from app.schemas.user_schemas import UserBriefDTO
-from app.services import access, submission_service
+from app.services import access, notification_service, submission_service
 from app.services.submission_service import _is_late
 
 
@@ -71,6 +71,17 @@ async def put_grade(
         await db.commit()
 
     await db.refresh(sub)
+    cls = await class_repo.get_by_id(asg.class_id, db)
+    if cls is not None:
+        await notification_service.notify_grade_created(
+            student_id=sub.student_id,
+            class_id=asg.class_id,
+            class_name=cls.name,
+            submission_id=sub.id,
+            value=grade.value,
+            max_grade=asg.max_grade,
+            db=db,
+        )
     return _grade_dto(grade, grader)
 
 

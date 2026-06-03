@@ -34,6 +34,7 @@ async def create_assignment(
     try:
         return await assignment_service.create_assignment(
             class_id=cls.id,
+            class_name=cls.name,
             author=user,
             title=body.title,
             description=body.description,

@@ -9,12 +9,16 @@ from app.database.models import (
     SubmissionStatus,
     UsersTable,
 )
-from app.database.repositories import grade_repo, submission_repo
+from app.database.repositories import class_repo, grade_repo, submission_repo
 from app.schemas.errors import ServiceError
 from app.schemas.pagination import PageDTO
-from app.schemas.submission_schemas import SaveSubmissionRequest, SubmissionDTO, SubmissionGradeDTO
+from app.schemas.submission_schemas import (
+    SaveSubmissionRequest,
+    SubmissionDTO,
+    SubmissionGradeDTO,
+)
 from app.schemas.user_schemas import UserBriefDTO
-from app.services import access
+from app.services import access, notification_service
 
 
 def _is_late(submission: SubmissionsTable, assignment: AssignmentsTable) -> bool:
@@ -196,4 +200,13 @@ async def return_submission(
 
     await db.commit()
     await db.refresh(sub)
+    cls = await class_repo.get_by_id(asg.class_id, db)
+    if cls is not None:
+        await notification_service.notify_submission_returned(
+            student_id=sub.student_id,
+            class_id=asg.class_id,
+            class_name=cls.name,
+            submission_id=sub.id,
+            db=db,
+        )
     return _dto(sub, student, asg, grade)

@@ -11,6 +11,8 @@ from app.routers.assignments import assignments_router
 from app.routers.auth import auth_router
 from app.routers.classes import classes_router
 from app.routers.grades import grades_router
+from app.routers.me import me_router
+from app.routers.notifications import notifications_router, ws_notifications_router
 from app.routers.submissions import submissions_router
 
 
@@ -39,6 +41,9 @@ app.include_router(announcements_router, prefix="/api")
 app.include_router(assignments_router, prefix="/api")
 app.include_router(submissions_router, prefix="/api")
 app.include_router(grades_router, prefix="/api")
+app.include_router(me_router, prefix="/api")
+app.include_router(notifications_router, prefix="/api")
+app.include_router(ws_notifications_router, prefix="/api")
 
 
 @app.get("/")

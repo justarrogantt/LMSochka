@@ -26,6 +26,7 @@ from app.schemas.assignment_schemas import (
 )
 from app.schemas.errors import ServiceError
 from app.schemas.user_schemas import UserBriefDTO
+from app.services import notification_service
 from app.services.submission_service import _is_late
 
 
@@ -66,6 +67,7 @@ def _dto(
 
 async def create_assignment(
     class_id: int,
+    class_name: str,
     author: UsersTable,
     title: str,
     description: str,
@@ -87,6 +89,12 @@ async def create_assignment(
     )
     await db.commit()
     await db.refresh(asg)
+    await notification_service.notify_assignment_created(
+        class_id=class_id,
+        assignment_id=asg.id,
+        class_name=class_name,
+        db=db,
+    )
     # создаёт только teacher/creator — сразу отдаём пустую сводку прогресса,
     # чтобы карточка на фронте была того же формата, что и в списке
     counts = await class_repo.count_by_role(class_id, db)

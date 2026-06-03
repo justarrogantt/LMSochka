@@ -46,3 +46,16 @@ async def revoke_all_for_user(user_id: int, db: AsyncSession) -> None:
         .values(revoked=True)
     )
     await db.commit()
+
+
+async def revoke_others_for_user(user_id: int, current_jti: str, db: AsyncSession) -> None:
+    await db.execute(
+        update(SessionsTable)
+        .where(
+            SessionsTable.user_id == user_id,
+            SessionsTable.id != current_jti,
+            SessionsTable.revoked.is_(False),
+        )
+        .values(revoked=True)
+    )
+    await db.commit()

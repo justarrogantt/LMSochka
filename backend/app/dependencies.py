@@ -10,13 +10,9 @@ from app.services.token_service import decode_token
 security = HTTPBearer()
 
 
-async def get_current_user(
-    credentials: HTTPAuthorizationCredentials = Depends(security),
-    db: AsyncSession = Depends(get_db),
+async def authenticate_access_token(
+    token: str, db: AsyncSession
 ) -> tuple[UsersTable, str]:
-    """Зависимость для защищённых эндпоинтов: проверяет access-токен и живую сессию."""
-    token = credentials.credentials
-
     try:
         payload = decode_token(token)
     except ValueError as e:
@@ -40,6 +36,14 @@ async def get_current_user(
 
     # jti возвращаем чтобы logout мог отозвать конкретно эту сессию
     return user, jti
+
+
+async def get_current_user(
+    credentials: HTTPAuthorizationCredentials = Depends(security),
+    db: AsyncSession = Depends(get_db),
+) -> tuple[UsersTable, str]:
+    """Зависимость для защищённых эндпоинтов: проверяет access-токен и живую сессию."""
+    return await authenticate_access_token(credentials.credentials, db)
 
 
 async def require_class_member(

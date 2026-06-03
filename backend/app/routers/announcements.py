@@ -32,7 +32,7 @@ async def create_announcement(
     user, cls, _ = ctx
     try:
         return await announcement_service.create_announcement(
-            cls.id, user, body.title, body.content, db
+            cls.id, cls.name, user, body.title, body.content, db
         )
     except ServiceError as e:
         raise HTTPException(status_code=e.status_code, detail=str(e)) from e

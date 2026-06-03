@@ -191,3 +191,26 @@ class GradesTable(Base):
     comment: Mapped[str | None] = mapped_column(Text, default=None)
     graded_at: Mapped[datetime] = mapped_column(server_default=func.now())
     updated_at: Mapped[datetime | None] = mapped_column(onupdate=func.now())
+
+
+class NotificationType(enum.Enum):
+    ANNOUNCEMENT = "announcement"
+    ASSIGNMENT = "assignment"
+    GRADE = "grade"
+    SUBMISSION_RETURNED = "submission_returned"
+
+
+class NotificationsTable(Base):
+    __tablename__ = "notifications"
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"))
+    type: Mapped[NotificationType] = mapped_column(Enum(NotificationType))
+    title: Mapped[str] = mapped_column(String(255))
+    class_id: Mapped[int | None] = mapped_column(
+        ForeignKey("classes.id", ondelete="CASCADE"),
+        default=None,
+    )
+    entity_id: Mapped[int | None] = mapped_column(default=None)
+    is_read: Mapped[bool] = mapped_column(default=False)
+    created_at: Mapped[datetime] = mapped_column(server_default=func.now())
