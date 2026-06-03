@@ -46,7 +46,7 @@ type AssignmentCardProps = {
 }
 
 function AssignmentCard({ item, canManage, onOpen, onEdit, onDelete }: AssignmentCardProps) {
-  const pendingCount = item.stats?.submitted_count ?? 0
+  const pendingCount = item.stats?.pending_review_count ?? 0
 
   return (
     <div className={styles.card} onClick={onOpen}>
@@ -86,6 +86,7 @@ export default function AssignmentsPage() {
   const [isLoading, setIsLoading] = useState(true)
   const [currentPage, setCurrentPage] = useState(1)
   const [totalItems, setTotalItems] = useState(0)
+  const [pendingReviewTotal, setPendingReviewTotal] = useState(0)
   const [editingId, setEditingId] = useState<number | null>(null)
   const [isFormOpen, setIsFormOpen] = useState(false)
   const [deletingId, setDeletingId] = useState<number | null>(null)
@@ -94,13 +95,14 @@ export default function AssignmentsPage() {
   const [form, setForm] = useState<FormState>(EMPTY_FORM)
   const [initialForm, setInitialForm] = useState<FormState>(EMPTY_FORM)
 
-  async function loadPage(page: number) {
+  async function loadPage(page: number, mode: "all" | "pending" = viewMode) {
     if (!classDetail?.id) return
     setIsLoading(true)
     try {
-      const data = await listAssignments(classDetail.id, page, LIMIT)
+      const data = await listAssignments(classDetail.id, page, LIMIT, mode === "pending" ? "pending" : undefined)
       setItems(data.items)
       setTotalItems(data.total)
+      setPendingReviewTotal(data.pending_review_total)
       setCurrentPage(page)
     } catch (error) {
       if (error instanceof ApiSilentError) return
@@ -111,8 +113,8 @@ export default function AssignmentsPage() {
   }
 
   useEffect(() => {
-    void loadPage(1)
-  }, [classDetail?.id])
+    void loadPage(1, viewMode)
+  }, [classDetail?.id, viewMode])
 
   function closeFormModal() {
     if (isSubmitting) return
@@ -172,7 +174,11 @@ export default function AssignmentsPage() {
     try {
       await createAssignment(classDetail.id, body)
       showToast({ type: "neutral", message: "Задание создано" })
-      void loadPage(1)
+      if (viewMode === "all") {
+        void loadPage(1, "all")
+      } else {
+        setViewMode("all")
+      }
     } catch (error) {
       showToast({ type: "error", message: (error as Error).message })
     } finally {
@@ -225,7 +231,7 @@ export default function AssignmentsPage() {
       setDeletingId(null)
       showToast({ type: "neutral", message: "Задание удалено" })
       const nextPage = items.length === 1 && currentPage > 1 ? currentPage - 1 : currentPage
-      void loadPage(nextPage)
+      void loadPage(nextPage, viewMode)
     } catch (error) {
       showToast({ type: "error", message: (error as Error).message })
     } finally {
@@ -242,8 +248,6 @@ export default function AssignmentsPage() {
     form.max_grade !== initialForm.max_grade
   const canSubmit = !isSubmitting && isFilled && (editingId === null || isChanged)
   const canManage = classDetail?.permissions.can_create_assignment ?? false
-  const pendingTotal = items.reduce((sum, item) => sum + (item.stats?.submitted_count ?? 0), 0)
-  const visibleItems = viewMode === "pending" ? items.filter((item) => (item.stats?.submitted_count ?? 0) > 0) : items
 
   return (
     <div className={styles.page}>
@@ -267,7 +271,7 @@ export default function AssignmentsPage() {
               type="button"
               onClick={() => setViewMode("pending")}
             >
-              На проверке {pendingTotal > 0 ? `(${pendingTotal})` : ""}
+              На проверке {pendingReviewTotal > 0 ? `(${pendingReviewTotal})` : ""}
             </button>
             <button className={styles.primaryButton} type="button" onClick={openCreateModal}>
               <AddIcon className={styles.buttonIcon} />
@@ -279,9 +283,9 @@ export default function AssignmentsPage() {
 
       {isLoading && <Loading />}
 
-      {!isLoading && visibleItems.length > 0 && (
+      {!isLoading && items.length > 0 && (
         <div className={styles.cards}>
-          {visibleItems.map((item) => (
+          {items.map((item) => (
             <AssignmentCard
               key={item.id}
               item={item}
@@ -294,12 +298,13 @@ export default function AssignmentsPage() {
         </div>
       )}
 
-      {!isLoading && items.length === 0 && <div className={styles.emptyMessage}>Заданий пока нет</div>}
-      {!isLoading && items.length > 0 && visibleItems.length === 0 && (
-        <div className={styles.emptyMessage}>Нет заданий на проверке</div>
+      {!isLoading && items.length === 0 && (
+        <div className={styles.emptyMessage}>
+          {viewMode === "pending" ? "Нет заданий на проверке" : "Заданий пока нет"}
+        </div>
       )}
 
-      <Pagination page={currentPage} total={totalItems} limit={LIMIT} onChange={(p) => void loadPage(p)} />
+      <Pagination page={currentPage} total={totalItems} limit={LIMIT} onChange={(p) => void loadPage(p, viewMode)} />
 
       {canManage && isFormOpen && (
         <Modal title={editingId ? "Редактировать задание" : "Создать задание"} onClose={closeFormModal} disabled={isSubmitting}>

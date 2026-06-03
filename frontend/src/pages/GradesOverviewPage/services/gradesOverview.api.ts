@@ -10,7 +10,7 @@ export type CourseGradesSummary = {
   average_percent: number | null
   graded_count: number
   assignments_count: number
-  // Сколько работ ждут проверки или ещё не сданы.
+  // Сколько отправленных работ сейчас ждут проверки.
   pending_count: number
 }
 
@@ -40,22 +40,34 @@ const StudentAssignmentsPageSchema = z.object({
   items: z.array(StudentAssignmentSchema),
   total: z.number(),
   page: z.number(),
-  limit: z.number()
+  limit: z.number(),
+  pending_review_total: z.number().default(0)
 }).strip()
 
 // Журнал оценок для преподавателя/создателя.
+const GradebookStudentSummarySchema = z.object({
+  average_percent: z.number().nullable(),
+  graded_count: z.number(),
+  submitted_count: z.number(),
+  pending_review_count: z.number(),
+  total_assignments: z.number()
+}).strip()
+
 const GradebookSchema = z.object({
   assignments: z.array(z.object({
     id: z.number(),
     max_grade: z.number()
   }).strip()),
   students: z.array(z.object({
-    id: z.number()
+    id: z.number(),
+    summary: GradebookStudentSummarySchema.optional()
   }).strip()),
   cells: z.array(z.object({
+    student_id: z.number(),
     assignment_id: z.number(),
     status: z.enum(["draft", "submitted", "returned", "graded"]),
-    value: z.number().nullable()
+    value: z.number().nullable(),
+    percent: z.number().nullable().optional()
   }).strip())
 }).strip()
 
@@ -82,6 +94,52 @@ function averagePercent(items: Array<{ value: number; max: number }>): number | 
   return Math.round(sum / items.length)
 }
 
+function averageReadyPercent(values: number[]): number | null {
+  if (values.length === 0) return null
+
+  const sum = values.reduce((acc, value) => acc + value, 0)
+  return Math.round((sum / values.length) * 100) / 100
+}
+
+function percentOf(value: number | null, maxGrade: number): number | null {
+  if (value === null || maxGrade <= 0) return null
+  return Math.round((value / maxGrade) * 10000) / 100
+}
+
+function getTeacherCellPercent(
+  cell: GradebookDto["cells"][number],
+  assignmentsById: Map<number, GradebookDto["assignments"][number]>
+): number | null {
+  if (cell.percent !== undefined) return cell.percent
+
+  const assignment = assignmentsById.get(cell.assignment_id)
+  if (cell.status !== "graded" || !assignment) return null
+
+  return percentOf(cell.value, assignment.max_grade)
+}
+
+function getTeacherStudentSummary(
+  student: GradebookDto["students"][number],
+  gradebook: GradebookDto,
+  assignmentsById: Map<number, GradebookDto["assignments"][number]>
+) {
+  if (student.summary) return student.summary
+
+  const cells = gradebook.cells.filter((cell) => cell.student_id === student.id)
+  const gradedPercents = cells
+    .filter((cell) => cell.status === "graded")
+    .map((cell) => getTeacherCellPercent(cell, assignmentsById))
+    .filter((value): value is number => value !== null)
+
+  return {
+    average_percent: averageReadyPercent(gradedPercents),
+    graded_count: cells.filter((cell) => cell.status === "graded").length,
+    submitted_count: cells.filter((cell) => cell.status === "submitted" || cell.status === "graded").length,
+    pending_review_count: cells.filter((cell) => cell.status === "submitted").length,
+    total_assignments: gradebook.assignments.length
+  }
+}
+
 function buildStudentSummary(course: MyClassDto, assignments: StudentAssignmentDto[]): CourseGradesSummary {
   const graded = assignments
     .filter((assignment) => assignment.my_submission?.status === "graded" && assignment.my_submission.grade !== null)
@@ -96,28 +154,28 @@ function buildStudentSummary(course: MyClassDto, assignments: StudentAssignmentD
     average_percent: averagePercent(graded),
     graded_count: graded.length,
     assignments_count: assignments.length,
-    pending_count: assignments.length - graded.length
+    pending_count: assignments.filter((assignment) => assignment.my_submission?.status === "submitted").length
   }
 }
 
 function buildTeacherSummary(course: MyClassDto, gradebook: GradebookDto): CourseGradesSummary {
   const assignmentsById = new Map(gradebook.assignments.map((assignment) => [assignment.id, assignment]))
-  const graded = gradebook.cells
-    .filter((cell) => cell.status === "graded" && cell.value !== null)
-    .map((cell) => {
-      const assignment = assignmentsById.get(cell.assignment_id)
-      return assignment ? { value: cell.value!, max: assignment.max_grade } : null
-    })
-    .filter((item): item is { value: number; max: number } => item !== null)
-  const totalCells = gradebook.assignments.length * gradebook.students.length
+  const studentSummaries = gradebook.students.map((student) =>
+    getTeacherStudentSummary(student, gradebook, assignmentsById)
+  )
+  const gradedPercents = gradebook.cells
+    .filter((cell) => cell.status === "graded")
+    .map((cell) => getTeacherCellPercent(cell, assignmentsById))
+    .filter((value): value is number => value !== null)
+  const totalAssignments = studentSummaries.reduce((sum, summary) => sum + summary.total_assignments, 0)
 
   return {
     class_id: course.id,
     class_name: course.name,
-    average_percent: averagePercent(graded),
-    graded_count: graded.length,
-    assignments_count: totalCells,
-    pending_count: Math.max(totalCells - graded.length, 0)
+    average_percent: averageReadyPercent(gradedPercents),
+    graded_count: studentSummaries.reduce((sum, summary) => sum + summary.graded_count, 0),
+    assignments_count: totalAssignments,
+    pending_count: studentSummaries.reduce((sum, summary) => sum + summary.pending_review_count, 0)
   }
 }
 

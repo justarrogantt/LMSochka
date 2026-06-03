@@ -34,21 +34,6 @@ function cellKey(studentId: number, assignmentId: number) {
   return `${studentId}:${assignmentId}`
 }
 
-function averagePercentOf(
-  assignments: GradebookAssignment[],
-  cellMap: Map<string, GradebookCell>,
-  studentId: number
-): number | null {
-  const graded = assignments
-    .map((assignment) => ({ assignment, cell: cellMap.get(cellKey(studentId, assignment.id)) }))
-    .filter((entry) => entry.cell?.status === "graded" && entry.cell.value !== null)
-
-  if (graded.length === 0) return null
-
-  const sum = graded.reduce((acc, entry) => acc + (entry.cell!.value! / entry.assignment.max_grade) * 100, 0)
-  return Math.round(sum / graded.length)
-}
-
 export default function GradesPage() {
   const { classDetail } = useOutletContext<ClassLayoutContext>()
   const { user } = useAuth()
@@ -119,7 +104,7 @@ export default function GradesPage() {
           classId={classDetail!.id}
           assignments={gradebook!.assignments}
           cellMap={cellMap}
-          studentId={gradebook!.students[0].id}
+          student={gradebook!.students[0]}
         />
       )}
 
@@ -188,10 +173,9 @@ type StudentCardProps = {
 }
 
 function StudentCard({ student, assignments, cellMap, isOpen, onToggle }: StudentCardProps) {
-  const avg = averagePercentOf(assignments, cellMap, student.id)
-  const gradedCount = assignments.filter(
-    (assignment) => cellMap.get(cellKey(student.id, assignment.id))?.status === "graded"
-  ).length
+  const avg = student.summary.average_percent
+  const gradedCount = student.summary.graded_count
+  const totalAssignments = student.summary.total_assignments
 
   return (
     <div className={styles.studentCard}>
@@ -203,7 +187,7 @@ function StudentCard({ student, assignments, cellMap, isOpen, onToggle }: Studen
         </div>
         <div className={styles.studentStats}>
           <span className={styles.studentAvg}>{avg === null ? "—" : `${avg}%`}</span>
-          <span className={styles.studentGraded}>оценено {gradedCount} из {assignments.length}</span>
+          <span className={styles.studentGraded}>оценено {gradedCount} из {totalAssignments}</span>
         </div>
         <span className={`${styles.chevron} ${isOpen ? styles.chevronOpen : ""}`} aria-hidden="true">
           <SelectArrowIcon className={styles.chevronIcon} />
@@ -238,7 +222,7 @@ function StudentCard({ student, assignments, cellMap, isOpen, onToggle }: Studen
                     {isGraded ? `${cell!.value} / ${assignment.max_grade}` : "—"}
                   </td>
                   <td className={`${styles.miniTd} ${styles.miniNum}`}>
-                    {isGraded ? `${Math.round((cell!.value! / assignment.max_grade) * 100)}%` : "—"}
+                    {isGraded && cell!.percent !== null ? `${cell!.percent}%` : "—"}
                   </td>
                 </tr>
               )
@@ -254,16 +238,15 @@ type StudentGradesProps = {
   classId: number
   assignments: GradebookAssignment[]
   cellMap: Map<string, GradebookCell>
-  studentId: number
+  student: GradebookStudent
 }
 
-function StudentGrades({ classId, assignments, cellMap, studentId }: StudentGradesProps) {
+function StudentGrades({ classId, assignments, cellMap, student }: StudentGradesProps) {
   const [search, setSearch] = useState("")
 
-  const average = averagePercentOf(assignments, cellMap, studentId)
-  const gradedCount = assignments.filter(
-    (assignment) => cellMap.get(cellKey(studentId, assignment.id))?.status === "graded"
-  ).length
+  const average = student.summary.average_percent
+  const gradedCount = student.summary.graded_count
+  const totalAssignments = student.summary.total_assignments
 
   const query = search.trim().toLowerCase()
   const visible = query ? assignments.filter((assignment) => assignment.title.toLowerCase().includes(query)) : assignments
@@ -278,7 +261,7 @@ function StudentGrades({ classId, assignments, cellMap, studentId }: StudentGrad
         <div className={styles.summaryDivider} />
         <div className={styles.summaryBlock}>
           <div className={styles.summaryLabel}>Оценено заданий</div>
-          <div className={styles.summaryValue}>{gradedCount} из {assignments.length}</div>
+          <div className={styles.summaryValue}>{gradedCount} из {totalAssignments}</div>
         </div>
       </div>
 
@@ -298,7 +281,7 @@ function StudentGrades({ classId, assignments, cellMap, studentId }: StudentGrad
       {visible.length > 0 ? (
         <div className={styles.gradeList}>
           {visible.map((assignment) => {
-            const cell = cellMap.get(cellKey(studentId, assignment.id))
+            const cell = cellMap.get(cellKey(student.id, assignment.id))
             const status = cell?.status ?? "draft"
             const isGraded = status === "graded" && cell?.value !== null && cell?.value !== undefined
 
@@ -317,7 +300,7 @@ function StudentGrades({ classId, assignments, cellMap, studentId }: StudentGrad
                   <div className={styles.gradeRowScore}>
                     <span className={styles.gradeRowValue}>{cell!.value} / {assignment.max_grade}</span>
                     <span className={styles.gradeRowPercent}>
-                      {Math.round((cell!.value! / assignment.max_grade) * 100)}%
+                      {cell!.percent !== null ? `${cell!.percent}%` : "—"}
                     </span>
                   </div>
                 ) : (

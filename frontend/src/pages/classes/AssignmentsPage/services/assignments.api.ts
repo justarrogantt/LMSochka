@@ -37,7 +37,9 @@ const AssignmentMySubmissionSchema = z.object({
 const AssignmentStatsSchema = z.object({
   students_total: z.number(),
   submitted_count: z.number(),
-  graded_count: z.number()
+  pending_review_count: z.number().default(0),
+  graded_count: z.number(),
+  returned_count: z.number().default(0)
 }).strip()
 
 // Полное задание из API.
@@ -87,13 +89,32 @@ const DELETE_ASSIGNMENT_ERRORS: Errors = {
   404: "Задание не найдено"
 }
 
-// Пагинированный ответ списка заданий.
-const AssignmentsPageSchema = createPageSchema(AssignmentSchema)
+// Пагинированный ответ списка заданий с серверным счётчиком вкладки "На проверке".
+const AssignmentsPageSchema = createPageSchema(AssignmentSchema).extend({
+  pending_review_total: z.number().default(0)
+})
 
-export async function listAssignments(classId: number, page: number = 1, limit: number = 20): Promise<PageDto<AssignmentDto>> {
+export type AssignmentsReviewStatus = "pending"
+export type AssignmentsPageDto = PageDto<AssignmentDto> & z.infer<typeof AssignmentsPageSchema>
+
+export async function listAssignments(
+  classId: number,
+  page: number = 1,
+  limit: number = 20,
+  reviewStatus?: AssignmentsReviewStatus
+): Promise<AssignmentsPageDto> {
   try {
+    const params = new URLSearchParams({
+      page: String(page),
+      limit: String(limit)
+    })
+
+    if (reviewStatus) {
+      params.set("review_status", reviewStatus)
+    }
+
     const response = await Api.fetchGet(
-      `/api/classes/${classId}/assignments?page=${page}&limit=${limit}`,
+      `/api/classes/${classId}/assignments?${params.toString()}`,
       LIST_ASSIGNMENTS_ERRORS
     )
     return await parseApiResponse(response, AssignmentsPageSchema)
