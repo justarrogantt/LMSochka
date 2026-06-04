@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react"
+import { useEffect, useState, type CSSProperties } from "react"
 import { AnimatePresence } from "framer-motion"
 import { NavLink, Outlet, useLocation, useNavigate, useParams } from "react-router-dom"
 import ArrowIcon from "../../assets/icons/classes/arrow.svg?react"
@@ -40,6 +40,12 @@ function classTabSkeleton(tabPath: string) {
     default:
       return <OverviewSkeletonLoader />
   }
+}
+
+// Овал-скелетон для шапки курса, пока грузятся данные (заголовок, кнопки, код).
+function Skeleton({ width, height, radius }: { width?: string | number; height?: string | number; radius?: string | number }) {
+  const style: CSSProperties = { width, height, borderRadius: radius }
+  return <span className={styles.skeleton} style={style} aria-hidden="true" />
 }
 
 type EditFormState = {
@@ -206,10 +212,21 @@ export default function ClassLayout() {
             <ArrowIcon className={styles.backIcon} />
             <div>Мои курсы</div>
           </button>
-          <div className={styles.title}>{classDetail?.name ?? "Курс"}</div>
+          {isLoading ? (
+            <Skeleton width={240} height={32} radius={999} />
+          ) : (
+            <div className={styles.title}>{classDetail?.name ?? "Курс"}</div>
+          )}
         </div>
 
-        {!isLoading && (
+        {isLoading ? (
+          <div className={styles.actions}>
+            {/* код приглашения и кнопки управления курсом — пока грузятся данные */}
+            <Skeleton width={210} height={40} radius={10} />
+            <Skeleton width={150} height={40} radius={10} />
+            <Skeleton width={120} height={40} radius={10} />
+          </div>
+        ) : (
           <div className={styles.actions}>
             {canManageMembers && classDetail?.type === "closed" && classDetail?.join_code && (
               <button className={styles.secondaryButton} type="button" onClick={copyJoinCode}>

@@ -77,6 +77,7 @@ async def test_student_grades_overview(client):
 
     aid1 = await _make_assignment(client, creator_token, class_id, "ДЗ 1", 100)
     aid2 = await _make_assignment(client, creator_token, class_id, "ДЗ 2", 50)
+    await _make_assignment(client, creator_token, class_id, "ДЗ 3", 100)
 
     sid1 = await _submit(client, student_token, aid1)
     await _submit(client, student_token, aid2)
@@ -97,7 +98,7 @@ async def test_student_grades_overview(client):
     assert course["role"] == "student"
     assert course["average_percent"] == 50.0
     assert course["graded_count"] == 1
-    assert course["assignments_count"] == 2
+    assert course["assignments_count"] == 3
     assert course["pending_count"] == 1
 
 
@@ -149,7 +150,7 @@ async def test_teacher_grades_overview_and_inactive_classes_excluded(client):
     assert course["average_percent"] == 65.0
     assert course["graded_count"] == 2
     assert course["assignments_count"] == 4
-    assert course["pending_count"] == 2
+    assert course["pending_count"] == 0
 
     r = await client.get("/api/me/grades", headers=_auth(creator_token))
     assert r.status_code == 200, r.text

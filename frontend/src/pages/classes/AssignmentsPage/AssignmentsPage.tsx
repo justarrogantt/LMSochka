@@ -235,7 +235,7 @@ export default function AssignmentsPage() {
     setMaterialFileError("")
   }
 
-  async function rollbackCreatedAssignment(assignmentId: number) {
+  async function deleteCreatedAssignmentAfterFileError(assignmentId: number) {
     if (!classDetail?.id) return
 
     try {
@@ -262,7 +262,7 @@ export default function AssignmentsPage() {
         try {
           await uploadAssignmentMaterial(classDetail.id, created.id, materialFile)
         } catch (error) {
-          await rollbackCreatedAssignment(created.id)
+          await deleteCreatedAssignmentAfterFileError(created.id)
           if (error instanceof ApiError) {
             setMaterialFileError(error.message)
             return

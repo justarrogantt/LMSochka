@@ -312,7 +312,7 @@ export default function AssignmentPage() {
     setForm((prev) => ({ ...prev, [key]: value }))
   }
 
-  // Оптимистичное редактирование задания с роллбэком при ошибке
+  // Редактирование задания: ждём ответ сервера и только потом закрываем модалку
   async function submitEdit() {
     if (!assignment || isSubmitting) return
 
@@ -320,18 +320,6 @@ export default function AssignmentPage() {
     const maxGrade = Number(form.max_grade)
     if (!title || maxGrade <= 0) return
 
-    const prev = assignment
-    const optimistic: AssignmentDto = {
-      ...assignment,
-      title,
-      description: form.description.trim(),
-      material_url: form.material_url.trim() || null,
-      due_at: toApiDateTime(form.due_at),
-      max_grade: maxGrade
-    }
-
-    setAssignment(optimistic)
-    setActiveModal(null)
     setIsSubmitting(true)
 
     try {
@@ -343,9 +331,9 @@ export default function AssignmentPage() {
         max_grade: maxGrade
       })
       setAssignment(updated)
+      setActiveModal(null)
       showToast({ type: "neutral", message: "Задание обновлено" })
     } catch (error) {
-      setAssignment(prev)
       if (error instanceof ApiError) {
         showToast({ type: "error", message: error.message })
         return

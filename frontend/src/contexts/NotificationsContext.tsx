@@ -69,23 +69,18 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
     }
   }, [])
 
-  // Пометить одно прочитанным — оптимистично, с откатом при ошибке
+  // Пометить одно прочитанным после подтверждения сервера
   function markRead(id: number) {
     const target = notifications.find((item) => item.id === id)
     if (!target || target.is_read) return
 
-    const prevNotifications = notifications
-    const prevUnread = unreadCount
-    setNotifications((items) => items.map((item) => (item.id === id ? { ...item, is_read: true } : item)))
-    setUnreadCount((count) => Math.max(count - 1, 0))
-
     void (async () => {
       try {
-        await markNotificationRead(id)
+        const updated = await markNotificationRead(id)
+        setNotifications((items) => items.map((item) => (item.id === updated.id ? updated : item)))
+        setUnreadCount((count) => Math.max(count - 1, 0))
       } catch (error) {
         if (error instanceof ApiError) {
-          setNotifications(prevNotifications)
-          setUnreadCount(prevUnread)
           return
         }
         throw error
@@ -93,22 +88,17 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
     })()
   }
 
-  // Пометить все прочитанными — тоже оптимистично
+  // Пометить все прочитанными после подтверждения сервера
   function markAllRead() {
     if (unreadCount === 0) return
 
-    const prevNotifications = notifications
-    const prevUnread = unreadCount
-    setNotifications((items) => items.map((item) => ({ ...item, is_read: true })))
-    setUnreadCount(0)
-
     void (async () => {
       try {
-        await markAllNotificationsRead()
+        const nextUnreadCount = await markAllNotificationsRead()
+        setNotifications((items) => items.map((item) => ({ ...item, is_read: true })))
+        setUnreadCount(nextUnreadCount)
       } catch (error) {
         if (error instanceof ApiError) {
-          setNotifications(prevNotifications)
-          setUnreadCount(prevUnread)
           return
         }
         throw error

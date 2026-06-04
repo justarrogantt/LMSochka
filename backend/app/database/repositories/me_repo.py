@@ -99,6 +99,33 @@ async def student_graded_stats_for_classes(
     }
 
 
+async def student_pending_submissions_for_classes(
+    class_ids: list[int], student_id: int, db: AsyncSession
+) -> dict[int, int]:
+    if not class_ids:
+        return {}
+
+    result = await db.execute(
+        select(AssignmentsTable.class_id, func.count(SubmissionsTable.id))
+        .join(SubmissionsTable, SubmissionsTable.assignment_id == AssignmentsTable.id)
+        .join(
+            ClassMembersTable,
+            (ClassMembersTable.class_id == AssignmentsTable.class_id)
+            & (ClassMembersTable.user_id == SubmissionsTable.student_id),
+        )
+        .where(
+            AssignmentsTable.class_id.in_(class_ids),
+            _ASSIGNMENT_ACTIVE,
+            SubmissionsTable.student_id == student_id,
+            SubmissionsTable.status == SubmissionStatus.SUBMITTED,
+            ClassMembersTable.role == ClassRole.STUDENT,
+            ClassMembersTable.deleted_at.is_(None),
+        )
+        .group_by(AssignmentsTable.class_id)
+    )
+    return {class_id: int(cnt) for class_id, cnt in result.all()}
+
+
 async def teacher_graded_stats_for_classes(
     class_ids: list[int], db: AsyncSession
 ) -> dict[int, tuple[int, float | None]]:
@@ -135,3 +162,29 @@ async def teacher_graded_stats_for_classes(
         )
         for class_id, graded_count, avg_percent in result.all()
     }
+
+
+async def teacher_pending_submissions_for_classes(
+    class_ids: list[int], db: AsyncSession
+) -> dict[int, int]:
+    if not class_ids:
+        return {}
+
+    result = await db.execute(
+        select(AssignmentsTable.class_id, func.count(SubmissionsTable.id))
+        .join(SubmissionsTable, SubmissionsTable.assignment_id == AssignmentsTable.id)
+        .join(
+            ClassMembersTable,
+            (ClassMembersTable.class_id == AssignmentsTable.class_id)
+            & (ClassMembersTable.user_id == SubmissionsTable.student_id),
+        )
+        .where(
+            AssignmentsTable.class_id.in_(class_ids),
+            _ASSIGNMENT_ACTIVE,
+            SubmissionsTable.status == SubmissionStatus.SUBMITTED,
+            ClassMembersTable.role == ClassRole.STUDENT,
+            ClassMembersTable.deleted_at.is_(None),
+        )
+        .group_by(AssignmentsTable.class_id)
+    )
+    return {class_id: int(cnt) for class_id, cnt in result.all()}
