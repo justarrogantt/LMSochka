@@ -46,6 +46,8 @@ def _dto(
     asg: AssignmentsTable,
     author: UsersTable,
     *,
+    can_edit: bool,
+    can_delete: bool,
     my_submission: MySubmissionBriefDTO | None = None,
     stats: AssignmentStatsDTO | None = None,
 ) -> AssignmentDTO:
@@ -60,6 +62,8 @@ def _dto(
         max_grade=asg.max_grade,
         created_at=asg.created_at,
         updated_at=asg.updated_at,
+        can_edit=can_edit,
+        can_delete=can_delete,
         my_submission=my_submission,
         stats=stats,
     )
@@ -105,7 +109,7 @@ async def create_assignment(
         graded_count=0,
         returned_count=0,
     )
-    return _dto(asg, author, stats=stats)
+    return _dto(asg, author, can_edit=True, can_delete=True, stats=stats)
 
 
 async def list_assignments(
@@ -153,6 +157,8 @@ async def list_assignments(
             _dto(
                 a,
                 u,
+                can_edit=False,
+                can_delete=False,
                 my_submission=(
                     _my_submission_dto(*my_subs[a.id], a)
                     if a.id in my_subs
@@ -169,7 +175,13 @@ async def list_assignments(
             aids, db
         )
         items = [
-            _dto(a, u, stats=_stats_for(a.id, stats_map, eligible_counts.get(a.id, 0)))
+            _dto(
+                a,
+                u,
+                can_edit=member.role == ClassRole.CREATOR or a.author_id == member.user_id,
+                can_delete=member.role == ClassRole.CREATOR or a.author_id == member.user_id,
+                stats=_stats_for(a.id, stats_map, eligible_counts.get(a.id, 0)),
+            )
             for a, u in rows
         ]
         pending_review_total = await assignment_repo.count_pending_review_for_class(
@@ -219,7 +231,13 @@ async def get_assignment(
         if sub is not None:
             grade = await grade_repo.get_by_submission(sub.id, db)
             my_submission = _my_submission_dto(sub, grade, asg)
-        return _dto(asg, author, my_submission=my_submission)
+        return _dto(
+            asg,
+            author,
+            can_edit=False,
+            can_delete=False,
+            my_submission=my_submission,
+        )
 
     stats_map = await submission_repo.stats_for_assignments([asg.id], db)
     eligible_counts = await class_repo.count_eligible_students_for_assignments(
@@ -228,6 +246,8 @@ async def get_assignment(
     return _dto(
         asg,
         author,
+        can_edit=member.role == ClassRole.CREATOR or asg.author_id == member.user_id,
+        can_delete=member.role == ClassRole.CREATOR or asg.author_id == member.user_id,
         stats=_stats_for(asg.id, stats_map, eligible_counts.get(asg.id, 0)),
     )
 
@@ -235,6 +255,8 @@ async def get_assignment(
 async def update_assignment(
     class_id: int,
     aid: int,
+    user: UsersTable,
+    member: ClassMembersTable,
     body: UpdateAssignmentRequest,
     db: AsyncSession,
 ) -> AssignmentDTO:
@@ -242,6 +264,8 @@ async def update_assignment(
     if row is None:
         raise ServiceError("Задание не найдено", 404)
     asg, author = row
+    if member.role != ClassRole.CREATOR and asg.author_id != user.id:
+        raise ServiceError("Редактировать может только автор или создатель класса", 403)
 
     # Различаем "поле не передали" от "передали null" по model_fields_set.
     # Для material_url и due_at null значит «сбросить», для остальных — игнор.
@@ -269,13 +293,21 @@ async def update_assignment(
         clear_due_at=due_at_provided and body.due_at is None,
         db=db,
     )
-    return _dto(asg, author)
+    return _dto(asg, author, can_edit=True, can_delete=True)
 
 
-async def delete_assignment(class_id: int, aid: int, db: AsyncSession) -> None:
+async def delete_assignment(
+    class_id: int,
+    aid: int,
+    user: UsersTable,
+    member: ClassMembersTable,
+    db: AsyncSession,
+) -> None:
     asg = await assignment_repo.get_by_id(aid, class_id, db)
     if asg is None:
         raise ServiceError("Задание не найдено", 404)
+    if member.role != ClassRole.CREATOR and asg.author_id != user.id:
+        raise ServiceError("Удалять может только автор или создатель класса", 403)
     # Решения и оценки остаются в БД для аудита, но из API уходят: все запросы
     # к решениям джойнятся с assignments через _ASSIGNMENT_ACTIVE, поэтому
     # /my-submission и /submissions для удалённого задания дают 404.

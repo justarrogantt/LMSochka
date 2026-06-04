@@ -29,10 +29,10 @@ async def create_announcement(
     db: AsyncSession = Depends(get_db),
 ) -> AnnouncementDTO:
     """Создать объявление в классе. Только teacher или creator."""
-    user, cls, _ = ctx
+    user, cls, member = ctx
     try:
         return await announcement_service.create_announcement(
-            cls.id, cls.name, user, body.title, body.content, db
+            cls.id, cls.name, user, member, body.title, body.content, db
         )
     except ServiceError as e:
         raise HTTPException(status_code=e.status_code, detail=str(e)) from e
@@ -47,9 +47,9 @@ async def list_announcements(
     db: AsyncSession = Depends(get_db),
 ) -> PageDTO[AnnouncementDTO]:
     """Список объявлений в классе. Любой участник. Сортировка — свежие сверху."""
-    _, cls, _ = ctx
+    user, cls, member = ctx
     return await announcement_service.list_announcements(
-        cls.id, params.page, params.limit, params.offset, db
+        cls.id, params.page, params.limit, params.offset, user, member, db
     )
 
 
@@ -62,9 +62,11 @@ async def get_announcement(
     db: AsyncSession = Depends(get_db),
 ) -> AnnouncementDTO:
     """Одно объявление. Любой участник."""
-    _, cls, _ = ctx
+    user, cls, member = ctx
     try:
-        return await announcement_service.get_announcement(cls.id, aid, db)
+        return await announcement_service.get_announcement(
+            cls.id, aid, user, member, db
+        )
     except ServiceError as e:
         raise HTTPException(status_code=e.status_code, detail=str(e)) from e
 

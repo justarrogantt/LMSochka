@@ -32,3 +32,5 @@ class AnnouncementDTO(BaseModel):
     content: str
     created_at: datetime
     updated_at: datetime | None
+    can_edit: bool
+    can_delete: bool

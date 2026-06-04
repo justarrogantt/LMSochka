@@ -25,7 +25,7 @@ _MATRIX: dict[ClassRole, dict[str, bool]] = {
         "can_submit_solution": False,
         "can_view_gradebook": True,
         "can_view_own_grades": True,
-        "can_edit_class": True,
+        "can_edit_class": False,
     },
     # CREATOR == OWNER в терминах ТЗ: всё, что может teacher, плюс удалить класс
     ClassRole.CREATOR: {

@@ -136,11 +136,11 @@ async def get_my_role(
 async def update_class(
     body: UpdateClassRequest,
     ctx: tuple[UsersTable, ClassesTable, ClassMembersTable] = Depends(
-        require_class_role(ClassRole.CREATOR, ClassRole.TEACHER)
+        require_class_role(ClassRole.CREATOR)
     ),
     db: AsyncSession = Depends(get_db),
 ) -> ClassDetailDTO:
-    """Редактировать класс (name, type). Только creator/teacher.
+    """Редактировать класс (name, type). Только creator.
 
     Возвращает свежий ClassDetailDTO — counts/permissions/user_role пересчитаны.
     """

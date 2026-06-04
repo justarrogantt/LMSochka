@@ -87,6 +87,8 @@ class AssignmentDTO(BaseModel):
     max_grade: float
     created_at: datetime
     updated_at: datetime | None
+    can_edit: bool
+    can_delete: bool
     # Заполняется только когда задание смотрит студент и у него есть решение.
     # У преподавателя/создателя — всегда null.
     my_submission: MySubmissionBriefDTO | None = None
