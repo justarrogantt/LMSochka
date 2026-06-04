@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom"
 import { useState, type ChangeEvent, type FormEvent, type MouseEvent } from "react"
 import AuthLayout from "../../../layouts/AuthLayout/AuthLayout"
 import styles from "../../../layouts/AuthLayout/AuthLayout.module.css"
-import { useAuth } from "../../../contexts/AuthContext"
+import { useAuth } from "../../../contexts/useAuth"
 import { ApiError } from "../../../services/api"
 import { register as registerRequest } from "./services/register.api"
 
@@ -27,7 +27,7 @@ const defaultForm: RegisterForm = {
 
 const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 // Имя/фамилия — только русские или латинские буквы, пробел и дефис
-const nameRegex = /^[A-Za-zА-Яа-яЁё \-]+$/
+const nameRegex = /^[A-Za-zА-Яа-яЁё -]+$/
 const passwordMinLength = 8
 const nameMaxLength = 50
 

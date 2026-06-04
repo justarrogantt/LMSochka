@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useState, type ReactNode } from "react"
+import { useEffect, useState, type ReactNode } from "react"
 import { Api, ApiError } from "../services/api"
 import {
   getNotifications,
@@ -7,16 +7,7 @@ import {
   parseNotificationEvent,
   type AppNotification
 } from "../services/notifications.api"
-
-type NotificationsContextValue = {
-  notifications: AppNotification[]
-  unreadCount: number
-  isLoading: boolean
-  markRead: (id: number) => void
-  markAllRead: () => void
-}
-
-const NotificationsContext = createContext<NotificationsContextValue | null>(null)
+import { NotificationsContext } from "./useNotifications"
 
 export function NotificationsProvider({ children }: { children: ReactNode }) {
   // Последние уведомления (страница 1) и счётчик непрочитанных
@@ -111,14 +102,4 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
       {children}
     </NotificationsContext.Provider>
   )
-}
-
-export function useNotifications() {
-  const value = useContext(NotificationsContext)
-
-  if (!value) {
-    throw new Error("useNotifications должен использоваться внутри NotificationsProvider")
-  }
-
-  return value
 }

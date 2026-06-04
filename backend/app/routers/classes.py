@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, Query, Response
+from fastapi import APIRouter, Depends, Query, Response
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database.database import get_db
@@ -18,7 +18,6 @@ from app.schemas.class_schemas import (
     UpdateClassRequest,
     UpdateMemberRoleRequest,
 )
-from app.schemas.errors import ServiceError
 from app.schemas.pagination import PageDTO, PageParams
 from app.services import class_service
 
@@ -37,10 +36,7 @@ async def create_class(
     вставляет карточку в список «Мои курсы» без отдельного GET.
     """
     user, _ = context
-    try:
-        return await class_service.create_class(body.name, body.type, user.id, db)
-    except ServiceError as e:
-        raise HTTPException(status_code=e.status_code, detail=str(e)) from e
+    return await class_service.create_class(body.name, body.type, user.id, db)
 
 
 @classes_router.get("/my")
@@ -75,10 +71,7 @@ async def join_by_code(
 ) -> MyClassDTO:
     """Присоединение к закрытому классу по коду. Ответ — карточка для «Мои курсы»."""
     user, _ = context
-    try:
-        return await class_service.join_by_code(body.code, user.id, db)
-    except ServiceError as e:
-        raise HTTPException(status_code=e.status_code, detail=str(e)) from e
+    return await class_service.join_by_code(body.code, user.id, db)
 
 
 @classes_router.post("/{class_id}/join-open", status_code=201)
@@ -92,10 +85,7 @@ async def join_open(
     Ответ — карточка для «Мои курсы» (тот же формат, что у POST /classes/join).
     """
     user, _ = context
-    try:
-        return await class_service.join_open_class(class_id, user.id, db)
-    except ServiceError as e:
-        raise HTTPException(status_code=e.status_code, detail=str(e)) from e
+    return await class_service.join_open_class(class_id, user.id, db)
 
 
 @classes_router.get("/{class_id}")
@@ -161,10 +151,7 @@ async def update_class(
     Возвращает свежий ClassDetailDTO — counts/permissions/user_role пересчитаны.
     """
     _, cls, member = ctx
-    try:
-        cls = await class_service.update_class(cls, body.name, body.type, db)
-    except ServiceError as e:
-        raise HTTPException(status_code=e.status_code, detail=str(e)) from e
+    cls = await class_service.update_class(cls, body.name, body.type, db)
     return await class_service.get_class_detail(cls, member, db)
 
 
@@ -196,10 +183,7 @@ async def update_member_role(
     атомарно перерисовать секцию участников и счётчики в шапке.
     """
     _, cls, _ = ctx
-    try:
-        return await class_service.update_member_role(cls.id, user_id, body.role, db)
-    except ServiceError as e:
-        raise HTTPException(status_code=e.status_code, detail=str(e)) from e
+    return await class_service.update_member_role(cls.id, user_id, body.role, db)
 
 
 @classes_router.delete("/{class_id}/members/{user_id}")
@@ -216,10 +200,7 @@ async def remove_member(
     обошёлся без отдельного GET /members.
     """
     _, cls, _ = ctx
-    try:
-        return await class_service.remove_member(cls.id, user_id, db)
-    except ServiceError as e:
-        raise HTTPException(status_code=e.status_code, detail=str(e)) from e
+    return await class_service.remove_member(cls.id, user_id, db)
 
 
 @classes_router.post("/{class_id}/members/{user_id}/restore")
@@ -232,10 +213,7 @@ async def restore_member(
 ) -> ClassMembersDTO:
     """Восстановить кикнутого участника как student."""
     _, cls, _ = ctx
-    try:
-        return await class_service.restore_member(cls.id, user_id, db)
-    except ServiceError as e:
-        raise HTTPException(status_code=e.status_code, detail=str(e)) from e
+    return await class_service.restore_member(cls.id, user_id, db)
 
 
 @classes_router.post("/{class_id}/transfer-ownership")
@@ -252,10 +230,7 @@ async def transfer_ownership(
     ClassDetailDTO от лица бывшего создателя (его прав уже меньше).
     """
     _, cls, member = ctx
-    try:
-        return await class_service.transfer_ownership(cls, member, body.new_owner_id, db)
-    except ServiceError as e:
-        raise HTTPException(status_code=e.status_code, detail=str(e)) from e
+    return await class_service.transfer_ownership(cls, member, body.new_owner_id, db)
 
 
 @classes_router.post("/{class_id}/leave")
@@ -271,7 +246,4 @@ async def leave_class(
     удаляет карточку из списка «Мои курсы».
     """
     _, cls, member = ctx
-    try:
-        return await class_service.leave_class(cls, member, db)
-    except ServiceError as e:
-        raise HTTPException(status_code=e.status_code, detail=str(e)) from e
+    return await class_service.leave_class(cls, member, db)

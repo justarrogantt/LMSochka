@@ -48,10 +48,6 @@ export function isPastDateTimeInputValue(value: string): boolean {
   return date.getTime() < Date.now()
 }
 
-export async function wait() {
-  await new Promise((resolve) => setTimeout(resolve, 1000))
-}
-
 export function truncate(text: string, maxChars: number): string {
   if (text.length <= maxChars) return text
   return text.slice(0, maxChars).trimEnd() + "..."

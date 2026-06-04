@@ -1,7 +1,7 @@
 import { motion } from "framer-motion"
 import { NavLink } from "react-router-dom"
 import ChevronRightIcon from "../../assets/icons/pagination/chevron-right.svg?react"
-import { useAuth } from "../../contexts/AuthContext"
+import { useAuth } from "../../contexts/useAuth"
 import { formatUserName } from "../../services/helpers"
 import { DURATION, EASE_OUT, listContainer, listItem } from "../../shared/motion"
 import styles from "./HomePage.module.css"

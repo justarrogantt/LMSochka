@@ -1,5 +1,4 @@
 import type { Errors } from "../types/api.types"
-import { wait } from "./helpers"
 
 // Таймаут фронтового запроса (в миллисекундах).
 // Держи его не больше таймаута reverse proxy (Nginx/Traefik и т.д.),
@@ -207,15 +206,20 @@ export class Api {
         throw new ApiError(Api.getErrorMessage(401, errors, errorsReplace), 401)
       }
 
+      // Заголовки пересчитываем на каждой попытке (а не кэшируем в init), чтобы
+      // после refresh запрос уходил с новым access-токеном — иначе ретрай отправил
+      // бы протухший токен и снова получил 401.
+      const buildHeaders = () =>
+        Api.getHeaders(withAuth, init.body instanceof FormData ? "form-data" : "json")
+
       let response = await Api.fetchWithTimeout(
         path,
         {
           ...init,
-          headers: init.headers ?? Api.getHeaders(withAuth, init.body instanceof FormData ? "form-data" : "json")
+          headers: buildHeaders()
         },
         timeoutMs
       )
-      await wait()
 
       if (withAuth && response.status === 401) {
         const refreshed = await Api.fetchRefresh()
@@ -228,11 +232,10 @@ export class Api {
           path,
           {
             ...init,
-            headers: init.headers ?? Api.getHeaders(withAuth, init.body instanceof FormData ? "form-data" : "json")
+            headers: buildHeaders()
           },
           timeoutMs
         )
-        await wait()
       }
 
       if (!response.ok) {
@@ -393,7 +396,8 @@ export class Api {
   ): Promise<Response> {
     const body = new FormData()
     body.append("upload", file)
-    return Api.request(path, { method: "POST", body, headers: Api.getHeaders(true, "form-data") }, errors, false, true, timeoutMs)
+    // headers не передаём: request сам построит их под FormData на каждой попытке
+    return Api.request(path, { method: "POST", body }, errors, false, true, timeoutMs)
   }
 
   static async fetchDelete(

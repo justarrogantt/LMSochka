@@ -1,10 +1,9 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database.database import get_db
 from app.database.models import UsersTable
 from app.dependencies import get_current_user
-from app.schemas.errors import ServiceError
 from app.schemas.grade_schemas import GradeDTO, UpsertGradeRequest
 from app.schemas.gradebook_schemas import GradebookDTO
 from app.schemas.submission_schemas import SubmissionDTO
@@ -21,10 +20,7 @@ async def put_grade(
     db: AsyncSession = Depends(get_db),
 ) -> GradeDTO:
     user, _ = context
-    try:
-        return await grade_service.put_grade(sid, body, user, db)
-    except ServiceError as e:
-        raise HTTPException(status_code=e.status_code, detail=str(e)) from e
+    return await grade_service.put_grade(sid, body, user, db)
 
 
 @grades_router.delete("/submissions/{sid}/grade")
@@ -38,10 +34,7 @@ async def delete_grade(
     Отдаём обновлённый SubmissionDTO — фронт сразу перерисует карточку решения.
     """
     user, _ = context
-    try:
-        return await grade_service.delete_grade(sid, user, db)
-    except ServiceError as e:
-        raise HTTPException(status_code=e.status_code, detail=str(e)) from e
+    return await grade_service.delete_grade(sid, user, db)
 
 
 @grades_router.get("/submissions/{sid}/grade")
@@ -51,10 +44,7 @@ async def get_grade(
     db: AsyncSession = Depends(get_db),
 ) -> GradeDTO:
     user, _ = context
-    try:
-        return await grade_service.get_grade(sid, user, db)
-    except ServiceError as e:
-        raise HTTPException(status_code=e.status_code, detail=str(e)) from e
+    return await grade_service.get_grade(sid, user, db)
 
 
 @grades_router.get("/classes/{class_id}/gradebook")
@@ -64,7 +54,4 @@ async def get_gradebook(
     db: AsyncSession = Depends(get_db),
 ) -> GradebookDTO:
     user, _ = context
-    try:
-        return await grade_service.get_gradebook(class_id, user, db)
-    except ServiceError as e:
-        raise HTTPException(status_code=e.status_code, detail=str(e)) from e
+    return await grade_service.get_gradebook(class_id, user, db)

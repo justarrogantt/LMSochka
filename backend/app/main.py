@@ -1,8 +1,9 @@
 from contextlib import asynccontextmanager
 
 import uvicorn
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 
 from app.database.database import engine
 from app.database.models import Base
@@ -15,6 +16,7 @@ from app.routers.grades import grades_router
 from app.routers.me import me_router
 from app.routers.notifications import notifications_router, ws_notifications_router
 from app.routers.submissions import submissions_router
+from app.schemas.errors import ServiceError
 
 
 @asynccontextmanager
@@ -27,6 +29,16 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(title="LMS Backend", lifespan=lifespan)
+
+
+@app.exception_handler(ServiceError)
+async def service_error_handler(_: Request, exc: ServiceError) -> JSONResponse:
+    """Единая точка маппинга доменных ошибок в HTTP-ответ.
+
+    Сервисы кидают ServiceError, роутерам больше не нужно ловить его вручную —
+    ответ той же формы, что и у HTTPException: {"detail": "..."}.
+    """
+    return JSONResponse(status_code=exc.status_code, content={"detail": exc.message})
 
 # для дева открыто всё; на проде заменить allow_origins на список доменов фронта
 app.add_middleware(

@@ -1,19 +1,8 @@
-import { createContext, useContext, useRef, useState, type ReactNode } from "react"
+import { useRef, useState, type ReactNode } from "react"
 import { createPortal } from "react-dom"
 import { AnimatePresence, motion } from "framer-motion"
 import styles from "./ToastProvider.module.css"
-
-type ToastType = "neutral" | "success" | "error"
-
-type Toast = {
-  message: string
-  type?: ToastType
-  duration?: number
-}
-
-type ShowToast = (toast: Toast) => void
-
-const ToastContext = createContext<ShowToast | null>(null)
+import { ToastContext, type Toast } from "./useToast"
 
 export function ToastProvider({ children }: { children: ReactNode }) {
   const [toast, setToast] = useState<Toast | null>(null)
@@ -58,14 +47,4 @@ function showToast(nextToast: Toast) {
       )}
     </ToastContext.Provider>
   )
-}
-
-export function useToast() {
-  const showToast = useContext(ToastContext)
-
-  if (!showToast) {
-    throw new Error("useToast должен использоваться внутри ToastProvider")
-  }
-
-  return showToast
 }

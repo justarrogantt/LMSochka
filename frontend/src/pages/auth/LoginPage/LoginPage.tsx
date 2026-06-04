@@ -2,7 +2,7 @@ import { useNavigate } from "react-router-dom"
 import { useState, type ChangeEvent, type FormEvent, type MouseEvent } from "react"
 import AuthLayout from "../../../layouts/AuthLayout/AuthLayout"
 import styles from "../../../layouts/AuthLayout/AuthLayout.module.css"
-import { useAuth } from "../../../contexts/AuthContext"
+import { useAuth } from "../../../contexts/useAuth"
 import { ApiError } from "../../../services/api"
 import { login as loginRequest } from "./services/login.api"
 

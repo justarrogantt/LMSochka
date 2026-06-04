@@ -4,7 +4,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.database.database import AsyncSessionLocal, get_db
 from app.database.models import UsersTable
 from app.dependencies import authenticate_access_token, get_current_user
-from app.schemas.errors import ServiceError
 from app.schemas.notification_schemas import (
     NotificationDTO,
     NotificationPageDTO,
@@ -46,10 +45,7 @@ async def mark_notification_read(
     db: AsyncSession = Depends(get_db),
 ) -> NotificationDTO:
     user, _ = context
-    try:
-        return await notification_service.mark_notification_read(notification_id, user.id, db)
-    except ServiceError as e:
-        raise HTTPException(status_code=e.status_code, detail=str(e)) from e
+    return await notification_service.mark_notification_read(notification_id, user.id, db)
 
 
 @ws_notifications_router.websocket("/ws/notifications")

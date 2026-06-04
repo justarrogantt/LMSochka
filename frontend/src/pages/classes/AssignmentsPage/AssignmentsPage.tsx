@@ -6,7 +6,7 @@ import DeleteIcon from "../../../assets/icons/classes/delete.svg?react"
 import EditIcon from "../../../assets/icons/classes/settings.svg?react"
 import Modal from "../../../components/Modal/Modal"
 import Pagination from "../../../components/Pagination/Pagination"
-import { useToast } from "../../../components/Toast/ToastProvider"
+import { useToast } from "../../../components/Toast/useToast"
 import { ApiError } from "../../../services/api"
 import { ACCEPTED_FILE_INPUT, ACCEPTED_FILE_TYPES_LABEL, validateUploadFile } from "../../../services/files.api"
 import {

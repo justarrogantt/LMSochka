@@ -2,9 +2,9 @@ import { useState } from "react"
 import { AnimatePresence } from "framer-motion"
 import EditIcon from "../../assets/icons/classes/edit.svg?react"
 import Modal from "../../components/Modal/Modal"
-import { useToast } from "../../components/Toast/ToastProvider"
-import { useAuth } from "../../contexts/AuthContext"
-import { useTheme } from "../../contexts/ThemeContext"
+import { useToast } from "../../components/Toast/useToast"
+import { useAuth } from "../../contexts/useAuth"
+import { useTheme } from "../../contexts/useTheme"
 import { ApiError } from "../../services/api"
 import type { AuthUser } from "../../services/auth.api"
 import { formatDateTime, formatUserName } from "../../services/helpers"
@@ -101,7 +101,7 @@ type EditFormState = {
 }
 
 // Те же правила, что и на странице регистрации
-const nameRegex = /^[A-Za-zА-Яа-яЁё \-]+$/
+const nameRegex = /^[A-Za-zА-Яа-яЁё -]+$/
 const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 const passwordMinLength = 8
 const nameMaxLength = 50

@@ -1,28 +1,13 @@
-import {
-  createContext,
-  useContext,
-  useEffect,
-  useState,
-  type Dispatch,
-  type ReactNode,
-  type SetStateAction
-} from "react"
+import { useEffect, useState, type ReactNode } from "react"
 import { useNavigate } from "react-router-dom"
-import { useToast } from "../components/Toast/ToastProvider"
+import { useToast } from "../components/Toast/useToast"
 import { useDelayedLoading } from "../hooks/useDelayedLoading"
 import { API_UNAUTHORIZED_EVENT, ApiError } from "../services/api"
 import { getCurrentUser } from "../services/auth.api"
 import type { AuthUser } from "../services/auth.api"
-
-type AuthContextValue = {
-  user: AuthUser | null
-  setUser: Dispatch<SetStateAction<AuthUser | null>>
-  isAuthLoading: boolean
-  runAuth: () => Promise<void>
-}
+import { AuthContext } from "./useAuth"
 
 const publicPaths = new Set(["/login", "/register"])
-const AuthContext = createContext<AuthContextValue | null>(null)
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(null)
@@ -78,14 +63,3 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     </AuthContext.Provider>
   )
 }
-
-export function useAuth() {
-  const value = useContext(AuthContext)
-
-  if (!value) {
-    throw new Error("useAuth должен использоваться внутри AuthProvider")
-  }
-
-  return value
-}
-

@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, Query, Response
+from fastapi import APIRouter, Depends, Query, Response
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database.database import get_db
@@ -11,7 +11,6 @@ from app.schemas.assignment_schemas import (
     CreateAssignmentRequest,
     UpdateAssignmentRequest,
 )
-from app.schemas.errors import ServiceError
 from app.schemas.pagination import PageParams
 from app.services import assignment_service
 
@@ -31,20 +30,17 @@ async def create_assignment(
 ) -> AssignmentDTO:
     """Создать задание. Только teacher/creator."""
     user, cls, _ = ctx
-    try:
-        return await assignment_service.create_assignment(
-            class_id=cls.id,
-            class_name=cls.name,
-            author=user,
-            title=body.title,
-            description=body.description,
-            material_url=str(body.material_url) if body.material_url else None,
-            due_at=body.due_at,
-            max_grade=body.max_grade,
-            db=db,
-        )
-    except ServiceError as e:
-        raise HTTPException(status_code=e.status_code, detail=str(e)) from e
+    return await assignment_service.create_assignment(
+        class_id=cls.id,
+        class_name=cls.name,
+        author=user,
+        title=body.title,
+        description=body.description,
+        material_url=str(body.material_url) if body.material_url else None,
+        due_at=body.due_at,
+        max_grade=body.max_grade,
+        db=db,
+    )
 
 
 @assignments_router.get("")
@@ -65,18 +61,15 @@ async def list_assignments(
     teacher/creator — прогресс сдачи (`stats`).
     """
     _, cls, member = ctx
-    try:
-        return await assignment_service.list_assignments(
-            cls.id,
-            member,
-            params.page,
-            params.limit,
-            params.offset,
-            review_status,
-            db,
-        )
-    except ServiceError as e:
-        raise HTTPException(status_code=e.status_code, detail=str(e)) from e
+    return await assignment_service.list_assignments(
+        cls.id,
+        member,
+        params.page,
+        params.limit,
+        params.offset,
+        review_status,
+        db,
+    )
 
 
 @assignments_router.get("/{aid}")
@@ -92,10 +85,7 @@ async def get_assignment(
     Студент получает своё решение (`my_submission`), teacher/creator — `stats`.
     """
     _, cls, member = ctx
-    try:
-        return await assignment_service.get_assignment(cls.id, aid, member, db)
-    except ServiceError as e:
-        raise HTTPException(status_code=e.status_code, detail=str(e)) from e
+    return await assignment_service.get_assignment(cls.id, aid, member, db)
 
 
 @assignments_router.patch("/{aid}")
@@ -109,12 +99,9 @@ async def update_assignment(
 ) -> AssignmentDTO:
     """Редактировать. teacher/creator. Менять max_grade при наличии оценок нельзя (422)."""
     user, cls, member = ctx
-    try:
-        return await assignment_service.update_assignment(
-            cls.id, aid, user, member, body, db
-        )
-    except ServiceError as e:
-        raise HTTPException(status_code=e.status_code, detail=str(e)) from e
+    return await assignment_service.update_assignment(
+        cls.id, aid, user, member, body, db
+    )
 
 
 @assignments_router.delete("/{aid}", status_code=204)
@@ -127,8 +114,5 @@ async def delete_assignment(
 ) -> Response:
     """Soft delete. teacher/creator. Связанные решения/оценки остаются в БД."""
     user, cls, member = ctx
-    try:
-        await assignment_service.delete_assignment(cls.id, aid, user, member, db)
-    except ServiceError as e:
-        raise HTTPException(status_code=e.status_code, detail=str(e)) from e
+    await assignment_service.delete_assignment(cls.id, aid, user, member, db)
     return Response(status_code=204)

@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database.database import get_db
@@ -14,7 +14,6 @@ from app.schemas.auth_schemas import (
     UpdateMeRequest,
     UserDTO,
 )
-from app.schemas.errors import ServiceError
 from app.services import auth_service
 
 auth_router = APIRouter(prefix="/auth", tags=["Auth"])
@@ -27,17 +26,14 @@ async def register(
     db: AsyncSession = Depends(get_db),
 ) -> AuthSuccessDTO:
     """Регистрация по email/паролю. 409 если такой email уже есть."""
-    try:
-        return await auth_service.register(
-            email=body.email,
-            password=body.password,
-            first_name=body.first_name,
-            last_name=body.last_name,
-            db=db,
-            device_info=request.headers.get("User-Agent"),
-        )
-    except ServiceError as e:
-        raise HTTPException(status_code=e.status_code, detail=str(e)) from e
+    return await auth_service.register(
+        email=body.email,
+        password=body.password,
+        first_name=body.first_name,
+        last_name=body.last_name,
+        db=db,
+        device_info=request.headers.get("User-Agent"),
+    )
 
 
 @auth_router.post("/login")
@@ -47,15 +43,12 @@ async def login(
     db: AsyncSession = Depends(get_db),
 ) -> AuthSuccessDTO:
     """Вход по email/паролю. Создаёт новую сессию с парой токенов."""
-    try:
-        return await auth_service.login(
-            email=body.email,
-            password=body.password,
-            db=db,
-            device_info=request.headers.get("User-Agent"),
-        )
-    except ServiceError as e:
-        raise HTTPException(status_code=e.status_code, detail=str(e)) from e
+    return await auth_service.login(
+        email=body.email,
+        password=body.password,
+        db=db,
+        device_info=request.headers.get("User-Agent"),
+    )
 
 
 @auth_router.post("/refresh")
@@ -65,14 +58,11 @@ async def refresh(
     db: AsyncSession = Depends(get_db),
 ) -> AuthSuccessDTO:
     """Обмен refresh-токена на новую пару (rotation). Повторное использование отзовёт все сессии."""
-    try:
-        return await auth_service.refresh_tokens(
-            refresh_token=body.refresh_token,
-            db=db,
-            device_info=request.headers.get("User-Agent"),
-        )
-    except ServiceError as e:
-        raise HTTPException(status_code=e.status_code, detail=str(e)) from e
+    return await auth_service.refresh_tokens(
+        refresh_token=body.refresh_token,
+        db=db,
+        device_info=request.headers.get("User-Agent"),
+    )
 
 
 @auth_router.post("/logout", status_code=204)
@@ -101,16 +91,13 @@ async def update_me(
     db: AsyncSession = Depends(get_db),
 ) -> UserDTO:
     user, _ = context
-    try:
-        return await auth_service.update_me(
-            user,
-            email=body.email,
-            first_name=body.first_name,
-            last_name=body.last_name,
-            db=db,
-        )
-    except ServiceError as e:
-        raise HTTPException(status_code=e.status_code, detail=str(e)) from e
+    return await auth_service.update_me(
+        user,
+        email=body.email,
+        first_name=body.first_name,
+        last_name=body.last_name,
+        db=db,
+    )
 
 
 @auth_router.post("/change-password")
@@ -120,14 +107,11 @@ async def change_password(
     db: AsyncSession = Depends(get_db),
 ) -> StatusDTO:
     user, jti = context
-    try:
-        await auth_service.change_password(
-            user,
-            current_jti=jti,
-            current_password=body.current_password,
-            new_password=body.new_password,
-            db=db,
-        )
-        return StatusDTO(status="ok")
-    except ServiceError as e:
-        raise HTTPException(status_code=e.status_code, detail=str(e)) from e
+    await auth_service.change_password(
+        user,
+        current_jti=jti,
+        current_password=body.current_password,
+        new_password=body.new_password,
+        db=db,
+    )
+    return StatusDTO(status="ok")

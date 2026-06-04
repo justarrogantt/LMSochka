@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, Response
+from fastapi import APIRouter, Depends, Response
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database.database import get_db
@@ -9,7 +9,6 @@ from app.schemas.announcement_schemas import (
     CreateAnnouncementRequest,
     UpdateAnnouncementRequest,
 )
-from app.schemas.errors import ServiceError
 from app.schemas.pagination import PageDTO, PageParams
 from app.services import announcement_service
 
@@ -30,12 +29,9 @@ async def create_announcement(
 ) -> AnnouncementDTO:
     """Создать объявление в классе. Только teacher или creator."""
     user, cls, member = ctx
-    try:
-        return await announcement_service.create_announcement(
-            cls.id, cls.name, user, member, body.title, body.content, db
-        )
-    except ServiceError as e:
-        raise HTTPException(status_code=e.status_code, detail=str(e)) from e
+    return await announcement_service.create_announcement(
+        cls.id, cls.name, user, member, body.title, body.content, db
+    )
 
 
 @announcements_router.get("")
@@ -63,12 +59,9 @@ async def get_announcement(
 ) -> AnnouncementDTO:
     """Одно объявление. Любой участник."""
     user, cls, member = ctx
-    try:
-        return await announcement_service.get_announcement(
-            cls.id, aid, user, member, db
-        )
-    except ServiceError as e:
-        raise HTTPException(status_code=e.status_code, detail=str(e)) from e
+    return await announcement_service.get_announcement(
+        cls.id, aid, user, member, db
+    )
 
 
 @announcements_router.patch("/{aid}")
@@ -82,12 +75,9 @@ async def update_announcement(
 ) -> AnnouncementDTO:
     """Редактировать. Автор или creator класса. teacher без авторства — 403."""
     user, cls, member = ctx
-    try:
-        return await announcement_service.update_announcement(
-            cls.id, aid, user, member, body.title, body.content, db
-        )
-    except ServiceError as e:
-        raise HTTPException(status_code=e.status_code, detail=str(e)) from e
+    return await announcement_service.update_announcement(
+        cls.id, aid, user, member, body.title, body.content, db
+    )
 
 
 @announcements_router.delete("/{aid}", status_code=204)
@@ -100,8 +90,5 @@ async def delete_announcement(
 ) -> Response:
     """Soft delete. Автор или creator класса."""
     user, cls, member = ctx
-    try:
-        await announcement_service.delete_announcement(cls.id, aid, user, member, db)
-    except ServiceError as e:
-        raise HTTPException(status_code=e.status_code, detail=str(e)) from e
+    await announcement_service.delete_announcement(cls.id, aid, user, member, db)
     return Response(status_code=204)

@@ -1,13 +1,5 @@
-import { createContext, useContext, useEffect, useState, type ReactNode } from "react"
-
-type Theme = "light" | "dark"
-
-type ThemeContextValue = {
-  theme: Theme
-  toggleTheme: () => void
-}
-
-const ThemeContext = createContext<ThemeContextValue | null>(null)
+import { useEffect, useState, type ReactNode } from "react"
+import { ThemeContext, type Theme } from "./useTheme"
 
 // Выбирает стартовую тему: сохранённую пользователем, тему браузера или светлую по умолчанию.
 function getInitialTheme(): Theme {
@@ -53,14 +45,4 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
   }
 
   return <ThemeContext.Provider value={{ theme, toggleTheme }}>{children}</ThemeContext.Provider>
-}
-
-export function useTheme() {
-  const context = useContext(ThemeContext)
-
-  if (!context) {
-    throw new Error("useTheme должен использоваться внутри ThemeProvider")
-  }
-
-  return context
 }

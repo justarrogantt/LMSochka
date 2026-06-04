@@ -5,7 +5,7 @@ import ArrowIcon from "../../../assets/icons/classes/arrow.svg?react"
 import DeleteIcon from "../../../assets/icons/classes/delete.svg?react"
 import EditIcon from "../../../assets/icons/classes/settings.svg?react"
 import Modal from "../../../components/Modal/Modal"
-import { useToast } from "../../../components/Toast/ToastProvider"
+import { useToast } from "../../../components/Toast/useToast"
 import { ApiError } from "../../../services/api"
 import { formatDateTime } from "../../../services/helpers"
 import {
