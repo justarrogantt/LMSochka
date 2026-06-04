@@ -16,7 +16,10 @@ export default function AuthLayout({ title, subtitle, children }: AuthLayoutProp
         <div className={styles.headerInner}>
           <div className={styles.brand}>
             <img className={styles.brandLogo} src={logo} alt="4LMS logo" />
-            <div className={styles.brandText}>Learning Management System</div>
+            <div className={styles.brandText}>
+              <span className={styles.brandFull}>Learning Management System</span>
+              <span className={styles.brandShort}>LMS</span>
+            </div>
           </div>
         </div>
       </div>

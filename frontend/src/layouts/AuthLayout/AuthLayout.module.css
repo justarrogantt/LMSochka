@@ -53,6 +53,11 @@
   white-space: nowrap;
 }
 
+/* На широком экране — полное название, короткое «LMS» скрыто (см. @media) */
+.brandShort {
+  display: none;
+}
+
 /* ───────── Main: форма по центру в карточке ───────── */
 
 .main {
@@ -224,6 +229,8 @@
   font-weight: 600;
   text-decoration: none;
   transition: color 0.16s ease;
+  /* Ссылка переносится целым словом на новую строку, а не рвётся посередине */
+  white-space: nowrap;
 }
 
 .switchLink:hover {
@@ -264,4 +271,38 @@
 
 .footerLink:hover {
   color: var(--color-text);
+}
+
+/* ───────── Мобильная версия ───────── */
+@media (max-width: 768px) {
+  /* Меньше боковой отступ — на телефоне 40px с каждой стороны съедали ширину */
+  .headerInner,
+  .footerInner {
+    width: min(100% - 32px, 1180px);
+  }
+
+  /* Полное название не влезает — показываем короткое «LMS» (как в основном каркасе) */
+  .brandFull {
+    display: none;
+  }
+
+  .brandShort {
+    display: inline;
+  }
+
+  .brandText {
+    font-size: 24px;
+  }
+
+  .main {
+    padding: 28px 16px;
+  }
+
+  .authCard {
+    padding: 28px 22px;
+  }
+
+  .title {
+    font-size: 26px;
+  }
 }
