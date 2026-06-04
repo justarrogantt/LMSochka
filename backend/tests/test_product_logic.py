@@ -1,4 +1,4 @@
-"""Регрессии продуктовой логики учебных периодов, прав и восстановления."""
+"""Регрессии продуктовой логики прав, восстановления и сдачи решений."""
 
 import pytest
 
@@ -57,7 +57,7 @@ async def _change_role(
 
 
 @pytest.mark.asyncio
-async def test_student_sees_only_assignments_from_current_learning_period(client):
+async def test_student_sees_assignments_created_before_join(client):
     creator_token, _ = await _register(client, "creator@example.com")
     class_id = await _create_class(client, creator_token)
     old_assignment = await _assignment(client, creator_token, class_id, "Старое")
@@ -71,24 +71,27 @@ async def test_student_sees_only_assignments_from_current_learning_period(client
         headers=_auth(student_token),
     )
     assert response.status_code == 200
-    assert [item["id"] for item in response.json()["items"]] == [new_assignment["id"]]
+    assert [item["id"] for item in response.json()["items"]] == [
+        new_assignment["id"],
+        old_assignment["id"],
+    ]
 
     response = await client.get(
         f"/api/classes/{class_id}/assignments/{old_assignment['id']}",
         headers=_auth(student_token),
     )
-    assert response.status_code == 404
+    assert response.status_code == 200
 
     response = await client.put(
         f"/api/assignments/{old_assignment['id']}/my-submission",
-        json={"answer_text": "Не должно сохраниться"},
+        json={"answer_text": "Теперь можно сохранить"},
         headers=_auth(student_token),
     )
-    assert response.status_code == 404
+    assert response.status_code == 200
 
 
 @pytest.mark.asyncio
-async def test_demote_and_rejoin_start_new_learning_period(client):
+async def test_demote_and_rejoin_do_not_hide_existing_assignments(client):
     creator_token, _ = await _register(client, "creator@example.com")
     class_id = await _create_class(client, creator_token)
     member_token, member_id = await _register(client, "member@example.com")
@@ -103,7 +106,10 @@ async def test_demote_and_rejoin_start_new_learning_period(client):
         f"/api/classes/{class_id}/assignments",
         headers=_auth(member_token),
     )
-    assert [item["id"] for item in response.json()["items"]] == [after_demote["id"]]
+    assert [item["id"] for item in response.json()["items"]] == [
+        after_demote["id"],
+        before_demote["id"],
+    ]
 
     response = await client.post(
         f"/api/classes/{class_id}/leave",
@@ -119,9 +125,12 @@ async def test_demote_and_rejoin_start_new_learning_period(client):
         headers=_auth(member_token),
     )
     ids = [item["id"] for item in response.json()["items"]]
-    assert ids == [after_rejoin["id"]]
-    assert before_demote["id"] not in ids
-    assert while_absent["id"] not in ids
+    assert ids == [
+        after_rejoin["id"],
+        while_absent["id"],
+        after_demote["id"],
+        before_demote["id"],
+    ]
 
 
 @pytest.mark.asyncio
@@ -174,8 +183,7 @@ async def test_creator_lists_and_restores_only_kicked_members(client):
         headers=_auth(kicked_token),
     )
     ids = [item["id"] for item in response.json()["items"]]
-    assert ids == [after_restore["id"]]
-    assert before_restore["id"] not in ids
+    assert ids == [after_restore["id"], before_restore["id"]]
 
     response = await client.post(
         f"/api/classes/{class_id}/members/{left_id}/restore",

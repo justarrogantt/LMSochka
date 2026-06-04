@@ -283,7 +283,7 @@ async def test_student_can_read_list(client):
         f"/api/classes/{class_id}/assignments", headers=_auth(student_token)
     )
     assert r.status_code == 200
-    assert r.json()["total"] == 0
+    assert r.json()["total"] == 1
     assert r.json()["pending_review_total"] == 0
 
 

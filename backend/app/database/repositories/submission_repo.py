@@ -66,8 +66,6 @@ async def get_with_student_by_id(
             SubmissionsTable.id == sid,
             _ASSIGNMENT_ACTIVE,
             ClassMembersTable.role == ClassRole.STUDENT,
-            ClassMembersTable.learning_started_at.is_not(None),
-            ClassMembersTable.learning_started_at <= AssignmentsTable.created_at,
         )
     )
     row = result.first()
@@ -95,8 +93,6 @@ async def list_for_assignment(
             SubmissionsTable.assignment_id == assignment_id,
             _ASSIGNMENT_ACTIVE,
             ClassMembersTable.role == ClassRole.STUDENT,
-            ClassMembersTable.learning_started_at.is_not(None),
-            ClassMembersTable.learning_started_at <= AssignmentsTable.created_at,
         )
     )
     if status is not None:
@@ -131,8 +127,6 @@ async def count_for_assignment(
             SubmissionsTable.assignment_id == assignment_id,
             _ASSIGNMENT_ACTIVE,
             ClassMembersTable.role == ClassRole.STUDENT,
-            ClassMembersTable.learning_started_at.is_not(None),
-            ClassMembersTable.learning_started_at <= AssignmentsTable.created_at,
         )
     )
     if status is not None:
@@ -217,8 +211,6 @@ async def stats_for_assignments(
             _ASSIGNMENT_ACTIVE,
             ClassMembersTable.role == ClassRole.STUDENT,
             ClassMembersTable.deleted_at.is_(None),
-            ClassMembersTable.learning_started_at.is_not(None),
-            ClassMembersTable.learning_started_at <= AssignmentsTable.created_at,
         )
         .group_by(SubmissionsTable.assignment_id)
     )
@@ -248,8 +240,6 @@ async def list_for_gradebook(
             SubmissionsTable.student_id.in_(student_ids),
             _ASSIGNMENT_ACTIVE,
             ClassMembersTable.role == ClassRole.STUDENT,
-            ClassMembersTable.learning_started_at.is_not(None),
-            ClassMembersTable.learning_started_at <= AssignmentsTable.created_at,
         )
     )
     return [(sub, grade) for sub, grade in result.all()]

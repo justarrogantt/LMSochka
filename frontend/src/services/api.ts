@@ -15,6 +15,8 @@ type WebSocketConnection = {
   close: () => void
 }
 
+type HeaderContentType = "json" | "form-data"
+
 window.addEventListener("pagehide", () => {
   isPageUnloading = true
 })
@@ -115,10 +117,16 @@ export class Api {
     localStorage.removeItem("refresh_token")
   }
 
-  private static getHeaders(withAuth: boolean = true): Record<string, string> {
+  private static getHeaders(
+    withAuth: boolean = true,
+    contentType: HeaderContentType = "json"
+  ): Record<string, string> {
     const headers: Record<string, string> = {
-      "Content-Type": "application/json",
       "X-Device-Id": Api.getDeviceId()
+    }
+
+    if (contentType === "json") {
+      headers["Content-Type"] = "application/json"
     }
 
     if (withAuth) {
@@ -220,19 +228,11 @@ export class Api {
         throw new ApiError(Api.getErrorMessage(401, errors, errorsReplace), 401)
       }
 
-      function buildHeaders() {
-        const headers = Api.getHeaders(withAuth)
-        if (init.body instanceof FormData) {
-          delete headers["Content-Type"]
-        }
-        return headers
-      }
-
       let response = await Api.fetchWithTimeout(
         path,
         {
           ...init,
-          headers: buildHeaders()
+          headers: init.headers ?? Api.getHeaders(withAuth, init.body instanceof FormData ? "form-data" : "json")
         },
         timeoutMs
       )
@@ -249,7 +249,7 @@ export class Api {
           path,
           {
             ...init,
-            headers: buildHeaders()
+            headers: init.headers ?? Api.getHeaders(withAuth, init.body instanceof FormData ? "form-data" : "json")
           },
           timeoutMs
         )
@@ -418,7 +418,7 @@ export class Api {
   ): Promise<Response> {
     const body = new FormData()
     body.append("upload", file)
-    return Api.request(path, { method: "POST", body }, errors, false, true, timeoutMs)
+    return Api.request(path, { method: "POST", body, headers: Api.getHeaders(true, "form-data") }, errors, false, true, timeoutMs)
   }
 
   static async fetchDelete(

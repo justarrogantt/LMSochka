@@ -44,6 +44,18 @@ type FormState = {
   max_grade: string
 }
 
+type SubmissionFormState = {
+  answer_text: string
+  attachment_url: string
+}
+
+type ReviewFormState = {
+  gradeValue: string
+  gradeComment: string
+  returnMode: boolean
+  returnComment: string
+}
+
 // Сколько решений студентов показываем на странице у преподавателя
 const SUBS_LIMIT = 8
 
@@ -86,47 +98,78 @@ export default function AssignmentPage() {
   const navigate = useNavigate()
   const showToast = useToast()
 
-  // Данные задания
+  // Данные текущего задания
   const [assignment, setAssignment] = useState<AssignmentDto | null>(null)
 
-  // Лоадер страницы
+  // Первичная загрузка страницы задания
   const [isLoading, setIsLoading] = useState(true)
 
-  // Активная модалка
+  // Какая модалка задания сейчас открыта
   const [activeModal, setActiveModal] = useState<"edit" | "delete" | null>(null)
 
-  // Флаг отправки запроса (для модалок задания)
+  // Идет ли запрос из модалки задания
   const [isSubmitting, setIsSubmitting] = useState(false)
 
-  // Поля формы редактирования и начальное состояние для сравнения
+  // Текущие поля формы редактирования задания
   const [form, setForm] = useState<FormState>({ title: "", description: "", material_url: "", due_at: "", max_grade: "" })
+
+  // Исходные поля формы редактирования для проверки изменений
   const [initialForm, setInitialForm] = useState<FormState>({ title: "", description: "", material_url: "", due_at: "", max_grade: "" })
 
-  // ── Состояние студента: моё решение ──
+  // Мое решение как студента
   const [mySubmission, setMySubmission] = useState<SubmissionDto | null>(null)
+
+  // Первичная загрузка моего решения
   const [isMyLoading, setIsMyLoading] = useState(true)
-  const [answerText, setAnswerText] = useState("")
-  const [attachmentUrl, setAttachmentUrl] = useState("")
+
+  // Поля формы моего решения
+  const [submissionForm, setSubmissionForm] = useState<SubmissionFormState>({ answer_text: "", attachment_url: "" })
+
+  // Идет ли сохранение черновика
   const [isSavingDraft, setIsSavingDraft] = useState(false)
+
+  // Идет ли отправка решения на проверку
   const [isSendingWork, setIsSendingWork] = useState(false)
+
+  // Идет ли операция с файлом решения
   const [isAttachmentBusy, setIsAttachmentBusy] = useState(false)
+
+  // Идет ли операция с файлом материала задания
   const [isMaterialBusy, setIsMaterialBusy] = useState(false)
 
-  // ── Состояние преподавателя: список решений ──
+  // Текущий список решений студентов
   const [submissions, setSubmissions] = useState<SubmissionDto[]>([])
+
+  // Первичная загрузка списка решений
   const [isSubsLoading, setIsSubsLoading] = useState(true)
+
+  // Текущая страница списка решений
   const [subsPage, setSubsPage] = useState(1)
+
+  // Общее число решений для пагинации
   const [subsTotal, setSubsTotal] = useState(0)
+
+  // Активный фильтр списка решений по статусу
   const [statusFilter, setStatusFilter] = useState<SubmissionStatus | null>(null)
 
-  // Решение, открытое для проверки, и поля формы оценки/возврата
+  // Решение, открытое преподавателем для проверки
   const [selected, setSelected] = useState<SubmissionDto | null>(null)
-  const [gradeValue, setGradeValue] = useState("")
-  const [gradeComment, setGradeComment] = useState("")
-  const [returnMode, setReturnMode] = useState(false)
-  const [returnComment, setReturnComment] = useState("")
+
+  // Поля формы оценки и возврата на доработку
+  const [reviewForm, setReviewForm] = useState<ReviewFormState>({
+    gradeValue: "",
+    gradeComment: "",
+    returnMode: false,
+    returnComment: ""
+  })
+
+  // Идет ли сохранение оценки
   const [isGrading, setIsGrading] = useState(false)
+
+  // Идет ли снятие оценки
   const [isRemovingGrade, setIsRemovingGrade] = useState(false)
+
+  // Идет ли возврат решения на доработку
   const [isReturning, setIsReturning] = useState(false)
 
   const parsedClassId = Number(classId)
@@ -169,8 +212,10 @@ export default function AssignmentPage() {
       try {
         const data = await getMySubmission(parsedAssignmentId)
         setMySubmission(data)
-        setAnswerText(data?.answer_text ?? "")
-        setAttachmentUrl(data?.attachment_url ?? "")
+        setSubmissionForm({
+          answer_text: data?.answer_text ?? "",
+          attachment_url: data?.attachment_url ?? ""
+        })
       } catch (error) {
         if (error instanceof ApiSilentError) return
         showToast({ type: "error", message: (error as Error).message })
@@ -299,7 +344,10 @@ export default function AssignmentPage() {
 
   // Тело сохранения/отправки из полей формы
   function buildSubmissionBody(): SaveSubmissionBody {
-    return { answer_text: answerText.trim(), attachment_url: attachmentUrl.trim() || null }
+    return {
+      answer_text: submissionForm.answer_text.trim(),
+      attachment_url: submissionForm.attachment_url.trim() || null
+    }
   }
 
   // Сохранить черновик решения
@@ -395,17 +443,19 @@ export default function AssignmentPage() {
   // Открыть решение на проверку и заполнить поля формы оценки
   function openReview(submission: SubmissionDto) {
     setSelected(submission)
-    setGradeValue(submission.grade ? String(submission.grade.value) : "")
-    setGradeComment(submission.grade?.comment ?? "")
-    setReturnMode(false)
-    setReturnComment("")
+    setReviewForm({
+      gradeValue: submission.grade ? String(submission.grade.value) : "",
+      gradeComment: submission.grade?.comment ?? "",
+      returnMode: false,
+      returnComment: ""
+    })
   }
 
   // Закрыть окно проверки
   function closeReview() {
     if (isReviewBusy) return
     setSelected(null)
-    setReturnMode(false)
+    setReviewForm((prev) => ({ ...prev, returnMode: false }))
   }
 
   // Обновить решение в списке и в открытом окне
@@ -419,7 +469,10 @@ export default function AssignmentPage() {
     if (!selected || !canSaveGrade) return
     setIsGrading(true)
     try {
-      const grade = await upsertGrade(selected.id, { value: Number(gradeValue), comment: gradeComment.trim() || null })
+      const grade = await upsertGrade(selected.id, {
+        value: Number(reviewForm.gradeValue),
+        comment: reviewForm.gradeComment.trim() || null
+      })
       const updated: SubmissionDto = {
         ...selected,
         status: "graded",
@@ -443,8 +496,7 @@ export default function AssignmentPage() {
     try {
       const updated = await deleteGrade(selected.id)
       updateInList(updated)
-      setGradeValue("")
-      setGradeComment("")
+      setReviewForm((prev) => ({ ...prev, gradeValue: "", gradeComment: "" }))
       showToast({ type: "neutral", message: "Оценка снята" })
       void loadSubmissions(subsPage, statusFilter)
     } catch (error) {
@@ -459,9 +511,9 @@ export default function AssignmentPage() {
     if (!selected || isReviewBusy) return
     setIsReturning(true)
     try {
-      const updated = await returnSubmission(selected.id, returnComment.trim() || null)
+      const updated = await returnSubmission(selected.id, reviewForm.returnComment.trim() || null)
       updateInList(updated)
-      setReturnMode(false)
+      setReviewForm((prev) => ({ ...prev, returnMode: false }))
       showToast({ type: "neutral", message: "Решение возвращено на доработку" })
       void loadSubmissions(subsPage, statusFilter)
     } catch (error) {
@@ -485,16 +537,16 @@ export default function AssignmentPage() {
   // Редактировать можно только черновик, возвращённое или ещё не начатое решение
   const isMyEditable = myStatus === null || myStatus === "draft" || myStatus === "returned"
   const canSendWork = (
-    answerText.trim().length > 0 ||
-    attachmentUrl.trim().length > 0 ||
+    submissionForm.answer_text.trim().length > 0 ||
+    submissionForm.attachment_url.trim().length > 0 ||
     Boolean(mySubmission?.attachment_file)
   ) && !isStudentBusy && !isAttachmentBusy
 
   const isReviewBusy = isGrading || isRemovingGrade || isReturning
-  const gradeNum = Number(gradeValue)
+  const gradeNum = Number(reviewForm.gradeValue)
   const maxGrade = assignment?.max_grade ?? 0
   const canSaveGrade =
-    gradeValue.trim() !== "" &&
+    reviewForm.gradeValue.trim() !== "" &&
     Number.isFinite(gradeNum) &&
     gradeNum >= 0 &&
     gradeNum <= maxGrade &&
@@ -609,8 +661,8 @@ export default function AssignmentPage() {
                     <div className={styles.fieldLabel}>Ответ <span className={styles.fieldOptional}>(текст решения)</span></div>
                     <textarea
                       className={styles.textarea}
-                      value={answerText}
-                      onChange={(e) => setAnswerText(e.target.value)}
+                      value={submissionForm.answer_text}
+                      onChange={(e) => setSubmissionForm((prev) => ({ ...prev, answer_text: e.target.value }))}
                       placeholder="Введите ответ или прикрепите ссылку на файл ниже"
                       disabled={isStudentBusy}
                     />
@@ -647,8 +699,8 @@ export default function AssignmentPage() {
                     <input
                       className={styles.input}
                       type="url"
-                      value={attachmentUrl}
-                      onChange={(e) => setAttachmentUrl(e.target.value)}
+                      value={submissionForm.attachment_url}
+                      onChange={(e) => setSubmissionForm((prev) => ({ ...prev, attachment_url: e.target.value }))}
                       placeholder="https://..."
                       disabled={isStudentBusy}
                     />
@@ -884,20 +936,25 @@ export default function AssignmentPage() {
             <div className={styles.reviewNote}>Студент ещё не отправил решение — это черновик.</div>
           )}
 
-          {returnMode ? (
+          {reviewForm.returnMode ? (
             <>
               <label className={styles.field}>
                 <div className={styles.fieldLabel}>Комментарий к возврату <span className={styles.fieldOptional}>(необязательно)</span></div>
                 <textarea
                   className={styles.textarea}
-                  value={returnComment}
-                  onChange={(e) => setReturnComment(e.target.value)}
+                  value={reviewForm.returnComment}
+                  onChange={(e) => setReviewForm((prev) => ({ ...prev, returnComment: e.target.value }))}
                   placeholder="Что нужно доработать..."
                   disabled={isReviewBusy}
                 />
               </label>
               <div className={styles.modalActions}>
-                <button className={styles.secondaryButton} type="button" onClick={() => setReturnMode(false)} disabled={isReviewBusy}>
+                <button
+                  className={styles.secondaryButton}
+                  type="button"
+                  onClick={() => setReviewForm((prev) => ({ ...prev, returnMode: false }))}
+                  disabled={isReviewBusy}
+                >
                   Отмена
                 </button>
                 <button className={styles.dangerButton} type="button" onClick={() => void onReturn()} disabled={isReviewBusy}>
@@ -914,8 +971,8 @@ export default function AssignmentPage() {
                   type="number"
                   min="0"
                   max={assignment?.max_grade}
-                  value={gradeValue}
-                  onChange={(e) => setGradeValue(e.target.value)}
+                  value={reviewForm.gradeValue}
+                  onChange={(e) => setReviewForm((prev) => ({ ...prev, gradeValue: e.target.value }))}
                   placeholder="0"
                   disabled={isReviewBusy}
                 />
@@ -925,14 +982,19 @@ export default function AssignmentPage() {
                 <div className={styles.fieldLabel}>Комментарий <span className={styles.fieldOptional}>(необязательно)</span></div>
                 <textarea
                   className={styles.textarea}
-                  value={gradeComment}
-                  onChange={(e) => setGradeComment(e.target.value)}
+                  value={reviewForm.gradeComment}
+                  onChange={(e) => setReviewForm((prev) => ({ ...prev, gradeComment: e.target.value }))}
                   disabled={isReviewBusy}
                 />
               </label>
 
               <div className={styles.reviewActions}>
-                <button className={styles.secondaryButton} type="button" onClick={() => setReturnMode(true)} disabled={isReviewBusy}>
+                <button
+                  className={styles.secondaryButton}
+                  type="button"
+                  onClick={() => setReviewForm((prev) => ({ ...prev, returnMode: true }))}
+                  disabled={isReviewBusy}
+                >
                   Вернуть на доработку
                 </button>
                 <div className={styles.reviewActionsRight}>

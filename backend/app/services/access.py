@@ -49,9 +49,4 @@ async def ensure_student(
     member = await get_class_member_or_403(assignment.class_id, user_id, db)
     if member.role != ClassRole.STUDENT:
         raise ServiceError("Сдавать решения может только студент", 403)
-    if (
-        member.learning_started_at is None
-        or assignment.created_at < member.learning_started_at
-    ):
-        raise ServiceError("Задание не найдено", 404)
     return member

@@ -28,7 +28,6 @@ const RawGradebookStudentSchema = z.object({
   first_name: z.string().nullable(),
   last_name: z.string().nullable(),
   is_active: z.boolean(),
-  learning_started_at: z.string(),
   summary: GradebookStudentSummarySchema.optional()
 }).strip()
 
@@ -196,7 +195,6 @@ export async function getStudentGradebook(classId: number, viewer: GradebookView
       students: [{
         ...viewer,
         is_active: true,
-        learning_started_at: assignments[0]?.created_at ?? new Date().toISOString(),
         summary: {
           average_percent: average,
           graded_count: cells.filter((cell) => cell.status === "graded").length,

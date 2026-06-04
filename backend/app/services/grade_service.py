@@ -163,13 +163,8 @@ async def get_gradebook(
 
     assignments_by_id = {a.id: a for a in assignments}
     eligible_assignment_counts = {
-        u.id: sum(
-            1
-            for assignment in assignments
-            if m.learning_started_at is not None
-            and assignment.created_at >= m.learning_started_at
-        )
-        for u, m in students_rows
+        u.id: len(assignments)
+        for u, _ in students_rows
     }
     summary_map: dict[int, dict[str, float | int]] = {
         u.id: {

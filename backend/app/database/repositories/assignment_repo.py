@@ -96,7 +96,6 @@ async def list_for_class(
     offset: int,
     *,
     only_pending_review: bool,
-    learning_started_at: datetime | None,
     db: AsyncSession,
 ) -> list[tuple[AssignmentsTable, UsersTable]]:
     """Страница заданий с авторами, свежие сверху."""
@@ -107,8 +106,6 @@ async def list_for_class(
     )
     if only_pending_review:
         query = query.where(_has_pending_submission_expr())
-    if learning_started_at is not None:
-        query = query.where(AssignmentsTable.created_at >= learning_started_at)
     result = await db.execute(
         query
         .order_by(AssignmentsTable.created_at.desc(), AssignmentsTable.id.desc())
@@ -134,7 +131,6 @@ async def count_for_class(
     class_id: int,
     *,
     only_pending_review: bool,
-    learning_started_at: datetime | None,
     db: AsyncSession,
 ) -> int:
     """Total для PageDTO. Отдельным запросом — count и фетч не на одном узле."""
@@ -143,8 +139,6 @@ async def count_for_class(
     )
     if only_pending_review:
         query = query.where(_has_pending_submission_expr())
-    if learning_started_at is not None:
-        query = query.where(AssignmentsTable.created_at >= learning_started_at)
     result = await db.execute(query)
     return int(result.scalar_one())
 

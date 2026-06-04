@@ -31,8 +31,6 @@ async def count_student_assignments_for_classes(
             _ASSIGNMENT_ACTIVE,
             ClassMembersTable.role == ClassRole.STUDENT,
             ClassMembersTable.deleted_at.is_(None),
-            ClassMembersTable.learning_started_at.is_not(None),
-            ClassMembersTable.learning_started_at <= AssignmentsTable.created_at,
         )
         .group_by(AssignmentsTable.class_id)
     )
@@ -56,8 +54,6 @@ async def count_teacher_assignment_obligations(
             _ASSIGNMENT_ACTIVE,
             ClassMembersTable.role == ClassRole.STUDENT,
             ClassMembersTable.deleted_at.is_(None),
-            ClassMembersTable.learning_started_at.is_not(None),
-            ClassMembersTable.learning_started_at <= AssignmentsTable.created_at,
         )
         .group_by(AssignmentsTable.class_id)
     )
@@ -91,8 +87,6 @@ async def student_graded_stats_for_classes(
             SubmissionsTable.status == SubmissionStatus.GRADED,
             ClassMembersTable.role == ClassRole.STUDENT,
             ClassMembersTable.deleted_at.is_(None),
-            ClassMembersTable.learning_started_at.is_not(None),
-            ClassMembersTable.learning_started_at <= AssignmentsTable.created_at,
         )
         .group_by(AssignmentsTable.class_id)
     )
@@ -131,8 +125,6 @@ async def teacher_graded_stats_for_classes(
             SubmissionsTable.status == SubmissionStatus.GRADED,
             ClassMembersTable.role == ClassRole.STUDENT,
             ClassMembersTable.deleted_at.is_(None),
-            ClassMembersTable.learning_started_at.is_not(None),
-            ClassMembersTable.learning_started_at <= AssignmentsTable.created_at,
         )
         .group_by(AssignmentsTable.class_id)
     )

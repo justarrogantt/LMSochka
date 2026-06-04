@@ -84,8 +84,7 @@ class ClassMembersTable(Base):
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"))
     role: Mapped[ClassRole] = mapped_column(Enum(ClassRole))
     joined_at: Mapped[datetime] = mapped_column(server_default=func.now())
-    # Начало текущего учебного периода. Заполняется только для student и
-    # обновляется при повторном вступлении, восстановлении и понижении до student.
+    # Дата перехода в роль student. Нужна как метаданные членства, задания не фильтрует.
     learning_started_at: Mapped[datetime | None] = mapped_column(default=None)
     # soft delete: запись остаётся в БД, чтобы оценки и сданные решения ушедшего
     # участника не потерялись (нужны для аудита и просмотра в gradebook)

@@ -378,8 +378,6 @@ async def count_eligible_students_for_assignments(
             AssignmentsTable.id.in_(assignment_ids),
             ClassMembersTable.role == ClassRole.STUDENT,
             _MEMBER_ACTIVE,
-            ClassMembersTable.learning_started_at.is_not(None),
-            ClassMembersTable.learning_started_at <= AssignmentsTable.created_at,
         )
         .group_by(AssignmentsTable.id)
     )

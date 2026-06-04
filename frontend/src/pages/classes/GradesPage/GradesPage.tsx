@@ -212,7 +212,6 @@ function StudentCard({ student, assignments, cellMap, isOpen, onToggle }: Studen
           </thead>
           <tbody>
             {assignments.map((assignment) => {
-              const isApplicable = assignment.created_at >= student.learning_started_at
               const cell = cellMap.get(cellKey(student.id, assignment.id))
               const status = cell?.status ?? "draft"
               const isGraded = status === "graded" && cell?.value !== null && cell?.value !== undefined
@@ -223,17 +222,13 @@ function StudentCard({ student, assignments, cellMap, isOpen, onToggle }: Studen
                     {cell?.is_late && <span className={styles.cellLate}>опоздание</span>}
                   </td>
                   <td className={styles.miniTd}>
-                    {isApplicable ? (
-                      <span className={`${styles.statusText} ${styles[`status_${status}`]}`}>{STATUS_LABELS[status]}</span>
-                    ) : (
-                      <span className={styles.statusText}>Не относится</span>
-                    )}
+                    <span className={`${styles.statusText} ${styles[`status_${status}`]}`}>{STATUS_LABELS[status]}</span>
                   </td>
                   <td className={`${styles.miniTd} ${styles.miniNum}`}>
-                    {isApplicable && isGraded ? `${cell!.value} / ${assignment.max_grade}` : "—"}
+                    {isGraded ? `${cell!.value} / ${assignment.max_grade}` : "—"}
                   </td>
                   <td className={`${styles.miniTd} ${styles.miniNum}`}>
-                    {isApplicable && isGraded && cell!.percent !== null ? `${cell!.percent}%` : "—"}
+                    {isGraded && cell!.percent !== null ? `${cell!.percent}%` : "—"}
                   </td>
                 </tr>
               )

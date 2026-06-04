@@ -137,17 +137,11 @@ async def list_assignments(
         limit,
         offset,
         only_pending_review=only_pending_review,
-        learning_started_at=(
-            member.learning_started_at if member.role == ClassRole.STUDENT else None
-        ),
         db=db,
     )
     total = await assignment_repo.count_for_class(
         class_id,
         only_pending_review=only_pending_review,
-        learning_started_at=(
-            member.learning_started_at if member.role == ClassRole.STUDENT else None
-        ),
         db=db,
     )
     aids = [a.id for a, _ in rows]
@@ -231,11 +225,6 @@ async def get_assignment(
     )
 
     if member.role == ClassRole.STUDENT:
-        if (
-            member.learning_started_at is None
-            or asg.created_at < member.learning_started_at
-        ):
-            raise ServiceError("Задание не найдено", 404)
         sub = await submission_repo.get_by_assignment_and_student(
             asg.id, member.user_id, db
         )

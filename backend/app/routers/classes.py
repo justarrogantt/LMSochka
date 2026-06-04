@@ -230,7 +230,7 @@ async def restore_member(
     ),
     db: AsyncSession = Depends(get_db),
 ) -> ClassMembersDTO:
-    """Восстановить кикнутого участника как student с новым учебным периодом."""
+    """Восстановить кикнутого участника как student."""
     _, cls, _ = ctx
     try:
         return await class_service.restore_member(cls.id, user_id, db)

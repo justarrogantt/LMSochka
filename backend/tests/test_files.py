@@ -95,7 +95,7 @@ async def test_material_file_is_protected_replaced_and_deleted(client):
 
 
 @pytest.mark.asyncio
-async def test_old_assignment_material_is_hidden_from_late_student(client):
+async def test_old_assignment_material_is_visible_to_late_student(client):
     creator_token, _ = await _register(client, "creator@example.com")
     response = await client.post(
         "/api/classes",
@@ -120,7 +120,8 @@ async def test_old_assignment_material_is_hidden_from_late_student(client):
         headers=_auth(student_token),
     )
     response = await client.get(download_url, headers=_auth(student_token))
-    assert response.status_code == 404
+    assert response.status_code == 200
+    assert response.content == b"old"
 
 
 @pytest.mark.asyncio
