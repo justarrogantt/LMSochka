@@ -22,6 +22,7 @@ from app.schemas.class_schemas import (
 )
 from app.schemas.errors import ServiceError
 from app.schemas.pagination import PageDTO
+from app.services import file_service
 from app.services.permissions_service import build_permissions
 
 _CODE_ALPHABET = string.ascii_uppercase + string.digits
@@ -304,6 +305,7 @@ async def update_class(
 
 async def delete_class(cls: ClassesTable, db: AsyncSession) -> None:
     """Soft delete: проставляем deleted_at, класс пропадает из всех выборок."""
+    await file_service.delete_class_tree(cls.id, db)
     await class_repo.soft_delete(cls, db)
 
 

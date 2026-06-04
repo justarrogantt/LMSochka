@@ -8,6 +8,7 @@ from app.database.models import (
 from app.database.repositories import (
     assignment_repo,
     class_repo,
+    file_repo,
     grade_repo,
     submission_repo,
 )
@@ -139,7 +140,10 @@ async def delete_grade(
         await db.commit()
         await db.refresh(sub)
 
-    return submission_service._dto(sub, student, asg, None)
+    attachment_file = (
+        await file_repo.get(sub.attachment_file_id, db) if sub.attachment_file_id else None
+    )
+    return submission_service._dto(sub, student, asg, None, attachment_file)
 
 
 async def get_gradebook(

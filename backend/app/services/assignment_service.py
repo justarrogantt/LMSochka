@@ -7,12 +7,14 @@ from app.database.models import (
     ClassMembersTable,
     ClassRole,
     GradesTable,
+    StoredFilesTable,
     SubmissionsTable,
     UsersTable,
 )
 from app.database.repositories import (
     assignment_repo,
     class_repo,
+    file_repo,
     grade_repo,
     submission_repo,
 )
@@ -26,7 +28,7 @@ from app.schemas.assignment_schemas import (
 )
 from app.schemas.errors import ServiceError
 from app.schemas.user_schemas import UserBriefDTO
-from app.services import notification_service
+from app.services import file_service, notification_service
 from app.services.submission_service import _is_late
 
 
@@ -48,6 +50,7 @@ def _dto(
     *,
     can_edit: bool,
     can_delete: bool,
+    material_file: StoredFilesTable | None = None,
     my_submission: MySubmissionBriefDTO | None = None,
     stats: AssignmentStatsDTO | None = None,
 ) -> AssignmentDTO:
@@ -58,6 +61,7 @@ def _dto(
         title=asg.title,
         description=asg.description,
         material_url=asg.material_url,
+        material_file=file_service.dto(material_file),
         due_at=asg.due_at,
         max_grade=asg.max_grade,
         created_at=asg.created_at,
@@ -147,6 +151,9 @@ async def list_assignments(
         db=db,
     )
     aids = [a.id for a, _ in rows]
+    files = await file_repo.get_many(
+        [a.material_file_id for a, _ in rows if a.material_file_id], db
+    )
 
     if member.role == ClassRole.STUDENT:
         # студент видит свой статус по каждому заданию (один запрос на всю страницу)
@@ -159,6 +166,7 @@ async def list_assignments(
                 u,
                 can_edit=False,
                 can_delete=False,
+                material_file=files.get(a.material_file_id),
                 my_submission=(
                     _my_submission_dto(*my_subs[a.id], a)
                     if a.id in my_subs
@@ -180,6 +188,7 @@ async def list_assignments(
                 u,
                 can_edit=member.role == ClassRole.CREATOR or a.author_id == member.user_id,
                 can_delete=member.role == ClassRole.CREATOR or a.author_id == member.user_id,
+                material_file=files.get(a.material_file_id),
                 stats=_stats_for(a.id, stats_map, eligible_counts.get(a.id, 0)),
             )
             for a, u in rows
@@ -217,6 +226,9 @@ async def get_assignment(
     if row is None:
         raise ServiceError("Задание не найдено", 404)
     asg, author = row
+    material_file = (
+        await file_repo.get(asg.material_file_id, db) if asg.material_file_id else None
+    )
 
     if member.role == ClassRole.STUDENT:
         if (
@@ -236,6 +248,7 @@ async def get_assignment(
             author,
             can_edit=False,
             can_delete=False,
+            material_file=material_file,
             my_submission=my_submission,
         )
 
@@ -248,6 +261,7 @@ async def get_assignment(
         author,
         can_edit=member.role == ClassRole.CREATOR or asg.author_id == member.user_id,
         can_delete=member.role == ClassRole.CREATOR or asg.author_id == member.user_id,
+        material_file=material_file,
         stats=_stats_for(asg.id, stats_map, eligible_counts.get(asg.id, 0)),
     )
 
@@ -293,7 +307,16 @@ async def update_assignment(
         clear_due_at=due_at_provided and body.due_at is None,
         db=db,
     )
-    return _dto(asg, author, can_edit=True, can_delete=True)
+    material_file = (
+        await file_repo.get(asg.material_file_id, db) if asg.material_file_id else None
+    )
+    return _dto(
+        asg,
+        author,
+        can_edit=True,
+        can_delete=True,
+        material_file=material_file,
+    )
 
 
 async def delete_assignment(
@@ -311,4 +334,5 @@ async def delete_assignment(
     # Решения и оценки остаются в БД для аудита, но из API уходят: все запросы
     # к решениям джойнятся с assignments через _ASSIGNMENT_ACTIVE, поэтому
     # /my-submission и /submissions для удалённого задания дают 404.
+    await file_service.delete_assignment_tree(asg.id, db)
     await assignment_repo.soft_delete(asg, db)

@@ -4,6 +4,7 @@ from enum import StrEnum
 from pydantic import BaseModel, Field, HttpUrl, model_validator
 
 from app.database.models import SubmissionStatus
+from app.schemas.file_schemas import FileDTO
 from app.schemas.pagination import PageDTO
 from app.schemas.user_schemas import UserBriefDTO
 
@@ -83,6 +84,7 @@ class AssignmentDTO(BaseModel):
     title: str
     description: str
     material_url: str | None
+    material_file: FileDTO | None
     due_at: datetime | None
     max_grade: float
     created_at: datetime
