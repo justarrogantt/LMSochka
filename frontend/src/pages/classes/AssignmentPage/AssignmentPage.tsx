@@ -13,6 +13,7 @@ import {
   ACCEPTED_FILE_TYPES_LABEL,
   downloadStoredFile,
   formatFileSize,
+  type StoredFileDto,
   validateUploadFile
 } from "../../../services/files.api"
 import {
@@ -490,6 +491,18 @@ export default function AssignmentPage() {
     }
   }
 
+  async function onDownloadFile(file: StoredFileDto) {
+    try {
+      await downloadStoredFile(file)
+    } catch (error) {
+      if (error instanceof ApiError) {
+        showToast({ type: "error", message: error.message })
+        return
+      }
+      throw error
+    }
+  }
+
   // Выбор файла материала задания
   function onMaterialFileChange(file: File) {
     setMaterialFileError("")
@@ -690,7 +703,7 @@ export default function AssignmentPage() {
             <button
               className={styles.materialLink}
               type="button"
-              onClick={() => void downloadStoredFile(assignment.material_file!)}
+              onClick={() => void onDownloadFile(assignment.material_file!)}
             >
               Скачать {assignment.material_file.name} ({formatFileSize(assignment.material_file.size)})
             </button>
@@ -757,7 +770,7 @@ export default function AssignmentPage() {
                     accept={ACCEPTED_FILE_INPUT}
                     hint={`Доступные форматы: ${ACCEPTED_FILE_TYPES_LABEL}`}
                     file={mySubmission?.attachment_file ? { name: mySubmission.attachment_file.name, size: mySubmission.attachment_file.size } : null}
-                    onDownload={() => void downloadStoredFile(mySubmission!.attachment_file!)}
+                    onDownload={() => void onDownloadFile(mySubmission!.attachment_file!)}
                     onRemove={() => void onDeleteAttachment()}
                     removeTitle="Удалить файл решения"
                     onSelect={onSubmissionFileChange}
@@ -797,7 +810,7 @@ export default function AssignmentPage() {
                   )}
 
                   {mySubmission?.attachment_file && (
-                    <button className={styles.submissionLink} type="button" onClick={() => void downloadStoredFile(mySubmission.attachment_file!)}>
+                    <button className={styles.submissionLink} type="button" onClick={() => void onDownloadFile(mySubmission.attachment_file!)}>
                       Скачать {mySubmission.attachment_file.name} ({formatFileSize(mySubmission.attachment_file.size)})
                     </button>
                   )}
@@ -991,7 +1004,7 @@ export default function AssignmentPage() {
           )}
 
           {selected.attachment_file && (
-            <button className={styles.submissionLink} type="button" onClick={() => void downloadStoredFile(selected.attachment_file!)}>
+            <button className={styles.submissionLink} type="button" onClick={() => void onDownloadFile(selected.attachment_file!)}>
               Скачать {selected.attachment_file.name} ({formatFileSize(selected.attachment_file.size)})
             </button>
           )}
