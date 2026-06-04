@@ -14,7 +14,7 @@ export function formatDateTime(value: string) {
 }
 
 export async function wait() {
-  await new Promise((resolve) => setTimeout(resolve, 1000))
+  await new Promise((resolve) => setTimeout(resolve, 0))
 }
 
 export function truncate(text: string, maxChars: number): string {

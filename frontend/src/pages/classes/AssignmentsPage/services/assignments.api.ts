@@ -1,7 +1,7 @@
 import { z } from "zod"
 import { Api } from "../../../../services/api"
 import { parseApiResponse, throwApiResponseError } from "../../../../services/response"
-import type { Errors, PageDto } from "../../../../types/api.types"
+import type { Errors } from "../../../../types/api.types"
 
 // Обёртка пагинации для списка заданий.
 function createPageSchema<T extends z.ZodType>(itemSchema: T) {
@@ -95,7 +95,7 @@ const AssignmentsPageSchema = createPageSchema(AssignmentSchema).extend({
 })
 
 export type AssignmentsReviewStatus = "pending"
-export type AssignmentsPageDto = PageDto<AssignmentDto> & z.infer<typeof AssignmentsPageSchema>
+export type AssignmentsPageDto = z.infer<typeof AssignmentsPageSchema>
 
 export async function listAssignments(
   classId: number,

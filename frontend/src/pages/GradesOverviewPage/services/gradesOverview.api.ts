@@ -3,25 +3,6 @@ import { Api } from "../../../services/api"
 import { parseApiResponse, throwApiResponseError } from "../../../services/response"
 import type { Errors } from "../../../types/api.types"
 
-// Роль пользователя в курсе — приходит вместе со сводкой, по ней делим «учусь / преподаю».
-export type ClassRole = "creator" | "teacher" | "student"
-
-export type CourseGradesSummary = {
-  class_id: number
-  class_name: string
-  role: ClassRole
-  // Средний балл в процентах от максимума; null — если ещё нет оценок.
-  average_percent: number | null
-  graded_count: number
-  assignments_count: number
-  // Сколько работ ждут проверки или ещё не сданы.
-  pending_count: number
-}
-
-export type GradesOverviewDto = {
-  courses: CourseGradesSummary[]
-}
-
 const CourseGradesSummarySchema = z.object({
   class_id: z.number(),
   class_name: z.string(),
@@ -35,6 +16,11 @@ const CourseGradesSummarySchema = z.object({
 const GradesOverviewSchema = z.object({
   courses: z.array(CourseGradesSummarySchema)
 }).strip()
+
+// Роль пользователя в курсе — приходит вместе со сводкой, по ней делим «учусь / преподаю».
+export type ClassRole = z.infer<typeof CourseGradesSummarySchema>["role"]
+export type CourseGradesSummary = z.infer<typeof CourseGradesSummarySchema>
+export type GradesOverviewDto = z.infer<typeof GradesOverviewSchema>
 
 const GRADES_OVERVIEW_ERRORS: Errors = {
   default: "Не удалось загрузить сводку оценок"

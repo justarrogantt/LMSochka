@@ -3,8 +3,6 @@ import { Api } from "../../../../services/api"
 import { parseApiResponse, throwApiResponseError } from "../../../../services/response"
 import type { Errors } from "../../../../types/api.types"
 
-export type GradebookStatus = "draft" | "submitted" | "returned" | "graded"
-
 // Задание в журнале оценок.
 const GradebookAssignmentSchema = z.object({
   id: z.number(),
@@ -23,7 +21,7 @@ const GradebookStudentSummarySchema = z.object({
 }).strip()
 
 // Студент в журнале оценок.
-const GradebookStudentSchema = z.object({
+const RawGradebookStudentSchema = z.object({
   id: z.number(),
   email: z.string().email(),
   first_name: z.string().nullable(),
@@ -33,7 +31,7 @@ const GradebookStudentSchema = z.object({
 }).strip()
 
 // Ячейка журнала: статус и оценка студента по заданию.
-const GradebookCellSchema = z.object({
+const RawGradebookCellSchema = z.object({
   student_id: z.number(),
   assignment_id: z.number(),
   status: z.enum(["draft", "submitted", "returned", "graded"]),
@@ -43,12 +41,67 @@ const GradebookCellSchema = z.object({
   submitted_at: z.string().nullable()
 }).strip()
 
-// Полная таблица оценок курса.
-const GradebookSchema = z.object({
+// Полная таблица оценок курса до нормализации.
+const RawGradebookSchema = z.object({
   assignments: z.array(GradebookAssignmentSchema),
-  students: z.array(GradebookStudentSchema),
-  cells: z.array(GradebookCellSchema)
+  students: z.array(RawGradebookStudentSchema),
+  cells: z.array(RawGradebookCellSchema)
 }).strip()
+
+function percentOf(value: number | null, maxGrade: number): number | null {
+  if (value === null || maxGrade <= 0) return null
+  return Math.round((value / maxGrade) * 10000) / 100
+}
+
+function averagePercent(values: number[]): number | null {
+  if (values.length === 0) return null
+
+  const sum = values.reduce((acc, value) => acc + value, 0)
+  return Math.round((sum / values.length) * 100) / 100
+}
+
+function buildStudentSummary(
+  studentId: number,
+  assignments: z.infer<typeof GradebookAssignmentSchema>[],
+  cells: Array<z.infer<typeof RawGradebookCellSchema> & { percent: number | null }>
+) {
+  const studentCells = cells.filter((cell) => cell.student_id === studentId)
+  const gradedPercents = studentCells
+    .filter((cell) => cell.status === "graded" && cell.percent !== null)
+    .map((cell) => cell.percent!)
+
+  return {
+    average_percent: averagePercent(gradedPercents),
+    graded_count: studentCells.filter((cell) => cell.status === "graded").length,
+    submitted_count: studentCells.filter((cell) => cell.status === "submitted" || cell.status === "graded").length,
+    pending_review_count: studentCells.filter((cell) => cell.status === "submitted").length,
+    total_assignments: assignments.length
+  }
+}
+
+const GradebookSchema = RawGradebookSchema.transform((raw) => {
+  const assignmentsById = new Map(raw.assignments.map((assignment) => [assignment.id, assignment]))
+  const cells = raw.cells.map((cell) => {
+    const assignment = assignmentsById.get(cell.assignment_id)
+    const percent = cell.percent ?? (
+      cell.status === "graded" && assignment
+        ? percentOf(cell.value, assignment.max_grade)
+        : null
+    )
+
+    return { ...cell, percent }
+  })
+  const students = raw.students.map((student) => ({
+    ...student,
+    summary: student.summary ?? buildStudentSummary(student.id, raw.assignments, cells)
+  }))
+
+  return {
+    assignments: raw.assignments,
+    students,
+    cells
+  }
+})
 
 // Ответ списка заданий для студента. Используем его, чтобы собрать личную строку оценок.
 const StudentAssignmentsPageSchema = z.object({
@@ -70,19 +123,12 @@ const StudentAssignmentsPageSchema = z.object({
   limit: z.number()
 }).strip()
 
+export type GradebookStatus = z.infer<typeof RawGradebookCellSchema>["status"]
 export type GradebookAssignment = z.infer<typeof GradebookAssignmentSchema>
 export type GradebookStudentSummary = z.infer<typeof GradebookStudentSummarySchema>
-export type GradebookStudent = Omit<z.infer<typeof GradebookStudentSchema>, "summary"> & {
-  summary: GradebookStudentSummary
-}
-export type GradebookCell = Omit<z.infer<typeof GradebookCellSchema>, "percent"> & {
-  percent: number | null
-}
-export type GradebookDto = {
-  assignments: GradebookAssignment[]
-  students: GradebookStudent[]
-  cells: GradebookCell[]
-}
+export type GradebookStudent = z.infer<typeof GradebookSchema>["students"][number]
+export type GradebookCell = z.infer<typeof GradebookSchema>["cells"][number]
+export type GradebookDto = z.infer<typeof GradebookSchema>
 
 export type GradebookViewer = {
   id: number
@@ -103,65 +149,9 @@ const STUDENT_GRADES_ERRORS: Errors = {
 export async function getGradebook(classId: number): Promise<GradebookDto> {
   try {
     const response = await Api.fetchGet(`/api/classes/${classId}/gradebook`, GRADEBOOK_ERRORS)
-    const gradebook = await parseApiResponse(response, GradebookSchema)
-    return normalizeGradebook(gradebook)
+    return await parseApiResponse(response, GradebookSchema)
   } catch (error) {
     throwApiResponseError(error)
-  }
-}
-
-function percentOf(value: number | null, maxGrade: number): number | null {
-  if (value === null || maxGrade <= 0) return null
-  return Math.round((value / maxGrade) * 10000) / 100
-}
-
-function averagePercent(values: number[]): number | null {
-  if (values.length === 0) return null
-
-  const sum = values.reduce((acc, value) => acc + value, 0)
-  return Math.round((sum / values.length) * 100) / 100
-}
-
-function buildStudentSummary(
-  studentId: number,
-  assignments: GradebookAssignment[],
-  cells: GradebookCell[]
-): GradebookStudentSummary {
-  const studentCells = cells.filter((cell) => cell.student_id === studentId)
-  const gradedPercents = studentCells
-    .filter((cell) => cell.status === "graded" && cell.percent !== null)
-    .map((cell) => cell.percent!)
-
-  return {
-    average_percent: averagePercent(gradedPercents),
-    graded_count: studentCells.filter((cell) => cell.status === "graded").length,
-    submitted_count: studentCells.filter((cell) => cell.status === "submitted" || cell.status === "graded").length,
-    pending_review_count: studentCells.filter((cell) => cell.status === "submitted").length,
-    total_assignments: assignments.length
-  }
-}
-
-function normalizeGradebook(raw: z.infer<typeof GradebookSchema>): GradebookDto {
-  const assignmentsById = new Map(raw.assignments.map((assignment) => [assignment.id, assignment]))
-  const cells = raw.cells.map((cell) => {
-    const assignment = assignmentsById.get(cell.assignment_id)
-    const percent = cell.percent ?? (
-      cell.status === "graded" && assignment
-        ? percentOf(cell.value, assignment.max_grade)
-        : null
-    )
-
-    return { ...cell, percent }
-  })
-  const students = raw.students.map((student) => ({
-    ...student,
-    summary: student.summary ?? buildStudentSummary(student.id, raw.assignments, cells)
-  }))
-
-  return {
-    assignments: raw.assignments,
-    students,
-    cells
   }
 }
 
@@ -194,18 +184,16 @@ export async function getStudentGradebook(classId: number, viewer: GradebookView
     const percentValues = cells
       .map((cell) => cell.percent)
       .filter((value): value is number => value !== null)
-    const averagePercent = percentValues.length > 0
-      ? Math.round((percentValues.reduce((sum, value) => sum + value, 0) / percentValues.length) * 100) / 100
-      : null
+    const average = averagePercent(percentValues)
     const submittedCount = cells.filter((cell) => cell.status === "submitted" || cell.status === "graded").length
 
-    return {
+    return GradebookSchema.parse({
       assignments,
       students: [{
         ...viewer,
         is_active: true,
         summary: {
-          average_percent: averagePercent,
+          average_percent: average,
           graded_count: cells.filter((cell) => cell.status === "graded").length,
           submitted_count: submittedCount,
           pending_review_count: cells.filter((cell) => cell.status === "submitted").length,
@@ -213,7 +201,7 @@ export async function getStudentGradebook(classId: number, viewer: GradebookView
         }
       }],
       cells
-    }
+    })
   } catch (error) {
     throwApiResponseError(error)
   }
