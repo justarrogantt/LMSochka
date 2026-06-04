@@ -217,6 +217,35 @@ async def list_members(
     return [(u, m) for u, m in result.all()]
 
 
+async def list_kicked_members(
+    class_id: int, limit: int, offset: int, db: AsyncSession
+) -> list[tuple[UsersTable, ClassMembersTable]]:
+    result = await db.execute(
+        select(UsersTable, ClassMembersTable)
+        .join(ClassMembersTable, ClassMembersTable.user_id == UsersTable.id)
+        .where(
+            ClassMembersTable.class_id == class_id,
+            ClassMembersTable.deleted_at.is_not(None),
+            ClassMembersTable.removal_reason == "kicked",
+        )
+        .order_by(ClassMembersTable.deleted_at.desc(), ClassMembersTable.user_id)
+        .limit(limit)
+        .offset(offset)
+    )
+    return [(u, m) for u, m in result.all()]
+
+
+async def count_kicked_members(class_id: int, db: AsyncSession) -> int:
+    result = await db.execute(
+        select(func.count(ClassMembersTable.id)).where(
+            ClassMembersTable.class_id == class_id,
+            ClassMembersTable.deleted_at.is_not(None),
+            ClassMembersTable.removal_reason == "kicked",
+        )
+    )
+    return int(result.scalar_one())
+
+
 async def count_by_role(class_id: int, db: AsyncSession) -> dict[ClassRole, int]:
     """Сколько участников каждой роли в классе. Используется для counts в DTO."""
     result = await db.execute(

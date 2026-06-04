@@ -6,6 +6,7 @@ from app.database.models import ClassesTable, ClassMembersTable, ClassRole, User
 from app.dependencies import get_current_user, require_class_member, require_class_role
 from app.schemas.class_schemas import (
     ClassDetailDTO,
+    ClassMemberDTO,
     ClassMembersDTO,
     ClassRoleDTO,
     CreateClassRequest,
@@ -121,6 +122,21 @@ async def get_members(
     return await class_service.list_class_members(cls.id, db)
 
 
+@classes_router.get("/{class_id}/members/removed")
+async def get_removed_members(
+    params: PageParams = Depends(),
+    ctx: tuple[UsersTable, ClassesTable, ClassMembersTable] = Depends(
+        require_class_role(ClassRole.CREATOR)
+    ),
+    db: AsyncSession = Depends(get_db),
+) -> PageDTO[ClassMemberDTO]:
+    """Список исключённых creator-ом участников. Самостоятельно вышедшие скрыты."""
+    _, cls, _ = ctx
+    return await class_service.list_removed_members(
+        cls.id, params.page, params.limit, params.offset, db
+    )
+
+
 @classes_router.get("/{class_id}/role")
 async def get_my_role(
     ctx: tuple[UsersTable, ClassesTable, ClassMembersTable] = Depends(
@@ -202,6 +218,22 @@ async def remove_member(
     _, cls, _ = ctx
     try:
         return await class_service.remove_member(cls.id, user_id, db)
+    except ServiceError as e:
+        raise HTTPException(status_code=e.status_code, detail=str(e)) from e
+
+
+@classes_router.post("/{class_id}/members/{user_id}/restore")
+async def restore_member(
+    user_id: int,
+    ctx: tuple[UsersTable, ClassesTable, ClassMembersTable] = Depends(
+        require_class_role(ClassRole.CREATOR)
+    ),
+    db: AsyncSession = Depends(get_db),
+) -> ClassMembersDTO:
+    """Восстановить кикнутого участника как student с новым учебным периодом."""
+    _, cls, _ = ctx
+    try:
+        return await class_service.restore_member(cls.id, user_id, db)
     except ServiceError as e:
         raise HTTPException(status_code=e.status_code, detail=str(e)) from e
 
