@@ -121,6 +121,35 @@
   background: var(--color-soft);
 }
 
+/* ───────── Адаптив ───────── */
+/* Сетка карточек: 3 колонки → 2 на планшете → 1 на телефоне */
+@media (max-width: 1024px) {
+  .cards {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (max-width: 768px) {
+  /* Тулбар не помещается в строку: поиск на всю ширину, кнопки переносятся ниже */
+  .actions {
+    flex-wrap: wrap;
+  }
+
+  .headerSearch {
+    flex: 1 1 100%;
+    min-width: 0;
+  }
+
+  .actions > .secondaryButton,
+  .actions > .primaryButton {
+    flex: 1 1 auto;
+  }
+
+  .cards {
+    grid-template-columns: 1fr;
+  }
+}
+
 .cards {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
