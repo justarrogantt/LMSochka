@@ -66,8 +66,11 @@ export default function PublicClassesPage() {
       setTotalItems(data.total)
       setCurrentPage(data.page)
     } catch (error) {
-      if (!(error instanceof ApiError)) throw error
-      showToast({ type: "error", message: error.message })
+      if (error instanceof ApiError) {
+        showToast({ type: "error", message: error.message })
+        return
+      }
+      throw error
     } finally {
       setIsLoading(false)
     }
@@ -94,8 +97,11 @@ export default function PublicClassesPage() {
       setClasses((prev) => prev.map((item) => (item.id === classId ? { ...item, is_member: true } : item)))
       showToast({ type: "neutral", message: "Вы вступили в курс" })
     } catch (error) {
-      if (!(error instanceof ApiError)) throw error
-      showToast({ type: "error", message: error.message })
+      if (error instanceof ApiError) {
+        showToast({ type: "error", message: error.message })
+        return
+      }
+      throw error
     } finally {
       setSubmittingIds((prev) => {
         const next = new Set(prev)

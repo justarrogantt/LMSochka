@@ -99,8 +99,11 @@ export default function ClassLayout() {
         setClassDetail(detail)
         setEditForm({ name: detail.name, type: detail.type })
       } catch (error) {
-        if (!(error instanceof ApiError)) throw error
-        showToast({ type: "error", message: error.message })
+        if (error instanceof ApiError) {
+          showToast({ type: "error", message: error.message })
+          return
+        }
+        throw error
       } finally {
         setIsLoading(false)
       }
@@ -143,8 +146,11 @@ export default function ClassLayout() {
     } catch (error) {
       setClassDetail(prevDetail)
       setEditForm({ name: prevDetail.name, type: prevDetail.type })
-      if (!(error instanceof ApiError)) throw error
-      showToast({ type: "error", message: error.message })
+      if (error instanceof ApiError) {
+        showToast({ type: "error", message: error.message })
+        return
+      }
+      throw error
     } finally {
       setIsSubmitting(false)
     }
@@ -159,9 +165,12 @@ export default function ClassLayout() {
       await deleteClass(classDetail.id)
       navigate("/classes", { replace: true })
     } catch (error) {
-      if (!(error instanceof ApiError)) throw error
-      showToast({ type: "error", message: error.message })
-      setIsSubmitting(false)
+      if (error instanceof ApiError) {
+        showToast({ type: "error", message: error.message })
+        setIsSubmitting(false)
+        return
+      }
+      throw error
     }
   }
 
@@ -174,9 +183,12 @@ export default function ClassLayout() {
       await leaveClass(classDetail.id)
       navigate("/classes", { replace: true })
     } catch (error) {
-      if (!(error instanceof ApiError)) throw error
-      showToast({ type: "error", message: error.message })
-      setIsSubmitting(false)
+      if (error instanceof ApiError) {
+        showToast({ type: "error", message: error.message })
+        setIsSubmitting(false)
+        return
+      }
+      throw error
     }
   }
 

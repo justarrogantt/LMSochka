@@ -111,33 +111,6 @@
   transition: background 0.16s ease;
 }
 
-.fileActions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-}
-
-.fileHint,
-.fileError {
-  flex-basis: 100%;
-  line-height: 1.4;
-}
-
-.fileHint {
-  color: var(--color-muted);
-  font-size: 12px;
-}
-
-.fileError {
-  color: var(--color-danger);
-  font-size: 13px;
-  font-weight: 600;
-}
-
-.hiddenFileInput {
-  display: none;
-}
-
 .materialLink:hover {
   background: var(--color-accent-soft-hover);
 }
@@ -267,14 +240,6 @@
 .secondaryButton:disabled {
   cursor: not-allowed;
   opacity: 0.6;
-}
-
-.buttonDisabled,
-.buttonDisabled:hover {
-  opacity: 0.55;
-  cursor: not-allowed;
-  pointer-events: none;
-  transform: none;
 }
 
 .dangerButton {

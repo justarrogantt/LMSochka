@@ -222,11 +222,14 @@ export default function ClassesPage() {
         const nextClasses = await getMyClasses()
         setClasses(nextClasses)
       } catch (error) {
-        if (!(error instanceof ApiError)) throw error
-        showToast({
-          type: "error",
-          message: error.message
-        })
+        if (error instanceof ApiError) {
+          showToast({
+            type: "error",
+            message: error.message
+          })
+          return
+        }
+        throw error
       } finally {
         setIsLoading(false)
       }
@@ -258,11 +261,14 @@ export default function ClassesPage() {
       setActiveModal(null)
       showToast({ type: "neutral", message: "Курс создан" })
     } catch (error) {
-      if (!(error instanceof ApiError)) throw error
-      showToast({
-        type: "error",
-        message: error.message
-      })
+      if (error instanceof ApiError) {
+        showToast({
+          type: "error",
+          message: error.message
+        })
+        return
+      }
+      throw error
     } finally {
       setIsSubmitting(false)
     }
@@ -283,11 +289,14 @@ export default function ClassesPage() {
       setActiveModal(null)
       showToast({ type: "neutral", message: "Вы вступили в курс" })
     } catch (error) {
-      if (!(error instanceof ApiError)) throw error
-      showToast({
-        type: "error",
-        message: error.message
-      })
+      if (error instanceof ApiError) {
+        showToast({
+          type: "error",
+          message: error.message
+        })
+        return
+      }
+      throw error
     } finally {
       setIsSubmitting(false)
     }

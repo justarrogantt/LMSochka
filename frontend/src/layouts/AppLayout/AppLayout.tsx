@@ -92,8 +92,11 @@ export default function AppLayout() {
         return
       }
 
-      if (!(error instanceof ApiError)) throw error
-      showToast({ type: "error", message: error.message })
+      if (error instanceof ApiError) {
+        showToast({ type: "error", message: error.message })
+        return
+      }
+      throw error
     } finally {
       setIsLoggingOut(false)
     }

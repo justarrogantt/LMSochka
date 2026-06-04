@@ -111,8 +111,11 @@ export default function ClassAnnouncementsPage() {
       setTotalItems(data.total)
       setCurrentPage(page)
     } catch (error) {
-      if (!(error instanceof ApiError)) throw error
-      showToast({ type: "error", message: error.message })
+      if (error instanceof ApiError) {
+        showToast({ type: "error", message: error.message })
+        return
+      }
+      throw error
     } finally {
       setIsLoading(false)
     }
@@ -169,8 +172,11 @@ export default function ClassAnnouncementsPage() {
       showToast({ type: "neutral", message: "Объявление создано" })
       void loadPage(1)
     } catch (error) {
-      if (!(error instanceof ApiError)) throw error
-      showToast({ type: "error", message: error.message })
+      if (error instanceof ApiError) {
+        showToast({ type: "error", message: error.message })
+        return
+      }
+      throw error
     } finally {
       setIsSubmitting(false)
     }
@@ -195,8 +201,11 @@ export default function ClassAnnouncementsPage() {
       showToast({ type: "neutral", message: "Объявление обновлено" })
     } catch (error) {
       setItems(prevItems)
-      if (!(error instanceof ApiError)) throw error
-      showToast({ type: "error", message: error.message })
+      if (error instanceof ApiError) {
+        showToast({ type: "error", message: error.message })
+        return
+      }
+      throw error
     } finally {
       setIsSubmitting(false)
     }
@@ -214,8 +223,11 @@ export default function ClassAnnouncementsPage() {
       const nextPage = items.length === 1 && currentPage > 1 ? currentPage - 1 : currentPage
       void loadPage(nextPage)
     } catch (error) {
-      if (!(error instanceof ApiError)) throw error
-      showToast({ type: "error", message: error.message })
+      if (error instanceof ApiError) {
+        showToast({ type: "error", message: error.message })
+        return
+      }
+      throw error
     } finally {
       setIsSubmitting(false)
     }

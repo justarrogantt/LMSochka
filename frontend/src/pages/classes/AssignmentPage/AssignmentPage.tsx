@@ -1,4 +1,4 @@
-import { useEffect, useState, type ChangeEvent } from "react"
+import { useEffect, useState } from "react"
 import { AnimatePresence } from "framer-motion"
 import { useNavigate, useOutletContext, useParams } from "react-router-dom"
 import ArrowIcon from "../../../assets/icons/classes/arrow.svg?react"
@@ -15,7 +15,8 @@ import {
   formatFileSize,
   validateUploadFile
 } from "../../../services/files.api"
-import { formatDateTime } from "../../../services/helpers"
+import { formatDateTime, formatDateTimeInputValue, toApiDateTime } from "../../../services/helpers"
+import FilePicker from "../../../shared/FilePicker/FilePicker"
 import type { ClassLayoutContext } from "../../../layouts/ClassLayout/ClassLayout"
 import {
   deleteAssignmentMaterial,
@@ -201,9 +202,12 @@ export default function AssignmentPage() {
         const data = await getAssignment(parsedClassId, parsedAssignmentId)
         setAssignment(data)
       } catch (error) {
-        if (!(error instanceof ApiError)) throw error
-        showToast({ type: "error", message: error.message })
-        navigate(`/classes/${classId}/assignments`, { replace: true })
+        if (error instanceof ApiError) {
+          showToast({ type: "error", message: error.message })
+          navigate(`/classes/${classId}/assignments`, { replace: true })
+          return
+        }
+        throw error
       } finally {
         setIsLoading(false)
       }
@@ -229,8 +233,11 @@ export default function AssignmentPage() {
           attachment_url: data?.attachment_url ?? ""
         })
       } catch (error) {
-        if (!(error instanceof ApiError)) throw error
-        showToast({ type: "error", message: error.message })
+        if (error instanceof ApiError) {
+          showToast({ type: "error", message: error.message })
+          return
+        }
+        throw error
       } finally {
         setIsMyLoading(false)
       }
@@ -258,8 +265,11 @@ export default function AssignmentPage() {
       setSubsTotal(data.total)
       setSubsPage(page)
     } catch (error) {
-      if (!(error instanceof ApiError)) throw error
-      showToast({ type: "error", message: error.message })
+      if (error instanceof ApiError) {
+        showToast({ type: "error", message: error.message })
+        return
+      }
+      throw error
     } finally {
       setIsSubsLoading(false)
     }
@@ -283,7 +293,7 @@ export default function AssignmentPage() {
       title: assignment.title,
       description: assignment.description,
       material_url: assignment.material_url ?? "",
-      due_at: assignment.due_at ? assignment.due_at.slice(0, 16) : "",
+      due_at: formatDateTimeInputValue(assignment.due_at),
       max_grade: String(assignment.max_grade)
     }
     setForm(saved)
@@ -310,7 +320,7 @@ export default function AssignmentPage() {
       title,
       description: form.description.trim(),
       material_url: form.material_url.trim() || null,
-      due_at: form.due_at || null,
+      due_at: toApiDateTime(form.due_at),
       max_grade: maxGrade
     }
 
@@ -323,15 +333,18 @@ export default function AssignmentPage() {
         title,
         description: form.description.trim() || undefined,
         material_url: form.material_url.trim() || null,
-        due_at: form.due_at || null,
+        due_at: toApiDateTime(form.due_at),
         max_grade: maxGrade
       })
       setAssignment(updated)
       showToast({ type: "neutral", message: "Задание обновлено" })
     } catch (error) {
       setAssignment(prev)
-      if (!(error instanceof ApiError)) throw error
-      showToast({ type: "error", message: error.message })
+      if (error instanceof ApiError) {
+        showToast({ type: "error", message: error.message })
+        return
+      }
+      throw error
     } finally {
       setIsSubmitting(false)
     }
@@ -348,9 +361,12 @@ export default function AssignmentPage() {
       showToast({ type: "neutral", message: "Задание удалено" })
       navigate(`/classes/${classId}/assignments`, { replace: true })
     } catch (error) {
-      if (!(error instanceof ApiError)) throw error
-      showToast({ type: "error", message: error.message })
-      setIsSubmitting(false)
+      if (error instanceof ApiError) {
+        showToast({ type: "error", message: error.message })
+        setIsSubmitting(false)
+        return
+      }
+      throw error
     }
   }
 
@@ -364,17 +380,6 @@ export default function AssignmentPage() {
     }
   }
 
-  function showUploadError(error: unknown, setError: (message: string) => void) {
-    if (!(error instanceof ApiError)) throw error
-
-    if (error.status === 413 || error.status === 422) {
-      setError(error.message)
-      return
-    }
-
-    showToast({ type: "error", message: error.message })
-  }
-
   // Сохранить черновик решения
   async function onSaveDraft() {
     if (isStudentBusy || attachmentFileError) return
@@ -384,8 +389,11 @@ export default function AssignmentPage() {
       setMySubmission(saved)
       showToast({ type: "neutral", message: "Черновик сохранён" })
     } catch (error) {
-      if (!(error instanceof ApiError)) throw error
-      showToast({ type: "error", message: error.message })
+      if (error instanceof ApiError) {
+        showToast({ type: "error", message: error.message })
+        return
+      }
+      throw error
     } finally {
       setIsSavingDraft(false)
     }
@@ -401,8 +409,11 @@ export default function AssignmentPage() {
       setMySubmission(sent)
       showToast({ type: "neutral", message: "Решение отправлено на проверку" })
     } catch (error) {
-      if (!(error instanceof ApiError)) throw error
-      showToast({ type: "error", message: error.message })
+      if (error instanceof ApiError) {
+        showToast({ type: "error", message: error.message })
+        return
+      }
+      throw error
     } finally {
       setIsSendingWork(false)
     }
@@ -418,7 +429,11 @@ export default function AssignmentPage() {
       setMySubmission(updated)
       showToast({ type: "neutral", message: "Файл решения загружен" })
     } catch (error) {
-      showUploadError(error, setAttachmentFileError)
+      if (error instanceof ApiError) {
+        setAttachmentFileError(error.message)
+        return
+      }
+      throw error
     } finally {
       setIsAttachmentBusy(false)
     }
@@ -433,8 +448,11 @@ export default function AssignmentPage() {
       setAttachmentFileError("")
       showToast({ type: "neutral", message: "Файл решения удалён" })
     } catch (error) {
-      if (!(error instanceof ApiError)) throw error
-      showToast({ type: "error", message: error.message })
+      if (error instanceof ApiError) {
+        showToast({ type: "error", message: error.message })
+        return
+      }
+      throw error
     } finally {
       setIsAttachmentBusy(false)
     }
@@ -449,7 +467,11 @@ export default function AssignmentPage() {
       setAssignment({ ...assignment, material_file: uploaded })
       showToast({ type: "neutral", message: "Файл материала загружен" })
     } catch (error) {
-      showUploadError(error, setMaterialFileError)
+      if (error instanceof ApiError) {
+        setMaterialFileError(error.message)
+        return
+      }
+      throw error
     } finally {
       setIsMaterialBusy(false)
     }
@@ -464,45 +486,40 @@ export default function AssignmentPage() {
       setMaterialFileError("")
       showToast({ type: "neutral", message: "Файл материала удалён" })
     } catch (error) {
-      if (!(error instanceof ApiError)) throw error
-      showToast({ type: "error", message: error.message })
+      if (error instanceof ApiError) {
+        showToast({ type: "error", message: error.message })
+        return
+      }
+      throw error
     } finally {
       setIsMaterialBusy(false)
     }
   }
 
   // Выбор файла материала задания
-  function onMaterialFileChange(event: ChangeEvent<HTMLInputElement>) {
-    const file = event.target.files?.[0]
+  function onMaterialFileChange(file: File) {
     setMaterialFileError("")
-    if (!file) return
 
     const error = validateUploadFile(file)
     if (error) {
       setMaterialFileError(error)
-      event.target.value = ""
       return
     }
 
     void onUploadMaterial(file)
-    event.target.value = ""
   }
 
   // Выбор файла решения студента
-  function onSubmissionFileChange(event: ChangeEvent<HTMLInputElement>) {
-    const file = event.target.files?.[0]
+  function onSubmissionFileChange(file: File) {
     setAttachmentFileError("")
-    if (!file) return
 
     const error = validateUploadFile(file)
     if (error) {
       setAttachmentFileError(error)
-      event.target.value = ""
       return
     }
 
     void onUploadAttachment(file)
-    event.target.value = ""
   }
 
   // ── Действия преподавателя ──
@@ -550,8 +567,11 @@ export default function AssignmentPage() {
       showToast({ type: "neutral", message: "Оценка сохранена" })
       void loadSubmissions(subsPage, statusFilter)
     } catch (error) {
-      if (!(error instanceof ApiError)) throw error
-      showToast({ type: "error", message: error.message })
+      if (error instanceof ApiError) {
+        showToast({ type: "error", message: error.message })
+        return
+      }
+      throw error
     } finally {
       setIsGrading(false)
     }
@@ -568,8 +588,11 @@ export default function AssignmentPage() {
       showToast({ type: "neutral", message: "Оценка снята" })
       void loadSubmissions(subsPage, statusFilter)
     } catch (error) {
-      if (!(error instanceof ApiError)) throw error
-      showToast({ type: "error", message: error.message })
+      if (error instanceof ApiError) {
+        showToast({ type: "error", message: error.message })
+        return
+      }
+      throw error
     } finally {
       setIsRemovingGrade(false)
     }
@@ -586,8 +609,11 @@ export default function AssignmentPage() {
       showToast({ type: "neutral", message: "Решение возвращено на доработку" })
       void loadSubmissions(subsPage, statusFilter)
     } catch (error) {
-      if (!(error instanceof ApiError)) throw error
-      showToast({ type: "error", message: error.message })
+      if (error instanceof ApiError) {
+        showToast({ type: "error", message: error.message })
+        return
+      }
+      throw error
     } finally {
       setIsReturning(false)
     }
@@ -675,28 +701,17 @@ export default function AssignmentPage() {
           )}
 
           {canEditAssignment && (
-            <div className={styles.fileActions}>
-              <label
-                className={`${styles.secondaryButton} ${isMaterialBusy ? styles.buttonDisabled : ""}`}
-                aria-disabled={isMaterialBusy}
-              >
-                {isMaterialBusy ? "Загрузка..." : "Загрузить файл материала"}
-                  <input
-                    className={styles.hiddenFileInput}
-                    type="file"
-                    accept={ACCEPTED_FILE_INPUT}
-                    onChange={onMaterialFileChange}
-                    disabled={isMaterialBusy}
-                  />
-              </label>
-              {assignment.material_file && (
-                <button className={styles.dangerButton} type="button" onClick={() => void onDeleteMaterial()} disabled={isMaterialBusy}>
-                  Удалить файл
-                </button>
-              )}
-              <div className={styles.fileHint}>Доступные форматы: {ACCEPTED_FILE_TYPES_LABEL}</div>
-              {materialFileError && <div className={styles.fileError}>{materialFileError}</div>}
-            </div>
+            <FilePicker
+              label="Загрузить файл материала"
+              busy={isMaterialBusy}
+              accept={ACCEPTED_FILE_INPUT}
+              hint={`Доступные форматы: ${ACCEPTED_FILE_TYPES_LABEL}`}
+              file={assignment.material_file ? { name: assignment.material_file.name, size: assignment.material_file.size } : null}
+              onRemove={() => void onDeleteMaterial()}
+              removeTitle="Удалить файл материала"
+              onSelect={onMaterialFileChange}
+              error={materialFileError}
+            />
           )}
 
           <div className={styles.meta}>
@@ -740,33 +755,19 @@ export default function AssignmentPage() {
                     />
                   </label>
 
-                  <div className={styles.fileActions}>
-                    <label
-                      className={`${styles.secondaryButton} ${isStudentBusy || isAttachmentBusy ? styles.buttonDisabled : ""}`}
-                      aria-disabled={isStudentBusy || isAttachmentBusy}
-                    >
-                      {isAttachmentBusy ? "Загрузка..." : "Загрузить файл решения"}
-                      <input
-                        className={styles.hiddenFileInput}
-                        type="file"
-                        accept={ACCEPTED_FILE_INPUT}
-                        onChange={onSubmissionFileChange}
-                        disabled={isStudentBusy || isAttachmentBusy}
-                      />
-                    </label>
-                    {mySubmission?.attachment_file && (
-                      <>
-                        <button className={styles.secondaryButton} type="button" onClick={() => void downloadStoredFile(mySubmission.attachment_file!)} disabled={isAttachmentBusy}>
-                          Скачать {mySubmission.attachment_file.name}
-                        </button>
-                        <button className={styles.dangerButton} type="button" onClick={() => void onDeleteAttachment()} disabled={isAttachmentBusy}>
-                          Удалить файл
-                        </button>
-                      </>
-                    )}
-                  </div>
-                  <div className={styles.fileHint}>Доступные форматы: {ACCEPTED_FILE_TYPES_LABEL}</div>
-                  {attachmentFileError && <div className={styles.fileError}>{attachmentFileError}</div>}
+                  <FilePicker
+                    label="Загрузить файл решения"
+                    busy={isAttachmentBusy}
+                    accept={ACCEPTED_FILE_INPUT}
+                    hint={`Доступные форматы: ${ACCEPTED_FILE_TYPES_LABEL}`}
+                    file={mySubmission?.attachment_file ? { name: mySubmission.attachment_file.name, size: mySubmission.attachment_file.size } : null}
+                    onDownload={() => void downloadStoredFile(mySubmission!.attachment_file!)}
+                    onRemove={() => void onDeleteAttachment()}
+                    removeTitle="Удалить файл решения"
+                    onSelect={onSubmissionFileChange}
+                    error={attachmentFileError}
+                    disabled={isStudentBusy}
+                  />
 
                   <label className={styles.field}>
                     <div className={styles.fieldLabel}>Ссылка на файл <span className={styles.fieldOptional}>(необязательно)</span></div>

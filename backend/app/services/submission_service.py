@@ -120,6 +120,13 @@ async def submit_my_submission(
     db.add(sub)
     await db.commit()
     await db.refresh(sub)
+    await notification_service.notify_submission_submitted(
+        class_id=asg.class_id,
+        assignment_id=asg.id,
+        assignment_title=asg.title,
+        student_id=user.id,
+        db=db,
+    )
     grade = await grade_repo.get_by_submission(sub.id, db)
     attachment_file = (
         await file_repo.get(sub.attachment_file_id, db) if sub.attachment_file_id else None

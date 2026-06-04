@@ -191,6 +191,31 @@ async def notify_submission_returned(
     )
 
 
+async def notify_submission_submitted(
+    *,
+    class_id: int,
+    assignment_id: int,
+    assignment_title: str,
+    student_id: int,
+    db: AsyncSession,
+) -> None:
+    user_ids = await class_repo.list_member_user_ids(
+        class_id,
+        roles=(ClassRole.CREATOR, ClassRole.TEACHER),
+        exclude_user_id=student_id,
+        include_inactive=False,
+        db=db,
+    )
+    await _create_and_send_many(
+        user_ids=user_ids,
+        notification_type=NotificationType.SUBMISSION_SUBMITTED,
+        title=f"Новое решение по заданию «{assignment_title}»",
+        class_id=class_id,
+        entity_id=assignment_id,
+        db=db,
+    )
+
+
 async def list_notifications(
     user_id: int,
     page: int,

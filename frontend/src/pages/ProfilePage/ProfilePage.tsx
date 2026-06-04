@@ -223,8 +223,11 @@ function EditProfileModal({ user, onSaved, onClose }: EditProfileModalProps) {
       showToast({ type: "neutral", message: "Профиль обновлён" })
       onClose()
     } catch (error) {
-      if (!(error instanceof ApiError)) throw error
-      setServerError(error.message)
+      if (error instanceof ApiError) {
+        setServerError(error.message)
+        return
+      }
+      throw error
     } finally {
       setIsSubmitting(false)
     }

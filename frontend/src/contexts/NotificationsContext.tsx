@@ -36,8 +36,11 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
         setNotifications(page.items)
         setUnreadCount(page.unread_count)
       } catch (error) {
-        if (!(error instanceof ApiError)) throw error
-        // Уведомления не критичны — не спамим тостом на каждом экране, просто молчим
+        if (error instanceof ApiError) {
+          // Уведомления не критичны — не спамим тостом на каждом экране, просто молчим
+          return
+        }
+        throw error
       } finally {
         if (isActive) setIsLoading(false)
       }
@@ -80,9 +83,12 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
       try {
         await markNotificationRead(id)
       } catch (error) {
-        if (!(error instanceof ApiError)) throw error
-        setNotifications(prevNotifications)
-        setUnreadCount(prevUnread)
+        if (error instanceof ApiError) {
+          setNotifications(prevNotifications)
+          setUnreadCount(prevUnread)
+          return
+        }
+        throw error
       }
     })()
   }
@@ -100,9 +106,12 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
       try {
         await markAllNotificationsRead()
       } catch (error) {
-        if (!(error instanceof ApiError)) throw error
-        setNotifications(prevNotifications)
-        setUnreadCount(prevUnread)
+        if (error instanceof ApiError) {
+          setNotifications(prevNotifications)
+          setUnreadCount(prevUnread)
+          return
+        }
+        throw error
       }
     })()
   }

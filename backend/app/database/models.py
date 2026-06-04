@@ -219,6 +219,7 @@ class NotificationType(enum.Enum):
     ASSIGNMENT = "assignment"
     GRADE = "grade"
     SUBMISSION_RETURNED = "submission_returned"
+    SUBMISSION_SUBMITTED = "submission_submitted"
 
 
 class NotificationsTable(Base):

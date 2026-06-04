@@ -9,7 +9,7 @@ import { DURATION, EASE_OUT } from "../../shared/motion"
 import styles from "./NotificationsBell.module.css"
 
 // Куда вести по клику — на конкретную страницу сущности, а не просто на курс.
-// entity_id у assignment/grade/submission_returned — это id задания, у announcement — id объявления.
+// entity_id у assignment/grade/submission_* — это id задания, у announcement — id объявления.
 function notificationLink(notification: AppNotification): string | null {
   if (notification.class_id === null) return null
 
@@ -22,6 +22,7 @@ function notificationLink(notification: AppNotification): string | null {
     case "assignment":
     case "grade":
     case "submission_returned":
+    case "submission_submitted":
       return `${base}/assignments/${notification.entity_id}`
     default:
       return base

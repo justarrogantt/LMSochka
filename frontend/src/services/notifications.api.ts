@@ -3,12 +3,12 @@ import { Api } from "./api"
 import { parseApiResponse, throwApiResponseError } from "./response"
 import type { Errors } from "../types/api.types"
 
-export type NotificationType = "announcement" | "assignment" | "grade" | "submission_returned"
+export type NotificationType = "announcement" | "assignment" | "grade" | "submission_returned" | "submission_submitted"
 
 // Уведомление в том виде, в каком его отдаёт REST и присылает WebSocket.
 const NotificationSchema = z.object({
   id: z.number(),
-  type: z.enum(["announcement", "assignment", "grade", "submission_returned"]),
+  type: z.enum(["announcement", "assignment", "grade", "submission_returned", "submission_submitted"]),
   title: z.string(),
   class_id: z.number().nullable(),
   entity_id: z.number().nullable(),

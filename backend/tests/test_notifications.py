@@ -156,11 +156,14 @@ async def test_notifications_rest_and_triggers(client):
     assert r.status_code == 404
 
     r = await client.get("/api/notifications", headers=_auth(teacher_token))
-    assert r.json()["items"] == []
+    teacher_items = r.json()["items"]
+    assert [item["type"] for item in teacher_items] == ["submission_submitted"]
+    assert teacher_items[0]["entity_id"] == aid
 
     r = await client.get("/api/notifications", headers=_auth(creator_token))
     creator_items = r.json()["items"]
-    assert [item["type"] for item in creator_items] == ["announcement"]
+    assert [item["type"] for item in creator_items] == ["submission_submitted", "announcement"]
+    assert creator_items[0]["entity_id"] == aid
 
 
 @pytest.mark.asyncio

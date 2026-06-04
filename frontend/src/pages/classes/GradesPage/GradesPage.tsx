@@ -68,8 +68,11 @@ export default function GradesPage() {
         if (!data) return
         setGradebook(data)
       } catch (error) {
-        if (!(error instanceof ApiError)) throw error
-        showToast({ type: "error", message: error.message })
+        if (error instanceof ApiError) {
+          showToast({ type: "error", message: error.message })
+          return
+        }
+        throw error
       } finally {
         setIsLoading(false)
       }

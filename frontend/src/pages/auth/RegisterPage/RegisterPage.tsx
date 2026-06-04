@@ -141,8 +141,11 @@ export default function RegisterPage() {
       setUser(authData.user)
       navigate("/classes", { replace: true })
     } catch (error) {
-      if (!(error instanceof ApiError)) throw error
-      setServerError(error.message)
+      if (error instanceof ApiError) {
+        setServerError(error.message)
+        return
+      }
+      throw error
     } finally {
       setIsSubmitting(false)
     }

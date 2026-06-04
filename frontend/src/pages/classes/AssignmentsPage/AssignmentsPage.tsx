@@ -1,4 +1,4 @@
-import { useEffect, useState, type ChangeEvent } from "react"
+import { useEffect, useState } from "react"
 import { AnimatePresence, motion } from "framer-motion"
 import { useNavigate, useOutletContext, useParams } from "react-router-dom"
 import AddIcon from "../../../assets/icons/classes/add.svg?react"
@@ -9,7 +9,8 @@ import Pagination from "../../../components/Pagination/Pagination"
 import { useToast } from "../../../components/Toast/ToastProvider"
 import { ApiError } from "../../../services/api"
 import { ACCEPTED_FILE_INPUT, ACCEPTED_FILE_TYPES_LABEL, validateUploadFile } from "../../../services/files.api"
-import { formatDateTime, truncate } from "../../../services/helpers"
+import { formatDateTime, formatDateTimeInputValue, toApiDateTime, truncate } from "../../../services/helpers"
+import FilePicker from "../../../shared/FilePicker/FilePicker"
 import { listContainer, listItem } from "../../../shared/motion"
 import type { ClassLayoutContext } from "../../../layouts/ClassLayout/ClassLayout"
 import {
@@ -132,8 +133,11 @@ export default function AssignmentsPage() {
       setPendingReviewTotal(data.pending_review_total)
       setCurrentPage(page)
     } catch (error) {
-      if (!(error instanceof ApiError)) throw error
-      showToast({ type: "error", message: error.message })
+      if (error instanceof ApiError) {
+        showToast({ type: "error", message: error.message })
+        return
+      }
+      throw error
     } finally {
       setIsLoading(false)
     }
@@ -181,7 +185,7 @@ export default function AssignmentsPage() {
       title: item.title,
       description: item.description,
       material_url: item.material_url ?? "",
-      due_at: item.due_at ? item.due_at.slice(0, 16) : "",
+      due_at: formatDateTimeInputValue(item.due_at),
       max_grade: String(item.max_grade)
     }
     setForm(saved)
@@ -201,26 +205,27 @@ export default function AssignmentsPage() {
       title: form.title.trim(),
       description: form.description.trim() || undefined,
       material_url: form.material_url.trim() || null,
-      due_at: form.due_at || null,
+      due_at: toApiDateTime(form.due_at),
       max_grade: Number(form.max_grade)
     }
   }
 
-  function onMaterialFileChange(event: ChangeEvent<HTMLInputElement>) {
-    const file = event.target.files?.[0] ?? null
+  function onMaterialFileChange(file: File) {
     setMaterialFile(null)
     setMaterialFileError("")
-
-    if (!file) return
 
     const error = validateUploadFile(file)
     if (error) {
       setMaterialFileError(error)
-      event.target.value = ""
       return
     }
 
     setMaterialFile(file)
+  }
+
+  function onMaterialFileClear() {
+    setMaterialFile(null)
+    setMaterialFileError("")
   }
 
   async function rollbackCreatedAssignment(assignmentId: number) {
@@ -229,8 +234,11 @@ export default function AssignmentsPage() {
     try {
       await deleteAssignment(classDetail.id, assignmentId)
     } catch (error) {
-      if (!(error instanceof ApiError)) throw error
-      showToast({ type: "error", message: error.message })
+      if (error instanceof ApiError) {
+        showToast({ type: "error", message: error.message })
+        return
+      }
+      throw error
     }
   }
 
@@ -248,9 +256,11 @@ export default function AssignmentsPage() {
           await uploadAssignmentMaterial(classDetail.id, created.id, materialFile)
         } catch (error) {
           await rollbackCreatedAssignment(created.id)
-          if (!(error instanceof ApiError)) throw error
-          setMaterialFileError(error.message)
-          return
+          if (error instanceof ApiError) {
+            setMaterialFileError(error.message)
+            return
+          }
+          throw error
         }
       }
       showToast({ type: "neutral", message: "Задание создано" })
@@ -261,8 +271,11 @@ export default function AssignmentsPage() {
         setViewMode("all")
       }
     } catch (error) {
-      if (!(error instanceof ApiError)) throw error
-      showToast({ type: "error", message: error.message })
+      if (error instanceof ApiError) {
+        showToast({ type: "error", message: error.message })
+        return
+      }
+      throw error
     } finally {
       setIsSubmitting(false)
     }
@@ -281,9 +294,11 @@ export default function AssignmentsPage() {
         try {
           uploadedMaterial = await uploadAssignmentMaterial(classDetail.id, id, materialFile)
         } catch (error) {
-          if (!(error instanceof ApiError)) throw error
-          setMaterialFileError(error.message)
-          return
+          if (error instanceof ApiError) {
+            setMaterialFileError(error.message)
+            return
+          }
+          throw error
         }
       }
 
@@ -293,8 +308,11 @@ export default function AssignmentsPage() {
       showToast({ type: "neutral", message: "Задание обновлено" })
       finishFormModal()
     } catch (error) {
-      if (!(error instanceof ApiError)) throw error
-      showToast({ type: "error", message: error.message })
+      if (error instanceof ApiError) {
+        showToast({ type: "error", message: error.message })
+        return
+      }
+      throw error
     } finally {
       setIsSubmitting(false)
     }
@@ -311,8 +329,11 @@ export default function AssignmentsPage() {
       const nextPage = items.length === 1 && currentPage > 1 ? currentPage - 1 : currentPage
       void loadPage(nextPage, viewMode)
     } catch (error) {
-      if (!(error instanceof ApiError)) throw error
-      showToast({ type: "error", message: error.message })
+      if (error instanceof ApiError) {
+        showToast({ type: "error", message: error.message })
+        return
+      }
+      throw error
     } finally {
       setIsSubmitting(false)
     }
@@ -405,19 +426,19 @@ export default function AssignmentsPage() {
             />
           </label>
 
-          <label className={styles.field}>
+          <div className={styles.field}>
             <div className={styles.fieldLabel}>Файл материала <span className={styles.fieldOptional}>(необязательно, до 20 МБ)</span></div>
-            <input
-              className={styles.input}
-              type="file"
+            <FilePicker
+              label="Выберите файл материала"
               accept={ACCEPTED_FILE_INPUT}
-              onChange={onMaterialFileChange}
+              hint={`Доступные форматы: ${ACCEPTED_FILE_TYPES_LABEL}`}
+              file={materialFile ? { name: materialFile.name, size: materialFile.size } : null}
+              onSelect={onMaterialFileChange}
+              onRemove={onMaterialFileClear}
+              error={materialFileError}
               disabled={isSubmitting}
             />
-            <div className={styles.fieldHint}>Доступные форматы: {ACCEPTED_FILE_TYPES_LABEL}</div>
-            {materialFile && <div className={styles.fieldHint}>Выбран файл: {materialFile.name}</div>}
-            {materialFileError && <div className={styles.fieldError}>{materialFileError}</div>}
-          </label>
+          </div>
 
           <label className={styles.field}>
             <div className={styles.fieldLabel}>Описание <span className={styles.fieldOptional}>(необязательно)</span></div>

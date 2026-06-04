@@ -1,0 +1,181 @@
+.root {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 100%;
+}
+
+/* Область выбора — пунктирный dropzone в стиле проекта */
+.dropzone {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 16px;
+  border: 1.5px dashed var(--color-line-strong);
+  border-radius: var(--radius-md);
+  background: var(--color-surface-2);
+  color: var(--color-text);
+  cursor: pointer;
+  transition:
+    border-color 0.16s ease,
+    background 0.16s ease,
+    box-shadow 0.16s ease;
+}
+
+.dropzone:hover {
+  border-color: var(--color-accent);
+  background: var(--color-accent-soft);
+}
+
+/* Кольцо фокуса, когда фокус на скрытом input внутри label */
+.dropzone:focus-within {
+  border-color: var(--color-accent);
+  box-shadow: 0 0 0 4px var(--color-accent-ring);
+}
+
+.dropzoneLocked {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.dropzoneLocked:hover {
+  border-color: var(--color-line-strong);
+  background: var(--color-surface-2);
+}
+
+.icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 38px;
+  height: 38px;
+  border-radius: var(--radius-pill);
+  background: var(--color-accent-soft);
+  color: var(--color-accent);
+}
+
+.icon svg {
+  width: 20px;
+  height: 20px;
+}
+
+.dropzone:hover .icon {
+  background: var(--color-accent);
+  color: #ffffff;
+}
+
+.label {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+/* Прячем нативный input, но оставляем фокусируемым (через :focus-within на dropzone) */
+.input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* Чип выбранного / загруженного файла */
+.chip {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 10px 9px 12px;
+  border: 1px solid var(--color-line-strong);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+}
+
+.chipIcon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  color: var(--color-accent);
+}
+
+.chipIcon svg {
+  width: 18px;
+  height: 18px;
+}
+
+.chipName {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--color-text);
+  text-align: left;
+}
+
+/* Когда имя кликабельно (скачивание) */
+button.chipName {
+  border: none;
+  background: none;
+  padding: 0;
+  cursor: pointer;
+}
+
+button.chipName:hover {
+  color: var(--color-accent);
+  text-decoration: underline;
+}
+
+.chipSize {
+  flex-shrink: 0;
+  font-size: 12px;
+  color: var(--color-muted);
+}
+
+.chipRemove {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: none;
+  border-radius: var(--radius-pill);
+  background: none;
+  color: var(--color-muted);
+  cursor: pointer;
+  transition:
+    background 0.16s ease,
+    color 0.16s ease;
+}
+
+.chipRemove svg {
+  width: 16px;
+  height: 16px;
+}
+
+.chipRemove:hover {
+  background: var(--color-danger-soft);
+  color: var(--color-danger);
+}
+
+.hint {
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--color-muted);
+}
+
+.error {
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.4;
+  color: var(--color-danger);
+}

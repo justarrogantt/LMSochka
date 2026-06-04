@@ -55,9 +55,12 @@ export default function AnnouncementPage() {
         const data = await getAnnouncement(parsedClassId, parsedAnnouncementId)
         setAnnouncement(data)
       } catch (error) {
-        if (!(error instanceof ApiError)) throw error
-        showToast({ type: "error", message: error.message })
-        navigate(`/classes/${classId}/announcements`, { replace: true })
+        if (error instanceof ApiError) {
+          showToast({ type: "error", message: error.message })
+          navigate(`/classes/${classId}/announcements`, { replace: true })
+          return
+        }
+        throw error
       } finally {
         setIsLoading(false)
       }
@@ -105,8 +108,11 @@ export default function AnnouncementPage() {
       showToast({ type: "neutral", message: "Объявление обновлено" })
     } catch (error) {
       setAnnouncement(prev)
-      if (!(error instanceof ApiError)) throw error
-      showToast({ type: "error", message: error.message })
+      if (error instanceof ApiError) {
+        showToast({ type: "error", message: error.message })
+        return
+      }
+      throw error
     } finally {
       setIsSubmitting(false)
     }
@@ -123,9 +129,12 @@ export default function AnnouncementPage() {
       showToast({ type: "neutral", message: "Объявление удалено" })
       navigate(`/classes/${classId}/announcements`, { replace: true })
     } catch (error) {
-      if (!(error instanceof ApiError)) throw error
-      showToast({ type: "error", message: error.message })
-      setIsSubmitting(false)
+      if (error instanceof ApiError) {
+        showToast({ type: "error", message: error.message })
+        setIsSubmitting(false)
+        return
+      }
+      throw error
     }
   }
 

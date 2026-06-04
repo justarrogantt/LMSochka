@@ -125,8 +125,11 @@ export default function ClassMembersPage() {
           setRemovedMembers([])
         }
       } catch (error) {
-        if (!(error instanceof ApiError)) throw error
-        showToast({ type: "error", message: error.message })
+        if (error instanceof ApiError) {
+          showToast({ type: "error", message: error.message })
+          return
+        }
+        throw error
       } finally {
         setIsLoading(false)
       }
@@ -155,8 +158,11 @@ export default function ClassMembersPage() {
       showToast({ type: "neutral", message: "Роль участника обновлена" })
     } catch (error) {
       setMembers(prevMembers)
-      if (!(error instanceof ApiError)) throw error
-      showToast({ type: "error", message: error.message })
+      if (error instanceof ApiError) {
+        showToast({ type: "error", message: error.message })
+        return
+      }
+      throw error
     } finally {
       setIsSubmitting(false)
     }
@@ -179,8 +185,11 @@ export default function ClassMembersPage() {
       showToast({ type: "neutral", message: "Участник удален из курса" })
     } catch (error) {
       setMembers(prevMembers)
-      if (!(error instanceof ApiError)) throw error
-      showToast({ type: "error", message: error.message })
+      if (error instanceof ApiError) {
+        showToast({ type: "error", message: error.message })
+        return
+      }
+      throw error
     } finally {
       setIsSubmitting(false)
     }
@@ -195,8 +204,11 @@ export default function ClassMembersPage() {
       setRemovedMembers((prev) => prev.filter((item) => item.user_id !== member.user_id))
       showToast({ type: "neutral", message: "Участник восстановлен как студент" })
     } catch (error) {
-      if (!(error instanceof ApiError)) throw error
-      showToast({ type: "error", message: error.message })
+      if (error instanceof ApiError) {
+        showToast({ type: "error", message: error.message })
+        return
+      }
+      throw error
     } finally {
       setIsSubmitting(false)
     }
@@ -217,8 +229,11 @@ export default function ClassMembersPage() {
       setSelectedMember(null)
       showToast({ type: "neutral", message: `Курс передан: ${getMemberName(target)}` })
     } catch (error) {
-      if (!(error instanceof ApiError)) throw error
-      showToast({ type: "error", message: error.message })
+      if (error instanceof ApiError) {
+        showToast({ type: "error", message: error.message })
+        return
+      }
+      throw error
     } finally {
       setIsSubmitting(false)
     }
