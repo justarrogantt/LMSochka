@@ -1,5 +1,6 @@
 import { z } from "zod"
 import { Api } from "../../../../services/api"
+import { deleteStoredFile, StoredFileSchema, type StoredFileDto, uploadStoredFile } from "../../../../services/files.api"
 import { parseApiResponse, throwApiResponseError } from "../../../../services/response"
 import type { Errors } from "../../../../types/api.types"
 
@@ -50,10 +51,13 @@ const AssignmentSchema = z.object({
   title: z.string(),
   description: z.string(),
   material_url: z.string().nullable(),
+  material_file: StoredFileSchema.nullable(),
   due_at: z.string().nullable(),
   max_grade: z.number(),
   created_at: z.string(),
   updated_at: z.string().nullable(),
+  can_edit: z.boolean(),
+  can_delete: z.boolean(),
   my_submission: AssignmentMySubmissionSchema.nullable(),
   stats: AssignmentStatsSchema.nullable()
 }).strip()
@@ -189,4 +193,16 @@ export async function deleteAssignment(classId: number, assignmentId: number): P
   } catch (error) {
     throwApiResponseError(error)
   }
+}
+
+export function uploadAssignmentMaterial(
+  classId: number,
+  assignmentId: number,
+  file: File
+): Promise<StoredFileDto> {
+  return uploadStoredFile(`/api/classes/${classId}/assignments/${assignmentId}/material-file`, file)
+}
+
+export function deleteAssignmentMaterial(classId: number, assignmentId: number): Promise<void> {
+  return deleteStoredFile(`/api/classes/${classId}/assignments/${assignmentId}/material-file`)
 }

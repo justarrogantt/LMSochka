@@ -9,20 +9,25 @@ import Pagination from "../../../components/Pagination/Pagination"
 import CardsSkeleton from "../../../components/Skeleton/CardsSkeleton"
 import { useToast } from "../../../components/Toast/ToastProvider"
 import { ApiSilentError } from "../../../services/api"
+import { downloadStoredFile, formatFileSize } from "../../../services/files.api"
 import { formatDateTime } from "../../../services/helpers"
 import type { ClassLayoutContext } from "../../../layouts/ClassLayout/ClassLayout"
 import {
+  deleteAssignmentMaterial,
+  deleteAssignment,
   getAssignment,
   updateAssignment,
-  deleteAssignment,
+  uploadAssignmentMaterial,
   type AssignmentDto
 } from "../AssignmentsPage/services/assignments.api"
 import {
+  deleteSubmissionAttachment,
   getMySubmission,
   listSubmissions,
   returnSubmission,
   saveMySubmission,
   submitMySubmission,
+  uploadSubmissionAttachment,
   type SaveSubmissionBody,
   type SubmissionDto,
   type SubmissionStatus,
@@ -104,6 +109,8 @@ export default function AssignmentPage() {
   const [attachmentUrl, setAttachmentUrl] = useState("")
   const [isSavingDraft, setIsSavingDraft] = useState(false)
   const [isSendingWork, setIsSendingWork] = useState(false)
+  const [isAttachmentBusy, setIsAttachmentBusy] = useState(false)
+  const [isMaterialBusy, setIsMaterialBusy] = useState(false)
 
   // ── Состояние преподавателя: список решений ──
   const [submissions, setSubmissions] = useState<SubmissionDto[]>([])
@@ -125,7 +132,8 @@ export default function AssignmentPage() {
   const parsedClassId = Number(classId)
   const parsedAssignmentId = Number(assignmentId)
 
-  const canManage = classDetail?.permissions.can_create_assignment ?? false
+  const canEditAssignment = assignment?.can_edit ?? false
+  const canDeleteAssignment = assignment?.can_delete ?? false
   const canSubmit = classDetail?.permissions.can_submit_solution ?? false
   const canGrade = classDetail?.permissions.can_grade_submissions ?? false
 
@@ -325,6 +333,63 @@ export default function AssignmentPage() {
     }
   }
 
+  async function onUploadAttachment(file: File) {
+    if (isStudentBusy || isAttachmentBusy) return
+    setIsAttachmentBusy(true)
+    try {
+      await uploadSubmissionAttachment(parsedAssignmentId, file)
+      const updated = await getMySubmission(parsedAssignmentId)
+      setMySubmission(updated)
+      showToast({ type: "neutral", message: "Файл решения загружен" })
+    } catch (error) {
+      showToast({ type: "error", message: (error as Error).message })
+    } finally {
+      setIsAttachmentBusy(false)
+    }
+  }
+
+  async function onDeleteAttachment() {
+    if (isStudentBusy || isAttachmentBusy) return
+    setIsAttachmentBusy(true)
+    try {
+      await deleteSubmissionAttachment(parsedAssignmentId)
+      setMySubmission((prev) => (prev ? { ...prev, attachment_file: null } : prev))
+      showToast({ type: "neutral", message: "Файл решения удалён" })
+    } catch (error) {
+      showToast({ type: "error", message: (error as Error).message })
+    } finally {
+      setIsAttachmentBusy(false)
+    }
+  }
+
+  async function onUploadMaterial(file: File) {
+    if (!assignment || isMaterialBusy) return
+    setIsMaterialBusy(true)
+    try {
+      const uploaded = await uploadAssignmentMaterial(parsedClassId, assignment.id, file)
+      setAssignment({ ...assignment, material_file: uploaded })
+      showToast({ type: "neutral", message: "Файл материала загружен" })
+    } catch (error) {
+      showToast({ type: "error", message: (error as Error).message })
+    } finally {
+      setIsMaterialBusy(false)
+    }
+  }
+
+  async function onDeleteMaterial() {
+    if (!assignment || isMaterialBusy) return
+    setIsMaterialBusy(true)
+    try {
+      await deleteAssignmentMaterial(parsedClassId, assignment.id)
+      setAssignment({ ...assignment, material_file: null })
+      showToast({ type: "neutral", message: "Файл материала удалён" })
+    } catch (error) {
+      showToast({ type: "error", message: (error as Error).message })
+    } finally {
+      setIsMaterialBusy(false)
+    }
+  }
+
   // ── Действия преподавателя ──
 
   // Открыть решение на проверку и заполнить поля формы оценки
@@ -419,7 +484,11 @@ export default function AssignmentPage() {
   const myStatus = mySubmission?.status ?? null
   // Редактировать можно только черновик, возвращённое или ещё не начатое решение
   const isMyEditable = myStatus === null || myStatus === "draft" || myStatus === "returned"
-  const canSendWork = (answerText.trim().length > 0 || attachmentUrl.trim().length > 0) && !isStudentBusy
+  const canSendWork = (
+    answerText.trim().length > 0 ||
+    attachmentUrl.trim().length > 0 ||
+    Boolean(mySubmission?.attachment_file)
+  ) && !isStudentBusy && !isAttachmentBusy
 
   const isReviewBusy = isGrading || isRemovingGrade || isReturning
   const gradeNum = Number(gradeValue)
@@ -439,16 +508,20 @@ export default function AssignmentPage() {
           Все задания
         </button>
 
-        {canManage && !isLoading && assignment && (
+        {!isLoading && assignment && (canEditAssignment || canDeleteAssignment) && (
           <div className={styles.pageActions}>
-            <button className={styles.secondaryButton} type="button" onClick={openEditModal}>
-              <EditIcon className={styles.buttonIcon} />
-              Редактировать
-            </button>
-            <button className={styles.dangerButton} type="button" onClick={() => setActiveModal("delete")}>
-              <DeleteIcon className={styles.buttonIcon} />
-              Удалить
-            </button>
+            {canEditAssignment && (
+              <button className={styles.secondaryButton} type="button" onClick={openEditModal}>
+                <EditIcon className={styles.buttonIcon} />
+                Редактировать
+              </button>
+            )}
+            {canDeleteAssignment && (
+              <button className={styles.dangerButton} type="button" onClick={() => setActiveModal("delete")}>
+                <DeleteIcon className={styles.buttonIcon} />
+                Удалить
+              </button>
+            )}
           </div>
         )}
       </div>
@@ -467,6 +540,39 @@ export default function AssignmentPage() {
             <a className={styles.materialLink} href={assignment.material_url} target="_blank" rel="noopener noreferrer">
               Открыть материал →
             </a>
+          )}
+
+          {assignment.material_file && (
+            <button
+              className={styles.materialLink}
+              type="button"
+              onClick={() => void downloadStoredFile(assignment.material_file!)}
+            >
+              Скачать {assignment.material_file.name} ({formatFileSize(assignment.material_file.size)})
+            </button>
+          )}
+
+          {canEditAssignment && (
+            <div className={styles.fileActions}>
+              <label className={styles.secondaryButton}>
+                {isMaterialBusy ? "Загрузка..." : "Загрузить файл материала"}
+                <input
+                  className={styles.hiddenFileInput}
+                  type="file"
+                  onChange={(event) => {
+                    const file = event.target.files?.[0]
+                    if (file) void onUploadMaterial(file)
+                    event.target.value = ""
+                  }}
+                  disabled={isMaterialBusy}
+                />
+              </label>
+              {assignment.material_file && (
+                <button className={styles.dangerButton} type="button" onClick={() => void onDeleteMaterial()} disabled={isMaterialBusy}>
+                  Удалить файл
+                </button>
+              )}
+            </div>
           )}
 
           <div className={styles.meta}>
@@ -510,6 +616,32 @@ export default function AssignmentPage() {
                     />
                   </label>
 
+                  <div className={styles.fileActions}>
+                    <label className={styles.secondaryButton}>
+                      {isAttachmentBusy ? "Загрузка..." : "Загрузить файл решения"}
+                      <input
+                        className={styles.hiddenFileInput}
+                        type="file"
+                        onChange={(event) => {
+                          const file = event.target.files?.[0]
+                          if (file) void onUploadAttachment(file)
+                          event.target.value = ""
+                        }}
+                        disabled={isStudentBusy || isAttachmentBusy}
+                      />
+                    </label>
+                    {mySubmission?.attachment_file && (
+                      <>
+                        <button className={styles.secondaryButton} type="button" onClick={() => void downloadStoredFile(mySubmission.attachment_file!)} disabled={isAttachmentBusy}>
+                          Скачать {mySubmission.attachment_file.name}
+                        </button>
+                        <button className={styles.dangerButton} type="button" onClick={() => void onDeleteAttachment()} disabled={isAttachmentBusy}>
+                          Удалить файл
+                        </button>
+                      </>
+                    )}
+                  </div>
+
                   <label className={styles.field}>
                     <div className={styles.fieldLabel}>Ссылка на файл <span className={styles.fieldOptional}>(необязательно)</span></div>
                     <input
@@ -539,6 +671,12 @@ export default function AssignmentPage() {
                     <a className={styles.submissionLink} href={mySubmission.attachment_url} target="_blank" rel="noopener noreferrer">
                       Прикреплённый файл →
                     </a>
+                  )}
+
+                  {mySubmission?.attachment_file && (
+                    <button className={styles.submissionLink} type="button" onClick={() => void downloadStoredFile(mySubmission.attachment_file!)}>
+                      Скачать {mySubmission.attachment_file.name} ({formatFileSize(mySubmission.attachment_file.size)})
+                    </button>
                   )}
 
                   <div className={styles.meta}>
@@ -616,7 +754,7 @@ export default function AssignmentPage() {
       )}
 
       <AnimatePresence>
-        {canManage && activeModal === "edit" && (
+        {canEditAssignment && activeModal === "edit" && (
         <Modal title="Редактировать задание" onClose={closeModal} disabled={isSubmitting}>
           <label className={styles.field}>
             <div className={styles.fieldLabel}>Название</div>
@@ -688,7 +826,7 @@ export default function AssignmentPage() {
       </AnimatePresence>
 
       <AnimatePresence>
-        {canManage && activeModal === "delete" && (
+        {canDeleteAssignment && activeModal === "delete" && (
         <Modal title="Удалить задание" onClose={closeModal} disabled={isSubmitting}>
           <div className={styles.modalText}>Вы точно хотите удалить задание? Это действие нельзя отменить.</div>
           <div className={styles.modalActions}>
@@ -725,6 +863,12 @@ export default function AssignmentPage() {
             <a className={styles.submissionLink} href={selected.attachment_url} target="_blank" rel="noopener noreferrer">
               Прикреплённый файл →
             </a>
+          )}
+
+          {selected.attachment_file && (
+            <button className={styles.submissionLink} type="button" onClick={() => void downloadStoredFile(selected.attachment_file!)}>
+              Скачать {selected.attachment_file.name} ({formatFileSize(selected.attachment_file.size)})
+            </button>
           )}
 
           <div className={styles.meta}>

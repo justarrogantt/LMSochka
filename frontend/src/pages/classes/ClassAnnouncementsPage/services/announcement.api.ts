@@ -29,7 +29,9 @@ const AnnouncementSchema = z.object({
   content: z.string(),
   author: UserBriefSchema,
   created_at: z.string(),
-  updated_at: z.string().nullable()
+  updated_at: z.string().nullable(),
+  can_edit: z.boolean(),
+  can_delete: z.boolean()
 }).strip()
 
 export type AnnouncementDto = z.infer<typeof AnnouncementSchema>

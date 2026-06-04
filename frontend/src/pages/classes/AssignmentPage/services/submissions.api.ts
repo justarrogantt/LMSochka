@@ -1,5 +1,6 @@
 import { z } from "zod"
 import { Api } from "../../../../services/api"
+import { deleteStoredFile, StoredFileSchema, type StoredFileDto, uploadStoredFile } from "../../../../services/files.api"
 import { parseApiResponse, throwApiResponseError } from "../../../../services/response"
 import type { Errors, PageDto } from "../../../../types/api.types"
 
@@ -39,6 +40,7 @@ const SubmissionSchema = z.object({
   student: SubmissionStudentSchema,
   answer_text: z.string(),
   attachment_url: z.string().nullable(),
+  attachment_file: StoredFileSchema.nullable(),
   status: SubmissionStatusSchema,
   return_comment: z.string().nullable(),
   submitted_at: z.string().nullable(),
@@ -163,4 +165,12 @@ export async function returnSubmission(submissionId: number, comment: string | n
   } catch (error) {
     throwApiResponseError(error)
   }
+}
+
+export function uploadSubmissionAttachment(assignmentId: number, file: File): Promise<StoredFileDto> {
+  return uploadStoredFile(`/api/assignments/${assignmentId}/my-submission/attachment-file`, file)
+}
+
+export function deleteSubmissionAttachment(assignmentId: number): Promise<void> {
+  return deleteStoredFile(`/api/assignments/${assignmentId}/my-submission/attachment-file`)
 }
