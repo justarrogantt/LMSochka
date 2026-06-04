@@ -185,8 +185,6 @@ function EditProfileModal({ user, onSaved, onClose }: EditProfileModalProps) {
         nextErrors.newPassword = "Введите новый пароль."
       } else if (form.newPassword.length < passwordMinLength) {
         nextErrors.newPassword = "Пароль должен быть не короче 8 символов."
-      } else if (form.newPassword === form.currentPassword) {
-        nextErrors.newPassword = "Новый пароль должен отличаться от текущего."
       }
       if (!form.repeatPassword) {
         nextErrors.repeatPassword = "Повторите новый пароль."

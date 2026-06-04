@@ -181,7 +181,7 @@ async def change_password(
         raise ServiceError("Неверный текущий пароль", 400)
 
     if verify_password(new_password, user.password_hash):
-        raise ServiceError("Новый пароль должен отличаться от текущего", 400)
+        raise ServiceError("Новый пароль должен отличаться от текущего", 409)
 
     user.password_hash = hash_password(new_password)
     db.add(user)

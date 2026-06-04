@@ -1,0 +1,38 @@
+services:
+  backend:
+    build:
+      context: ./backend
+    environment:
+      SECRET_KEY: ${SECRET_KEY:?SECRET_KEY must be set}
+      DATABASE_NAME: /data/lms.db
+      UPLOAD_DIR: /data/uploads
+      ACCESS_TOKEN_TTL: ${ACCESS_TOKEN_TTL:-15}
+      REFRESH_TOKEN_TTL: ${REFRESH_TOKEN_TTL:-10080}
+    volumes:
+      - lms_data:/data
+    expose:
+      - "8000"
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/', timeout=3)"
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: ./frontend
+    depends_on:
+      backend:
+        condition: service_healthy
+    ports:
+      - "${APP_PORT:-8080}:80"
+    restart: unless-stopped
+
+volumes:
+  lms_data:
