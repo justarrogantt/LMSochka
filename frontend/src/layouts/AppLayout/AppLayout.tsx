@@ -44,7 +44,16 @@ const SIDEBAR_OPEN_STORAGE_KEY = "sidebar_open"
 const SIDEBAR_WIDTH_OPEN = 256
 const SIDEBAR_WIDTH_COLLAPSED = 80
 
+// Брейкпоинт мобильной версии: сайдбар превращается в выезжающий drawer
+const MOBILE_QUERY = "(max-width: 768px)"
+
+function isMobileViewport() {
+  return window.matchMedia(MOBILE_QUERY).matches
+}
+
 function getInitialSidebarOpen() {
+  // На телефоне drawer всегда стартует закрытым, чтобы не перекрывать контент при загрузке
+  if (isMobileViewport()) return false
   const saved = localStorage.getItem(SIDEBAR_OPEN_STORAGE_KEY)
   return saved === "true"
 }
@@ -60,19 +69,36 @@ export default function AppLayout() {
   const userName = user ? formatUserName(user) : ""
   const userInitial = userName.trim().charAt(0).toUpperCase() || "U"
 
+  const [isMobile, setIsMobile] = useState<boolean>(isMobileViewport)
   const [isSidebarOpen, setIsSidebarOpen] = useState<boolean>(getInitialSidebarOpen)
   const [isLoggingOut, setIsLoggingOut] = useState(false)
 
+  // Следим за сменой вьюпорта: вход в мобильный режим закрывает drawer,
+  // возврат к десктопу — восстанавливает сохранённое состояние сайдбара.
   useEffect(() => {
-    saveSidebarOpen(isSidebarOpen)
+    const mql = window.matchMedia(MOBILE_QUERY)
+
+    function onChange(event: MediaQueryListEvent) {
+      setIsMobile(event.matches)
+      setIsSidebarOpen(event.matches ? false : localStorage.getItem(SIDEBAR_OPEN_STORAGE_KEY) === "true")
+    }
+
+    mql.addEventListener("change", onChange)
+    return () => mql.removeEventListener("change", onChange)
   }, [])
 
   function toggleSidebar() {
     setIsSidebarOpen((prev) => {
       const next = !prev
-      saveSidebarOpen(next)
+      // На телефоне drawer — временное состояние, в localStorage держим только десктопную настройку
+      if (!isMobile) saveSidebarOpen(next)
       return next
     })
+  }
+
+  // На мобильном клик по пункту меню закрывает drawer, чтобы открылась выбранная страница
+  function closeSidebarOnMobile() {
+    if (isMobile) setIsSidebarOpen(false)
   }
 
   async function logout() {
@@ -102,8 +128,16 @@ export default function AppLayout() {
     }
   }
 
-  const appClassName = `${styles.app} ${isSidebarOpen ? "" : styles.appCollapsed}`
-  const sidebarToggleLabel = isSidebarOpen ? "Свернуть меню" : "Развернуть меню"
+  // Режим «icon-rail» (свёрнутые подписи) — только на десктопе; на мобильном сайдбар либо drawer-открыт, либо спрятан
+  const isCollapsed = !isMobile && !isSidebarOpen
+  const appClassName = `${styles.app} ${isCollapsed ? styles.appCollapsed : ""} ${isMobile ? styles.appMobile : ""}`
+  const sidebarToggleLabel = isMobile
+    ? isSidebarOpen
+      ? "Закрыть меню"
+      : "Открыть меню"
+    : isSidebarOpen
+      ? "Свернуть меню"
+      : "Развернуть меню"
 
   return (
     <NotificationsProvider>
@@ -135,10 +169,23 @@ export default function AppLayout() {
         </header>
 
         <div className={styles.shell}>
+          {isMobile && isSidebarOpen && (
+            <button
+              type="button"
+              className={styles.backdrop}
+              aria-label="Закрыть меню"
+              onClick={() => setIsSidebarOpen(false)}
+            />
+          )}
+
           <motion.aside
             className={styles.sidebar}
             initial={false}
-            animate={{ width: isSidebarOpen ? SIDEBAR_WIDTH_OPEN : SIDEBAR_WIDTH_COLLAPSED }}
+            animate={
+              isMobile
+                ? { x: isSidebarOpen ? 0 : -(SIDEBAR_WIDTH_OPEN + 32), width: SIDEBAR_WIDTH_OPEN }
+                : { x: 0, width: isSidebarOpen ? SIDEBAR_WIDTH_OPEN : SIDEBAR_WIDTH_COLLAPSED }
+            }
             transition={{ duration: DURATION.sidebar, ease: EASE_OUT }}
           >
             <nav className={styles.menu} aria-label="Основное меню">
@@ -152,6 +199,7 @@ export default function AppLayout() {
                     to={item.path}
                     end={item.end}
                     title={item.title}
+                    onClick={closeSidebarOnMobile}
                   >
                     <span className={styles.menuIconBox}>
                       <Icon className={styles.menuIcon} />

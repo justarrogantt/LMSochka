@@ -179,6 +179,8 @@
   flex: 1;
   min-height: 0;
   display: flex;
+  /* Опора для мобильного drawer-сайдбара (position: absolute) и его подложки */
+  position: relative;
 }
 
 .sidebar {
@@ -380,4 +382,58 @@
 .footerBrand {
   color: var(--color-text);
   font-weight: 600;
+}
+
+/* ───────────────── Мобильная версия ───────────────── */
+/* На узких экранах сайдбар не делит ширину с контентом, а выезжает поверх него
+   как drawer с подложкой. Ширину/сдвиг анимирует framer-motion (см. AppLayout.tsx),
+   поэтому здесь только позиционирование и оформление. */
+@media (max-width: 768px) {
+  .header {
+    min-height: 60px;
+    padding: 0 12px;
+    gap: 10px;
+  }
+
+  .brandText {
+    font-size: 22px;
+  }
+
+  /* На телефоне в шапке оставляем только аватар — email/имя занимали бы всю ширину */
+  .userEmail {
+    display: none;
+  }
+
+  .userCard {
+    padding: 4px;
+  }
+
+  .appMobile .sidebar {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: 0;
+    z-index: 60;
+    box-shadow: var(--shadow-medium);
+  }
+
+  .backdrop {
+    position: absolute;
+    inset: 0;
+    z-index: 55;
+    border: none;
+    padding: 0;
+    background: rgba(11, 16, 21, 0.42);
+    cursor: pointer;
+  }
+
+  .content {
+    padding: 20px 16px 28px;
+  }
+
+  .footer {
+    padding: 12px 16px;
+    gap: 16px;
+    flex-wrap: wrap;
+  }
 }
