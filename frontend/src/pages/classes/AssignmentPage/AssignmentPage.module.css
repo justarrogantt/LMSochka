@@ -49,6 +49,7 @@
   gap: 8px;
   font-size: 14px;
   font-weight: 600;
+  white-space: nowrap;
   cursor: pointer;
   box-shadow: var(--shadow-xs);
   transition:
@@ -234,6 +235,7 @@
   color: var(--color-text);
   font-size: 14px;
   font-weight: 600;
+  white-space: nowrap;
   cursor: pointer;
   transition:
     background 0.16s ease,
@@ -258,6 +260,7 @@
   color: #ffffff;
   font-size: 14px;
   font-weight: 600;
+  white-space: nowrap;
   cursor: pointer;
   transition:
     background 0.16s ease,
@@ -656,4 +659,17 @@
   color: var(--color-muted);
   font-size: 14px;
   line-height: 1.5;
+}
+
+/* ───────── Адаптив ───────── */
+@media (max-width: 768px) {
+  /* Верхний ряд «Все задания / Редактировать / Удалить» переносим, чтобы кнопки
+     не сжимались и не уезжали за край */
+  .pageHead {
+    flex-wrap: wrap;
+  }
+
+  .pageActions {
+    flex-wrap: wrap;
+  }
 }
