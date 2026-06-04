@@ -14,3 +14,32 @@
   gap: 16px;
   margin-top: 8px;
 }
+
+.skeleton {
+  display: block;
+  background: var(--color-soft);
+  border-radius: var(--radius-md);
+  position: relative;
+  overflow: hidden;
+}
+
+.skeleton::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    90deg,
+    transparent 20%,
+    var(--color-soft-hover) 50%,
+    transparent 80%
+  );
+  opacity: 0.6;
+  transform: translateX(-100%);
+  animation: shimmer 2.8s ease-in-out infinite;
+}
+
+@keyframes shimmer {
+  100% {
+    transform: translateX(100%);
+  }
+}

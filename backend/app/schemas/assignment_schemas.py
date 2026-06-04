@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import UTC, datetime
 from enum import StrEnum
 
 from pydantic import BaseModel, Field, HttpUrl, model_validator
@@ -7,6 +7,17 @@ from app.database.models import SubmissionStatus
 from app.schemas.file_schemas import FileDTO
 from app.schemas.pagination import PageDTO
 from app.schemas.user_schemas import UserBriefDTO
+
+
+def _validate_due_at(due_at: datetime | None) -> datetime | None:
+    if due_at is None:
+        return None
+
+    normalized = due_at if due_at.tzinfo is not None else due_at.replace(tzinfo=UTC)
+    if normalized <= datetime.now(UTC):
+        raise ValueError("Дедлайн не может быть в прошлом")
+
+    return due_at
 
 
 class CreateAssignmentRequest(BaseModel):
@@ -19,6 +30,11 @@ class CreateAssignmentRequest(BaseModel):
     due_at: datetime | None = None
     # шкала жёсткая: > 0. После выставления первой оценки менять max_grade нельзя
     max_grade: float = Field(gt=0)
+
+    @model_validator(mode="after")
+    def _validate_due_at_not_past(self) -> "CreateAssignmentRequest":
+        _validate_due_at(self.due_at)
+        return self
 
 
 class UpdateAssignmentRequest(BaseModel):
@@ -39,6 +55,7 @@ class UpdateAssignmentRequest(BaseModel):
         # пустой PATCH — почти всегда баг на фронте, отбиваем 422
         if not self.model_fields_set:
             raise ValueError("Передайте хотя бы одно поле для обновления")
+        _validate_due_at(self.due_at)
         return self
 
 

@@ -191,6 +191,10 @@
   transform: rotate(180deg);
 }
 
+.miniTableWrap {
+  overflow: hidden;
+}
+
 .miniTable {
   width: 100%;
   border-collapse: collapse;

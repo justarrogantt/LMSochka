@@ -5,7 +5,6 @@
   width: 100%;
 }
 
-/* Область выбора — пунктирный dropzone в стиле проекта */
 .dropzone {
   display: flex;
   align-items: center;
@@ -27,7 +26,6 @@
   background: var(--color-accent-soft);
 }
 
-/* Кольцо фокуса, когда фокус на скрытом input внутри label */
 .dropzone:focus-within {
   border-color: var(--color-accent);
   box-shadow: 0 0 0 4px var(--color-accent-ring);
@@ -71,7 +69,6 @@
   color: var(--color-text);
 }
 
-/* Прячем нативный input, но оставляем фокусируемым (через :focus-within на dropzone) */
 .input {
   position: absolute;
   width: 1px;
@@ -84,7 +81,6 @@
   border: 0;
 }
 
-/* Чип выбранного / загруженного файла */
 .chip {
   display: flex;
   align-items: center;
@@ -120,7 +116,6 @@
   text-align: left;
 }
 
-/* Когда имя кликабельно (скачивание) */
 button.chipName {
   border: none;
   background: none;

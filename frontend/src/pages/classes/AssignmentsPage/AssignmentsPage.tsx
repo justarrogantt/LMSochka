@@ -9,8 +9,15 @@ import Pagination from "../../../components/Pagination/Pagination"
 import { useToast } from "../../../components/Toast/ToastProvider"
 import { ApiError } from "../../../services/api"
 import { ACCEPTED_FILE_INPUT, ACCEPTED_FILE_TYPES_LABEL, validateUploadFile } from "../../../services/files.api"
-import { formatDateTime, formatDateTimeInputValue, toApiDateTime, truncate } from "../../../services/helpers"
-import FilePicker from "../../../shared/FilePicker/FilePicker"
+import {
+  currentDateTimeInputValue,
+  formatDateTime,
+  formatDateTimeInputValue,
+  isPastDateTimeInputValue,
+  toApiDateTime,
+  truncate
+} from "../../../services/helpers"
+import FilePicker from "../../../components/FilePicker/FilePicker"
 import { listContainer, listItem } from "../../../shared/motion"
 import type { ClassLayoutContext } from "../../../layouts/ClassLayout/ClassLayout"
 import {
@@ -340,13 +347,15 @@ export default function AssignmentsPage() {
   }
 
   const isFilled = form.title.trim().length > 0 && Number(form.max_grade) > 0
+  const dueAtError = isPastDateTimeInputValue(form.due_at) ? "Дедлайн не может быть в прошлом" : ""
+  const minDueAt = currentDateTimeInputValue()
   const isChanged =
     form.title.trim() !== initialForm.title.trim() ||
     form.description.trim() !== initialForm.description.trim() ||
     form.material_url.trim() !== initialForm.material_url.trim() ||
     form.due_at !== initialForm.due_at ||
     form.max_grade !== initialForm.max_grade
-  const canSubmit = !isSubmitting && !materialFileError && isFilled && (editingId === null || isChanged || materialFile !== null)
+  const canSubmit = !isSubmitting && !materialFileError && !dueAtError && isFilled && (editingId === null || isChanged || materialFile !== null)
   const canManage = classDetail?.permissions.can_create_assignment ?? false
 
   return (
@@ -383,7 +392,7 @@ export default function AssignmentsPage() {
         )}
       </div>
 
-      {isLoading && <SkeletonLoader />}
+      {isLoading && <SkeletonLoader showActions={canManage} />}
 
       {!isLoading && (
         <>
@@ -469,10 +478,12 @@ export default function AssignmentsPage() {
               <input
                 className={styles.input}
                 type="datetime-local"
+                min={minDueAt}
                 value={form.due_at}
                 onChange={(e) => setField("due_at", e.target.value)}
                 disabled={isSubmitting}
               />
+              {dueAtError && <div className={styles.fieldError}>{dueAtError}</div>}
             </label>
 
             <label className={styles.field}>

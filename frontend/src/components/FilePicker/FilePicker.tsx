@@ -8,30 +8,20 @@ type SelectedFile = {
 }
 
 type FilePickerProps = {
-  // Текст на области выбора (CTA). По умолчанию — «Выберите файл».
   label?: string
-  // Текст под областью выбора во время загрузки (immediate-upload режим).
   busy?: boolean
   busyLabel?: string
   disabled?: boolean
   accept?: string
-  // Подсказка под контролом (например, список форматов).
   hint?: string
-  // Текст ошибки валидации/загрузки.
   error?: string
-  // Уже выбранный (локально) или загруженный файл — рисуем чипом.
   file?: SelectedFile | null
-  // Клик по имени файла в чипе (например, скачать загруженный файл).
   onDownload?: () => void
-  // Убрать файл из чипа (сбросить локальный выбор или удалить загруженный).
   onRemove?: () => void
   removeTitle?: string
-  // Пользователь выбрал файл в системном диалоге.
   onSelect: (file: File) => void
 }
 
-// Единый стилизованный контрол выбора файла: dropzone-область + чип выбранного файла.
-// Заменяет «кривой» нативный <input type="file"> и используется на страницах заданий.
 export default function FilePicker({
   label = "Выберите файл",
   busy = false,
@@ -51,7 +41,6 @@ export default function FilePicker({
 
   function onChange(event: ChangeEvent<HTMLInputElement>) {
     const selected = event.target.files?.[0]
-    // Сбрасываем value, чтобы повторный выбор того же файла снова сработал.
     event.target.value = ""
     if (selected) onSelect(selected)
   }

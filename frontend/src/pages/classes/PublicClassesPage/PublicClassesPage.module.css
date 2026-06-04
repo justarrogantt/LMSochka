@@ -153,6 +153,11 @@
   box-shadow: 0 0 0 4px var(--color-accent-ring);
 }
 
+.searchInput:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
 .cards {
   display: flex;
   flex-direction: column;

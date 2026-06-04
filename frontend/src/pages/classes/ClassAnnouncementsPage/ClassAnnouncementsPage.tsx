@@ -254,7 +254,7 @@ export default function ClassAnnouncementsPage() {
         )}
       </div>
 
-      {isLoading && <SkeletonLoader />}
+      {isLoading && <SkeletonLoader showActions={canManage} />}
 
       {!isLoading && (
         <>

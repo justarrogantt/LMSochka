@@ -15,8 +15,14 @@ import {
   formatFileSize,
   validateUploadFile
 } from "../../../services/files.api"
-import { formatDateTime, formatDateTimeInputValue, toApiDateTime } from "../../../services/helpers"
-import FilePicker from "../../../shared/FilePicker/FilePicker"
+import {
+  currentDateTimeInputValue,
+  formatDateTime,
+  formatDateTimeInputValue,
+  isPastDateTimeInputValue,
+  toApiDateTime
+} from "../../../services/helpers"
+import FilePicker from "../../../components/FilePicker/FilePicker"
 import type { ClassLayoutContext } from "../../../layouts/ClassLayout/ClassLayout"
 import {
   deleteAssignmentMaterial,
@@ -626,7 +632,9 @@ export default function AssignmentPage() {
     form.material_url.trim() !== initialForm.material_url.trim() ||
     form.due_at !== initialForm.due_at ||
     form.max_grade !== initialForm.max_grade
-  const canSave = form.title.trim().length > 0 && Number(form.max_grade) > 0 && isFormChanged && !isSubmitting
+  const dueAtError = isPastDateTimeInputValue(form.due_at) ? "Дедлайн не может быть в прошлом" : ""
+  const minDueAt = currentDateTimeInputValue()
+  const canSave = form.title.trim().length > 0 && Number(form.max_grade) > 0 && !dueAtError && isFormChanged && !isSubmitting
 
   const isStudentBusy = isSavingDraft || isSendingWork
   const myStatus = mySubmission?.status ?? null
@@ -918,14 +926,16 @@ export default function AssignmentPage() {
           <div className={styles.fieldRow}>
             <label className={styles.field}>
               <div className={styles.fieldLabel}>Дедлайн <span className={styles.fieldOptional}>(необязательно)</span></div>
-              <input
-                className={styles.input}
-                type="datetime-local"
-                value={form.due_at}
-                onChange={(e) => setField("due_at", e.target.value)}
-                disabled={isSubmitting}
-              />
-            </label>
+                <input
+                  className={styles.input}
+                  type="datetime-local"
+                  min={minDueAt}
+                  value={form.due_at}
+                  onChange={(e) => setField("due_at", e.target.value)}
+                  disabled={isSubmitting}
+                />
+                {dueAtError && <div className={styles.fieldError}>{dueAtError}</div>}
+              </label>
 
             <label className={styles.field}>
               <div className={styles.fieldLabel}>Максимальный балл</div>

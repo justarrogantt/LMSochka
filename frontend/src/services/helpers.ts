@@ -33,6 +33,21 @@ export function toApiDateTime(value: string): string | null {
   return date.toISOString()
 }
 
+export function currentDateTimeInputValue(): string {
+  const now = new Date()
+  const offsetMs = now.getTimezoneOffset() * 60_000
+  return new Date(now.getTime() - offsetMs).toISOString().slice(0, 16)
+}
+
+export function isPastDateTimeInputValue(value: string): boolean {
+  if (!value) return false
+
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return false
+
+  return date.getTime() < Date.now()
+}
+
 export async function wait() {
   await new Promise((resolve) => setTimeout(resolve, 1000))
 }

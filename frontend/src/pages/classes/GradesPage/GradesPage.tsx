@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react"
+import { AnimatePresence, motion } from "framer-motion"
 import { Link, useOutletContext } from "react-router-dom"
 import SearchIcon from "../../../assets/icons/layout/search.svg?react"
 import SelectArrowIcon from "../../../assets/icons/select-arrow.svg?react"
@@ -7,6 +8,7 @@ import { useAuth } from "../../../contexts/AuthContext"
 import type { ClassLayoutContext } from "../../../layouts/ClassLayout/ClassLayout"
 import { ApiError } from "../../../services/api"
 import { formatDateTime } from "../../../services/helpers"
+import { DURATION, EASE_OUT, listContainer, listItem } from "../../../shared/motion"
 import {
   getGradebook,
   getStudentGradebook,
@@ -115,7 +117,7 @@ export default function GradesPage() {
         </label>
       )}
 
-      {isLoading && <SkeletonLoader />}
+      {isLoading && <SkeletonLoader gradebook={canViewGradebook} />}
 
       {!isLoading && (
         <>
@@ -157,18 +159,19 @@ function TeacherGradebook({ gradebook, cellMap, search }: TeacherGradebookProps)
   return (
     <>
       {students.length > 0 ? (
-        <div className={styles.studentList}>
+        <motion.div className={styles.studentList} variants={listContainer} initial="hidden" animate="visible">
           {students.map((student) => (
-            <StudentCard
-              key={student.id}
-              student={student}
-              assignments={gradebook.assignments}
-              cellMap={cellMap}
-              isOpen={openStudentId === student.id}
-              onToggle={() => setOpenStudentId((prev) => (prev === student.id ? null : student.id))}
-            />
+            <motion.div key={student.id} variants={listItem}>
+              <StudentCard
+                student={student}
+                assignments={gradebook.assignments}
+                cellMap={cellMap}
+                isOpen={openStudentId === student.id}
+                onToggle={() => setOpenStudentId((prev) => (prev === student.id ? null : student.id))}
+              />
+            </motion.div>
           ))}
-        </div>
+        </motion.div>
       ) : (
         <div className={styles.emptyMessage}>Студенты не найдены</div>
       )}
@@ -206,7 +209,15 @@ function StudentCard({ student, assignments, cellMap, isOpen, onToggle }: Studen
         </span>
       </button>
 
+      <AnimatePresence initial={false}>
       {isOpen && (
+        <motion.div
+          className={styles.miniTableWrap}
+          initial={{ height: 0, opacity: 0 }}
+          animate={{ height: "auto", opacity: 1 }}
+          exit={{ height: 0, opacity: 0 }}
+          transition={{ duration: DURATION.panel, ease: EASE_OUT }}
+        >
         <table className={styles.miniTable}>
           <thead>
             <tr>
@@ -241,7 +252,9 @@ function StudentCard({ student, assignments, cellMap, isOpen, onToggle }: Studen
             })}
           </tbody>
         </table>
+        </motion.div>
       )}
+      </AnimatePresence>
     </div>
   )
 }
@@ -277,37 +290,39 @@ function StudentGrades({ classId, assignments, cellMap, student, search }: Stude
       </div>
 
       {visible.length > 0 ? (
-        <div className={styles.gradeList}>
+        <motion.div className={styles.gradeList} variants={listContainer} initial="hidden" animate="visible">
           {visible.map((assignment) => {
             const cell = cellMap.get(cellKey(student.id, assignment.id))
             const status = cell?.status ?? "draft"
             const isGraded = status === "graded" && cell?.value !== null && cell?.value !== undefined
 
             return (
-              <Link key={assignment.id} className={styles.gradeRow} to={`/classes/${classId}/assignments/${assignment.id}`}>
-                <div className={styles.gradeRowMain}>
-                  <div className={styles.gradeRowTitle}>{assignment.title}</div>
-                  <div className={styles.gradeRowMeta}>
-                    <span>макс. {assignment.max_grade} баллов</span>
-                    {assignment.due_at && <span>дедлайн {formatDateTime(assignment.due_at)}</span>}
-                    {cell?.is_late && <span className={styles.cellLate}>сдано с опозданием</span>}
+              <motion.div key={assignment.id} variants={listItem}>
+                <Link className={styles.gradeRow} to={`/classes/${classId}/assignments/${assignment.id}`}>
+                  <div className={styles.gradeRowMain}>
+                    <div className={styles.gradeRowTitle}>{assignment.title}</div>
+                    <div className={styles.gradeRowMeta}>
+                      <span>макс. {assignment.max_grade} баллов</span>
+                      {assignment.due_at && <span>дедлайн {formatDateTime(assignment.due_at)}</span>}
+                      {cell?.is_late && <span className={styles.cellLate}>сдано с опозданием</span>}
+                    </div>
                   </div>
-                </div>
 
-                {isGraded ? (
-                  <div className={styles.gradeRowScore}>
-                    <span className={styles.gradeRowValue}>{cell!.value} / {assignment.max_grade}</span>
-                    <span className={styles.gradeRowPercent}>
-                      {cell!.percent !== null ? `${cell!.percent}%` : "—"}
-                    </span>
-                  </div>
-                ) : (
-                  <span className={`${styles.rowStatus} ${styles[`status_${status}`]}`}>{STATUS_LABELS[status]}</span>
-                )}
-              </Link>
+                  {isGraded ? (
+                    <div className={styles.gradeRowScore}>
+                      <span className={styles.gradeRowValue}>{cell!.value} / {assignment.max_grade}</span>
+                      <span className={styles.gradeRowPercent}>
+                        {cell!.percent !== null ? `${cell!.percent}%` : "—"}
+                      </span>
+                    </div>
+                  ) : (
+                    <span className={`${styles.rowStatus} ${styles[`status_${status}`]}`}>{STATUS_LABELS[status]}</span>
+                  )}
+                </Link>
+              </motion.div>
             )
           })}
-        </div>
+        </motion.div>
       ) : (
         <div className={styles.emptyMessage}>Задания не найдены</div>
       )}

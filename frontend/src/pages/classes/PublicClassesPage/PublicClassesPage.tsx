@@ -136,6 +136,7 @@ export default function PublicClassesPage() {
               type="search"
               value={search}
               onChange={(event) => setSearch(event.target.value)}
+              disabled={isLoading}
             />
           </div>
         </label>

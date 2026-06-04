@@ -1,22 +1,34 @@
-import SkeletonBlock from "../../../../shared/SkeletonBlock/SkeletonBlock"
+import type { CSSProperties } from "react"
 import styles from "./SkeletonLoader.module.css"
+
+type SkeletonProps = {
+  width?: string | number
+  height?: string | number
+  radius?: string | number
+  className?: string
+}
+
+function Skeleton({ width, height, radius, className = "" }: SkeletonProps) {
+  const style: CSSProperties = { width, height, borderRadius: radius }
+  return <span className={`${styles.skeleton} ${className}`} style={style} aria-hidden="true" />
+}
 
 function CourseSkeletonCard() {
   return (
     <div className={styles.card}>
-      <SkeletonBlock width="70%" height={19} radius={999} />
+      <Skeleton width="70%" height={19} radius={999} />
       <div className={styles.badges}>
-        <SkeletonBlock className={styles.badge} height={34} radius={999} />
-        <SkeletonBlock className={styles.badge} height={34} radius={999} />
+        <Skeleton className={styles.badge} height={34} radius={999} />
+        <Skeleton className={styles.badge} height={34} radius={999} />
       </div>
       <div className={styles.stats}>
         <div className={styles.statBox}>
-          <SkeletonBlock width={30} height={22} radius={6} />
-          <SkeletonBlock width="72%" height={11} radius={999} />
+          <Skeleton width={30} height={22} radius={6} />
+          <Skeleton width="72%" height={11} radius={999} />
         </div>
         <div className={styles.statBox}>
-          <SkeletonBlock width={30} height={22} radius={6} />
-          <SkeletonBlock width="72%" height={11} radius={999} />
+          <Skeleton width={30} height={22} radius={6} />
+          <Skeleton width="72%" height={11} radius={999} />
         </div>
       </div>
     </div>

@@ -40,7 +40,7 @@ export default function Modal({ title, onClose, children, disabled, size = "md" 
             <CloseIcon className={styles.closeIcon} />
           </button>
         </div>
-        {children}
+        <div className={styles.body}>{children}</div>
       </motion.div>
     </motion.div>,
     document.body

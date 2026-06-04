@@ -1,4 +1,4 @@
-import SkeletonBlock from "../../../../shared/SkeletonBlock/SkeletonBlock"
+import type { CSSProperties } from "react"
 import styles from "../ClassPage.module.css"
 
 const OVERVIEW_LABELS = [
@@ -9,6 +9,18 @@ const OVERVIEW_LABELS = [
   "Код приглашения"
 ]
 
+type SkeletonProps = {
+  width?: string | number
+  height?: string | number
+  radius?: string | number
+  className?: string
+}
+
+function Skeleton({ width, height, radius, className = "" }: SkeletonProps) {
+  const style: CSSProperties = { width, height, borderRadius: radius }
+  return <span className={`${styles.skeleton} ${className}`} style={style} aria-hidden="true" />
+}
+
 export default function SkeletonLoader() {
   return (
     <div className={styles.overview}>
@@ -18,7 +30,7 @@ export default function SkeletonLoader() {
           {OVERVIEW_LABELS.map((label) => (
             <div className={styles.infoRow} key={label}>
               <div className={styles.infoLabel}>{label}</div>
-              <SkeletonBlock width={90} height={14} radius={999} />
+              <Skeleton width={90} height={14} radius={999} />
             </div>
           ))}
         </div>

@@ -352,47 +352,76 @@ export default function ClassMembersPage() {
       )}
 
       <AnimatePresence>
-        {selectedMember && !memberToTransfer && (
-        <Modal title="Изменить роль участника" onClose={() => !isSubmitting && setSelectedMember(null)} disabled={isSubmitting}>
-          <div className={styles.modalText}>{getMemberName(selectedMember)}</div>
+        {selectedMember && (
+        <Modal
+          title={memberToTransfer ? "Передать владение курсом" : "Изменить роль участника"}
+          onClose={() => {
+            if (isSubmitting) return
+            setMemberToTransfer(null)
+            setSelectedMember(null)
+          }}
+          disabled={isSubmitting}
+        >
+          {memberToTransfer ? (
+            <>
+              <div className={styles.modalText}>
+                Сделать владельцем курса участника {getMemberName(memberToTransfer)}?
+              </div>
+              <div className={styles.modalHint}>
+                Вы станете преподавателем и потеряете права владельца: управление участниками, передачу прав и удаление курса.
+              </div>
+              <div className={styles.modalActions}>
+                <button className={styles.secondaryButton} type="button" onClick={() => setMemberToTransfer(null)} disabled={isSubmitting}>
+                  Назад
+                </button>
+                <button className={styles.dangerButton} type="button" onClick={() => void submitTransfer()} disabled={isSubmitting}>
+                  {isSubmitting ? "Передаём..." : "Передать владение"}
+                </button>
+              </div>
+            </>
+          ) : (
+            <>
+              <div className={styles.modalText}>{getMemberName(selectedMember)}</div>
 
-          <div className={styles.typeButtons}>
-            <button
-              className={`${styles.typeButton} ${selectedRole === "student" ? styles.typeButtonActive : ""}`}
-              type="button"
-              onClick={() => setSelectedRole("student")}
-              disabled={isSubmitting}
-            >
-              Студент
-            </button>
-            <button
-              className={`${styles.typeButton} ${selectedRole === "teacher" ? styles.typeButtonActive : ""}`}
-              type="button"
-              onClick={() => setSelectedRole("teacher")}
-              disabled={isSubmitting}
-            >
-              Преподаватель
-            </button>
-            {selectedMember.role !== "creator" && (
-              <button
-                className={styles.typeButton}
-                type="button"
-                onClick={() => setMemberToTransfer(selectedMember)}
-                disabled={isSubmitting}
-              >
-                Владелец
-              </button>
-            )}
-          </div>
+              <div className={styles.typeButtons}>
+                <button
+                  className={`${styles.typeButton} ${selectedRole === "student" ? styles.typeButtonActive : ""}`}
+                  type="button"
+                  onClick={() => setSelectedRole("student")}
+                  disabled={isSubmitting}
+                >
+                  Студент
+                </button>
+                <button
+                  className={`${styles.typeButton} ${selectedRole === "teacher" ? styles.typeButtonActive : ""}`}
+                  type="button"
+                  onClick={() => setSelectedRole("teacher")}
+                  disabled={isSubmitting}
+                >
+                  Преподаватель
+                </button>
+                {selectedMember.role !== "creator" && (
+                  <button
+                    className={styles.typeButton}
+                    type="button"
+                    onClick={() => setMemberToTransfer(selectedMember)}
+                    disabled={isSubmitting}
+                  >
+                    Владелец
+                  </button>
+                )}
+              </div>
 
-          <div className={styles.modalActions}>
-            <button className={styles.secondaryButton} type="button" onClick={() => setSelectedMember(null)} disabled={isSubmitting}>
-              Отмена
-            </button>
-            <button className={styles.primaryButton} type="button" onClick={() => void submitRoleChange()} disabled={isSubmitting || selectedRole === selectedMember.role}>
-              {isSubmitting ? "Сохраняем..." : "Сохранить"}
-            </button>
-          </div>
+              <div className={styles.modalActions}>
+                <button className={styles.secondaryButton} type="button" onClick={() => setSelectedMember(null)} disabled={isSubmitting}>
+                  Отмена
+                </button>
+                <button className={styles.primaryButton} type="button" onClick={() => void submitRoleChange()} disabled={isSubmitting || selectedRole === selectedMember.role}>
+                  {isSubmitting ? "Сохраняем..." : "Сохранить"}
+                </button>
+              </div>
+            </>
+          )}
         </Modal>
         )}
       </AnimatePresence>
@@ -414,26 +443,6 @@ export default function ClassMembersPage() {
         )}
       </AnimatePresence>
 
-      <AnimatePresence>
-        {memberToTransfer && (
-        <Modal title="Передать владение курсом" onClose={() => !isSubmitting && setMemberToTransfer(null)} disabled={isSubmitting}>
-          <div className={styles.modalText}>
-            Сделать владельцем курса участника {getMemberName(memberToTransfer)}?
-          </div>
-          <div className={styles.modalHint}>
-            Вы станете преподавателем и потеряете права владельца: управление участниками, передачу прав и удаление курса.
-          </div>
-          <div className={styles.modalActions}>
-            <button className={styles.secondaryButton} type="button" onClick={() => setMemberToTransfer(null)} disabled={isSubmitting}>
-              Отмена
-            </button>
-            <button className={styles.dangerButton} type="button" onClick={() => void submitTransfer()} disabled={isSubmitting}>
-              {isSubmitting ? "Передаём..." : "Передать владение"}
-            </button>
-          </div>
-        </Modal>
-        )}
-      </AnimatePresence>
     </div>
   )
 }
