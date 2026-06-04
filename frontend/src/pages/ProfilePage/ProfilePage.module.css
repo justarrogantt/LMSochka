@@ -297,12 +297,6 @@
   font-weight: 700;
 }
 
-.passwordHint {
-  color: var(--color-muted);
-  font-size: 13px;
-  line-height: 1.45;
-}
-
 .modalActions {
   display: flex;
   justify-content: flex-end;

@@ -278,7 +278,6 @@ function EditProfileModal({ user, onSaved, onClose }: EditProfileModalProps) {
 
       <div className={styles.passwordHead}>
         <div className={styles.passwordTitle}>Смена пароля</div>
-        <div className={styles.passwordHint}>Оставьте поля пустыми, если менять пароль не нужно.</div>
       </div>
 
       <label className={styles.field}>
