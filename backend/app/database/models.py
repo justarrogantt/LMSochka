@@ -1,6 +1,6 @@
 import enum
 import uuid
-from datetime import datetime
+from datetime import UTC, datetime
 
 from sqlalchemy import BigInteger, Enum, Float, ForeignKey, String, Text, UniqueConstraint, func
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
@@ -138,7 +138,7 @@ class AssignmentsTable(Base):
     # максимальный балл, обязательно > 0; шкала фиксируется при создании.
     # Менять можно только пока нет ни одной оценки по заданию (см. сервис)
     max_grade: Mapped[float] = mapped_column(Float)
-    created_at: Mapped[datetime] = mapped_column(default=datetime.now)
+    created_at: Mapped[datetime] = mapped_column(default=lambda: datetime.now(UTC))
     updated_at: Mapped[datetime | None] = mapped_column(onupdate=func.now())
     # soft delete: задание уходит из выдачи, но связанные решения и оценки
     # сохраняются в БД для аудита
