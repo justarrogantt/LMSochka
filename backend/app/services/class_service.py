@@ -22,6 +22,7 @@ from app.schemas.class_schemas import (
 )
 from app.schemas.errors import ServiceError
 from app.schemas.pagination import PageDTO
+from app.services import file_service
 from app.services.permissions_service import build_permissions
 
 _CODE_ALPHABET = string.ascii_uppercase + string.digits
@@ -171,6 +172,23 @@ async def list_class_members(class_id: int, db: AsyncSession) -> ClassMembersDTO
     return await _build_members_dto(class_id, db)
 
 
+async def list_removed_members(
+    class_id: int,
+    page: int,
+    limit: int,
+    offset: int,
+    db: AsyncSession,
+) -> PageDTO[ClassMemberDTO]:
+    rows = await class_repo.list_kicked_members(class_id, limit, offset, db)
+    total = await class_repo.count_kicked_members(class_id, db)
+    return PageDTO[ClassMemberDTO](
+        items=[_member_dto(u, m) for u, m in rows],
+        total=total,
+        page=page,
+        limit=limit,
+    )
+
+
 async def list_public_classes(
     search: str | None,
     user_id: int,
@@ -287,6 +305,7 @@ async def update_class(
 
 async def delete_class(cls: ClassesTable, db: AsyncSession) -> None:
     """Soft delete: проставляем deleted_at, класс пропадает из всех выборок."""
+    await file_service.delete_class_tree(cls.id, db)
     await class_repo.soft_delete(cls, db)
 
 
@@ -321,6 +340,21 @@ async def remove_member(
         # creator уходит только через delete_class
         raise ServiceError("Создателя нельзя удалить из своего класса", 403)
     await class_repo.soft_delete_member(member, "kicked", db)
+    return await _build_members_dto(class_id, db)
+
+
+async def restore_member(
+    class_id: int, target_user_id: int, db: AsyncSession
+) -> ClassMembersDTO:
+    member = await class_repo.get_member_any(class_id, target_user_id, db)
+    if (
+        member is None
+        or member.deleted_at is None
+        or member.removal_reason != "kicked"
+    ):
+        raise ServiceError("Исключённый участник не найден", 404)
+
+    await class_repo.reactivate_member(member, db)
     return await _build_members_dto(class_id, db)
 
 

@@ -283,7 +283,7 @@ async def test_student_can_read_list(client):
         f"/api/classes/{class_id}/assignments", headers=_auth(student_token)
     )
     assert r.status_code == 200
-    assert r.json()["total"] == 1
+    assert r.json()["total"] == 0
     assert r.json()["pending_review_total"] == 0
 
 
@@ -291,16 +291,17 @@ async def test_student_can_read_list(client):
 async def test_teacher_pending_review_filter_and_total(client):
     creator_token, _ = await _register(client, "creator@example.com")
     class_id = await _create_class(client, creator_token)
+
+    s1_token, _ = await _register(client, "s1@example.com")
+    await _join_open(client, s1_token, class_id)
+    s2_token, _ = await _register(client, "s2@example.com")
+    await _join_open(client, s2_token, class_id)
+
     a1 = await _make_assignment(client, creator_token, class_id, title="A1")
     a2 = await _make_assignment(client, creator_token, class_id, title="A2")
     await _make_assignment(client, creator_token, class_id, title="A3")
 
-    s1_token, _ = await _register(client, "s1@example.com")
-    await _join_open(client, s1_token, class_id)
     await _save_and_submit(client, s1_token, a1["id"])
-
-    s2_token, _ = await _register(client, "s2@example.com")
-    await _join_open(client, s2_token, class_id)
     await _save_and_submit(client, s2_token, a2["id"])
 
     # сначала в pending две работы
@@ -579,17 +580,24 @@ async def test_creator_can_delete(client):
 
 
 @pytest.mark.asyncio
-async def test_teacher_can_delete(client):
+async def test_teacher_can_delete_only_own_assignment(client):
     creator_token, _ = await _register(client, "creator@example.com")
     class_id = await _create_class(client, creator_token)
     teacher_token, teacher_id = await _register(client, "teacher@example.com")
     await _join_open(client, teacher_token, class_id)
     await _promote(client, creator_token, class_id, teacher_id)
 
-    asg = await _make_assignment(client, creator_token, class_id)
+    creator_asg = await _make_assignment(client, creator_token, class_id)
 
     r = await client.delete(
-        f"/api/classes/{class_id}/assignments/{asg['id']}",
+        f"/api/classes/{class_id}/assignments/{creator_asg['id']}",
+        headers=_auth(teacher_token),
+    )
+    assert r.status_code == 403
+
+    teacher_asg = await _make_assignment(client, teacher_token, class_id)
+    r = await client.delete(
+        f"/api/classes/{class_id}/assignments/{teacher_asg['id']}",
         headers=_auth(teacher_token),
     )
     assert r.status_code == 204

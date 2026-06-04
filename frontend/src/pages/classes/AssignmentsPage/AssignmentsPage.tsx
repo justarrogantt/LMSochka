@@ -16,6 +16,7 @@ import type { ClassLayoutContext } from "../../../layouts/ClassLayout/ClassLayou
 import {
   createAssignment,
   deleteAssignment,
+  uploadAssignmentMaterial,
   listAssignments,
   updateAssignment,
   type AssignmentDto
@@ -42,27 +43,31 @@ const EMPTY_FORM: FormState = {
 
 type AssignmentCardProps = {
   item: AssignmentDto
-  canManage: boolean
+  showStats: boolean
   onOpen: () => void
   onEdit: () => void
   onDelete: () => void
 }
 
-function AssignmentCard({ item, canManage, onOpen, onEdit, onDelete }: AssignmentCardProps) {
+function AssignmentCard({ item, showStats, onOpen, onEdit, onDelete }: AssignmentCardProps) {
   const pendingCount = item.stats?.pending_review_count ?? 0
 
   return (
     <div className={styles.card} onClick={onOpen}>
       <div className={styles.cardHead}>
         <div className={styles.cardTitle}>{truncate(item.title, 80)}</div>
-        {canManage && (
+        {(item.can_edit || item.can_delete) && (
           <div className={styles.cardActions} onClick={(e) => e.stopPropagation()}>
-            <button className={styles.iconButton} type="button" aria-label="Редактировать задание" onClick={onEdit}>
-              <EditIcon className={styles.icon} />
-            </button>
-            <button className={styles.iconButton} type="button" aria-label="Удалить задание" onClick={onDelete}>
-              <DeleteIcon className={styles.icon} />
-            </button>
+            {item.can_edit && (
+              <button className={styles.iconButton} type="button" aria-label="Редактировать задание" onClick={onEdit}>
+                <EditIcon className={styles.icon} />
+              </button>
+            )}
+            {item.can_delete && (
+              <button className={styles.iconButton} type="button" aria-label="Удалить задание" onClick={onDelete}>
+                <DeleteIcon className={styles.icon} />
+              </button>
+            )}
           </div>
         )}
       </div>
@@ -74,7 +79,7 @@ function AssignmentCard({ item, canManage, onOpen, onEdit, onDelete }: Assignmen
         <div>до {item.max_grade} баллов</div>
       </div>
 
-      {canManage && <div className={styles.pendingText}>на проверке: {pendingCount}</div>}
+      {showStats && <div className={styles.pendingText}>на проверке: {pendingCount}</div>}
     </div>
   )
 }
@@ -97,6 +102,7 @@ export default function AssignmentsPage() {
   const [viewMode, setViewMode] = useState<"all" | "pending">("all")
   const [form, setForm] = useState<FormState>(EMPTY_FORM)
   const [initialForm, setInitialForm] = useState<FormState>(EMPTY_FORM)
+  const [materialFile, setMaterialFile] = useState<File | null>(null)
 
   async function loadPage(page: number, mode: "all" | "pending" = viewMode) {
     if (!classDetail?.id) return
@@ -125,6 +131,7 @@ export default function AssignmentsPage() {
     setEditingId(null)
     setForm(EMPTY_FORM)
     setInitialForm(EMPTY_FORM)
+    setMaterialFile(null)
   }
 
   function closeDeleteModal() {
@@ -136,6 +143,7 @@ export default function AssignmentsPage() {
     setForm(EMPTY_FORM)
     setInitialForm(EMPTY_FORM)
     setEditingId(null)
+    setMaterialFile(null)
     setIsFormOpen(true)
   }
 
@@ -150,6 +158,7 @@ export default function AssignmentsPage() {
     setForm(saved)
     setInitialForm(saved)
     setEditingId(item.id)
+    setMaterialFile(null)
     setIsFormOpen(true)
   }
 
@@ -175,7 +184,10 @@ export default function AssignmentsPage() {
     setIsSubmitting(true)
 
     try {
-      await createAssignment(classDetail.id, body)
+      const created = await createAssignment(classDetail.id, body)
+      if (materialFile) {
+        await uploadAssignmentMaterial(classDetail.id, created.id, materialFile)
+      }
       showToast({ type: "neutral", message: "Задание создано" })
       if (viewMode === "all") {
         void loadPage(1, "all")
@@ -214,7 +226,11 @@ export default function AssignmentsPage() {
     setIsSubmitting(true)
 
     try {
-      const updated = await updateAssignment(classDetail.id, id, body)
+      let updated = await updateAssignment(classDetail.id, id, body)
+      if (materialFile) {
+        const uploaded = await uploadAssignmentMaterial(classDetail.id, id, materialFile)
+        updated = { ...updated, material_file: uploaded }
+      }
       setItems((prev) => prev.map((it) => (it.id === updated.id ? updated : it)))
       showToast({ type: "neutral", message: "Задание обновлено" })
     } catch (error) {
@@ -249,7 +265,7 @@ export default function AssignmentsPage() {
     form.material_url.trim() !== initialForm.material_url.trim() ||
     form.due_at !== initialForm.due_at ||
     form.max_grade !== initialForm.max_grade
-  const canSubmit = !isSubmitting && isFilled && (editingId === null || isChanged)
+  const canSubmit = !isSubmitting && isFilled && (editingId === null || isChanged || materialFile !== null)
   const canManage = classDetail?.permissions.can_create_assignment ?? false
 
   return (
@@ -297,7 +313,7 @@ export default function AssignmentsPage() {
               <motion.div key={item.id} variants={listItem}>
                 <AssignmentCard
                   item={item}
-                  canManage={canManage}
+                  showStats={canManage}
                   onOpen={() => navigate(`/classes/${classId}/assignments/${item.id}`)}
                   onEdit={() => openEditModal(item)}
                   onDelete={() => setDeletingId(item.id)}
@@ -321,6 +337,16 @@ export default function AssignmentsPage() {
               value={form.title}
               onChange={(e) => setField("title", e.target.value)}
               placeholder="Например, Домашнее задание №1"
+              disabled={isSubmitting}
+            />
+          </label>
+
+          <label className={styles.field}>
+            <div className={styles.fieldLabel}>Файл материала <span className={styles.fieldOptional}>(необязательно, до 20 МБ)</span></div>
+            <input
+              className={styles.input}
+              type="file"
+              onChange={(event) => setMaterialFile(event.target.files?.[0] ?? null)}
               disabled={isSubmitting}
             />
           </label>

@@ -3,6 +3,7 @@ from datetime import datetime
 from pydantic import BaseModel, Field, HttpUrl
 
 from app.database.models import SubmissionStatus
+from app.schemas.file_schemas import FileDTO
 from app.schemas.user_schemas import UserBriefDTO
 
 
@@ -31,6 +32,7 @@ class SubmissionDTO(BaseModel):
     student: UserBriefDTO
     answer_text: str
     attachment_url: str | None
+    attachment_file: FileDTO | None
     status: SubmissionStatus
     return_comment: str | None = None
     submitted_at: datetime | None

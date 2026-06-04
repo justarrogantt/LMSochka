@@ -11,21 +11,23 @@ async def get_my_grades_overview(
     rows = await class_repo.list_for_user(user.id, db)
     class_ids = [cls.id for cls, _ in rows]
 
-    assignment_counts = await me_repo.count_assignments_for_classes(class_ids, db)
-    active_student_counts = await class_repo.count_active_students_for_classes(class_ids, db)
+    student_assignment_counts = await me_repo.count_student_assignments_for_classes(
+        class_ids, user.id, db
+    )
+    teacher_assignment_counts = await me_repo.count_teacher_assignment_obligations(
+        class_ids, db
+    )
     student_stats = await me_repo.student_graded_stats_for_classes(class_ids, user.id, db)
     teacher_stats = await me_repo.teacher_graded_stats_for_classes(class_ids, db)
 
     courses: list[CourseGradesSummaryDTO] = []
     for cls, member in rows:
-        assignments_total = assignment_counts.get(cls.id, 0)
-
         if member.role == ClassRole.STUDENT:
             graded_count, average_percent = student_stats.get(cls.id, (0, None))
-            assignments_count = assignments_total
+            assignments_count = student_assignment_counts.get(cls.id, 0)
         else:
             graded_count, average_percent = teacher_stats.get(cls.id, (0, None))
-            assignments_count = assignments_total * active_student_counts.get(cls.id, 0)
+            assignments_count = teacher_assignment_counts.get(cls.id, 0)
 
         pending_count = max(assignments_count - graded_count, 0)
         courses.append(

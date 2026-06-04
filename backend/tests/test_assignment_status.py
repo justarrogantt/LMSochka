@@ -69,10 +69,11 @@ async def _save_and_submit(client, token: str, aid: int) -> int:
 async def test_student_sees_no_submission_before_submitting(client):
     creator_token, _ = await _register(client, "c@example.com")
     class_id = await _create_class(client, creator_token)
-    await _make_assignment(client, creator_token, class_id)
 
     student_token, _ = await _register(client, "s@example.com")
     await _join_open(client, student_token, class_id)
+
+    await _make_assignment(client, creator_token, class_id)
 
     r = await client.get(
         f"/api/classes/{class_id}/assignments", headers=_auth(student_token)
@@ -88,10 +89,11 @@ async def test_student_sees_no_submission_before_submitting(client):
 async def test_student_sees_own_submission_status_and_grade(client):
     creator_token, _ = await _register(client, "c@example.com")
     class_id = await _create_class(client, creator_token)
-    aid = await _make_assignment(client, creator_token, class_id)
 
     student_token, _ = await _register(client, "s@example.com")
     await _join_open(client, student_token, class_id)
+
+    aid = await _make_assignment(client, creator_token, class_id)
     sid = await _save_and_submit(client, student_token, aid)
 
     # после submit — статус submitted, оценки ещё нет
@@ -125,7 +127,6 @@ async def test_student_sees_own_submission_status_and_grade(client):
 async def test_teacher_sees_submission_stats(client):
     creator_token, _ = await _register(client, "c@example.com")
     class_id = await _create_class(client, creator_token)
-    aid = await _make_assignment(client, creator_token, class_id)
 
     # три студента, двое сдают, одного потом оценим
     tokens = []
@@ -133,6 +134,8 @@ async def test_teacher_sees_submission_stats(client):
         t, _ = await _register(client, f"s{i}@example.com")
         await _join_open(client, t, class_id)
         tokens.append(t)
+
+    aid = await _make_assignment(client, creator_token, class_id)
 
     sid0 = await _save_and_submit(client, tokens[0], aid)
     await _save_and_submit(client, tokens[1], aid)
@@ -193,10 +196,11 @@ async def test_create_assignment_returns_empty_stats(client):
 async def test_teacher_can_delete_grade(client):
     creator_token, _ = await _register(client, "c@example.com")
     class_id = await _create_class(client, creator_token)
-    aid = await _make_assignment(client, creator_token, class_id)
 
     student_token, _ = await _register(client, "s@example.com")
     await _join_open(client, student_token, class_id)
+
+    aid = await _make_assignment(client, creator_token, class_id)
     sid = await _save_and_submit(client, student_token, aid)
 
     await client.put(
@@ -225,10 +229,11 @@ async def test_teacher_can_delete_grade(client):
 async def test_delete_grade_without_grade_is_404(client):
     creator_token, _ = await _register(client, "c@example.com")
     class_id = await _create_class(client, creator_token)
-    aid = await _make_assignment(client, creator_token, class_id)
 
     student_token, _ = await _register(client, "s@example.com")
     await _join_open(client, student_token, class_id)
+
+    aid = await _make_assignment(client, creator_token, class_id)
     sid = await _save_and_submit(client, student_token, aid)
 
     # оценки ещё не было
@@ -242,10 +247,11 @@ async def test_delete_grade_without_grade_is_404(client):
 async def test_student_cannot_delete_grade(client):
     creator_token, _ = await _register(client, "c@example.com")
     class_id = await _create_class(client, creator_token)
-    aid = await _make_assignment(client, creator_token, class_id)
 
     student_token, _ = await _register(client, "s@example.com")
     await _join_open(client, student_token, class_id)
+
+    aid = await _make_assignment(client, creator_token, class_id)
     sid = await _save_and_submit(client, student_token, aid)
     await client.put(
         f"/api/submissions/{sid}/grade",

@@ -1,8 +1,8 @@
 import enum
 import uuid
-from datetime import datetime
+from datetime import UTC, datetime
 
-from sqlalchemy import Enum, Float, ForeignKey, String, Text, UniqueConstraint, func
+from sqlalchemy import BigInteger, Enum, Float, ForeignKey, String, Text, UniqueConstraint, func
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
 
@@ -84,6 +84,9 @@ class ClassMembersTable(Base):
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"))
     role: Mapped[ClassRole] = mapped_column(Enum(ClassRole))
     joined_at: Mapped[datetime] = mapped_column(server_default=func.now())
+    # Начало текущего учебного периода. Заполняется только для student и
+    # обновляется при повторном вступлении, восстановлении и понижении до student.
+    learning_started_at: Mapped[datetime | None] = mapped_column(default=None)
     # soft delete: запись остаётся в БД, чтобы оценки и сданные решения ушедшего
     # участника не потерялись (нужны для аудита и просмотра в gradebook)
     deleted_at: Mapped[datetime | None] = mapped_column(default=None)
@@ -127,12 +130,15 @@ class AssignmentsTable(Base):
     description: Mapped[str] = mapped_column(Text, default="")
     # ссылка на материал (Drive/Notion/etc), валидируем как HttpUrl в Pydantic
     material_url: Mapped[str | None] = mapped_column(String(2048), default=None)
+    material_file_id: Mapped[str | None] = mapped_column(
+        ForeignKey("stored_files.id", ondelete="SET NULL"), default=None
+    )
     # дедлайн опциональный — задание без срока тоже допустимо
     due_at: Mapped[datetime | None] = mapped_column(default=None)
     # максимальный балл, обязательно > 0; шкала фиксируется при создании.
     # Менять можно только пока нет ни одной оценки по заданию (см. сервис)
     max_grade: Mapped[float] = mapped_column(Float)
-    created_at: Mapped[datetime] = mapped_column(server_default=func.now())
+    created_at: Mapped[datetime] = mapped_column(default=lambda: datetime.now(UTC))
     updated_at: Mapped[datetime | None] = mapped_column(onupdate=func.now())
     # soft delete: задание уходит из выдачи, но связанные решения и оценки
     # сохраняются в БД для аудита
@@ -163,6 +169,9 @@ class SubmissionsTable(Base):
     answer_text: Mapped[str] = mapped_column(Text, default="")
     # ссылка на файл/документ с решением (Drive/Notion/etc)
     attachment_url: Mapped[str | None] = mapped_column(String(2048), default=None)
+    attachment_file_id: Mapped[str | None] = mapped_column(
+        ForeignKey("stored_files.id", ondelete="SET NULL"), default=None
+    )
     status: Mapped[SubmissionStatus] = mapped_column(
         Enum(SubmissionStatus), default=SubmissionStatus.DRAFT
     )
@@ -191,6 +200,19 @@ class GradesTable(Base):
     comment: Mapped[str | None] = mapped_column(Text, default=None)
     graded_at: Mapped[datetime] = mapped_column(server_default=func.now())
     updated_at: Mapped[datetime | None] = mapped_column(onupdate=func.now())
+
+
+class StoredFilesTable(Base):
+    __tablename__ = "stored_files"
+
+    id: Mapped[str] = mapped_column(
+        String(36), primary_key=True, default=lambda: str(uuid.uuid4())
+    )
+    storage_name: Mapped[str] = mapped_column(String(80), unique=True)
+    original_name: Mapped[str] = mapped_column(String(255))
+    content_type: Mapped[str] = mapped_column(String(127))
+    size: Mapped[int] = mapped_column(BigInteger)
+    created_at: Mapped[datetime] = mapped_column(server_default=func.now())
 
 
 class NotificationType(enum.Enum):

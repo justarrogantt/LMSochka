@@ -1,22 +1,63 @@
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.database.models import AssignmentsTable, GradesTable, SubmissionsTable, SubmissionStatus
+from app.database.models import (
+    AssignmentsTable,
+    ClassMembersTable,
+    ClassRole,
+    GradesTable,
+    SubmissionsTable,
+    SubmissionStatus,
+)
 
 _ASSIGNMENT_ACTIVE = AssignmentsTable.deleted_at.is_(None)
 
 
-async def count_assignments_for_classes(
-    class_ids: list[int], db: AsyncSession
+async def count_student_assignments_for_classes(
+    class_ids: list[int], student_id: int, db: AsyncSession
 ) -> dict[int, int]:
     if not class_ids:
         return {}
 
     result = await db.execute(
         select(AssignmentsTable.class_id, func.count(AssignmentsTable.id))
+        .join(
+            ClassMembersTable,
+            (ClassMembersTable.class_id == AssignmentsTable.class_id)
+            & (ClassMembersTable.user_id == student_id),
+        )
         .where(
             AssignmentsTable.class_id.in_(class_ids),
             _ASSIGNMENT_ACTIVE,
+            ClassMembersTable.role == ClassRole.STUDENT,
+            ClassMembersTable.deleted_at.is_(None),
+            ClassMembersTable.learning_started_at.is_not(None),
+            ClassMembersTable.learning_started_at <= AssignmentsTable.created_at,
+        )
+        .group_by(AssignmentsTable.class_id)
+    )
+    return {class_id: int(cnt) for class_id, cnt in result.all()}
+
+
+async def count_teacher_assignment_obligations(
+    class_ids: list[int], db: AsyncSession
+) -> dict[int, int]:
+    if not class_ids:
+        return {}
+
+    result = await db.execute(
+        select(AssignmentsTable.class_id, func.count())
+        .join(
+            ClassMembersTable,
+            ClassMembersTable.class_id == AssignmentsTable.class_id,
+        )
+        .where(
+            AssignmentsTable.class_id.in_(class_ids),
+            _ASSIGNMENT_ACTIVE,
+            ClassMembersTable.role == ClassRole.STUDENT,
+            ClassMembersTable.deleted_at.is_(None),
+            ClassMembersTable.learning_started_at.is_not(None),
+            ClassMembersTable.learning_started_at <= AssignmentsTable.created_at,
         )
         .group_by(AssignmentsTable.class_id)
     )
@@ -37,12 +78,21 @@ async def student_graded_stats_for_classes(
             func.avg(percent_expr),
         )
         .join(SubmissionsTable, SubmissionsTable.assignment_id == AssignmentsTable.id)
+        .join(
+            ClassMembersTable,
+            (ClassMembersTable.class_id == AssignmentsTable.class_id)
+            & (ClassMembersTable.user_id == SubmissionsTable.student_id),
+        )
         .join(GradesTable, GradesTable.submission_id == SubmissionsTable.id)
         .where(
             AssignmentsTable.class_id.in_(class_ids),
             _ASSIGNMENT_ACTIVE,
             SubmissionsTable.student_id == student_id,
             SubmissionsTable.status == SubmissionStatus.GRADED,
+            ClassMembersTable.role == ClassRole.STUDENT,
+            ClassMembersTable.deleted_at.is_(None),
+            ClassMembersTable.learning_started_at.is_not(None),
+            ClassMembersTable.learning_started_at <= AssignmentsTable.created_at,
         )
         .group_by(AssignmentsTable.class_id)
     )
@@ -69,11 +119,20 @@ async def teacher_graded_stats_for_classes(
             func.avg(percent_expr),
         )
         .join(SubmissionsTable, SubmissionsTable.assignment_id == AssignmentsTable.id)
+        .join(
+            ClassMembersTable,
+            (ClassMembersTable.class_id == AssignmentsTable.class_id)
+            & (ClassMembersTable.user_id == SubmissionsTable.student_id),
+        )
         .join(GradesTable, GradesTable.submission_id == SubmissionsTable.id)
         .where(
             AssignmentsTable.class_id.in_(class_ids),
             _ASSIGNMENT_ACTIVE,
             SubmissionsTable.status == SubmissionStatus.GRADED,
+            ClassMembersTable.role == ClassRole.STUDENT,
+            ClassMembersTable.deleted_at.is_(None),
+            ClassMembersTable.learning_started_at.is_not(None),
+            ClassMembersTable.learning_started_at <= AssignmentsTable.created_at,
         )
         .group_by(AssignmentsTable.class_id)
     )

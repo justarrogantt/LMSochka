@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react"
 import { AnimatePresence } from "framer-motion"
-import { useNavigate, useOutletContext, useParams } from "react-router-dom"
+import { useNavigate, useParams } from "react-router-dom"
 import ArrowIcon from "../../../assets/icons/classes/arrow.svg?react"
 import DeleteIcon from "../../../assets/icons/classes/delete.svg?react"
 import EditIcon from "../../../assets/icons/classes/settings.svg?react"
@@ -16,7 +16,6 @@ import {
   deleteAnnouncement,
   type AnnouncementDto
 } from "../ClassAnnouncementsPage/services/announcement.api"
-import type { ClassLayoutContext } from "../../../layouts/ClassLayout/ClassLayout"
 import styles from "./AnnouncementPage.module.css"
 
 type FormState = {
@@ -26,7 +25,6 @@ type FormState = {
 
 export default function AnnouncementPage() {
   const { classId, announcementId } = useParams<{ classId: string; announcementId: string }>()
-  const { classDetail } = useOutletContext<ClassLayoutContext>()
   const navigate = useNavigate()
   const showToast = useToast()
 
@@ -130,7 +128,8 @@ export default function AnnouncementPage() {
     }
   }
 
-  const canManage = classDetail?.permissions.can_create_announcement ?? false
+  const canEdit = announcement?.can_edit ?? false
+  const canDelete = announcement?.can_delete ?? false
   const isFormChanged = form.title.trim() !== initialForm.title.trim() || form.content.trim() !== initialForm.content.trim()
   const canSave = form.title.trim().length > 0 && form.content.trim().length > 0 && isFormChanged && !isSubmitting
 
@@ -142,16 +141,20 @@ export default function AnnouncementPage() {
           Все объявления
         </button>
 
-        {canManage && !isLoading && announcement && (
+        {!isLoading && announcement && (canEdit || canDelete) && (
           <div className={styles.pageActions}>
-            <button className={styles.secondaryButton} type="button" onClick={openEditModal}>
-              <EditIcon className={styles.buttonIcon} />
-              Редактировать
-            </button>
-            <button className={styles.dangerButton} type="button" onClick={() => setActiveModal("delete")}>
-              <DeleteIcon className={styles.buttonIcon} />
-              Удалить
-            </button>
+            {canEdit && (
+              <button className={styles.secondaryButton} type="button" onClick={openEditModal}>
+                <EditIcon className={styles.buttonIcon} />
+                Редактировать
+              </button>
+            )}
+            {canDelete && (
+              <button className={styles.dangerButton} type="button" onClick={() => setActiveModal("delete")}>
+                <DeleteIcon className={styles.buttonIcon} />
+                Удалить
+              </button>
+            )}
           </div>
         )}
       </div>
@@ -175,7 +178,7 @@ export default function AnnouncementPage() {
       </LoadingSwap>
 
       <AnimatePresence>
-        {canManage && activeModal === "edit" && (
+        {canEdit && activeModal === "edit" && (
         <Modal title="Редактировать объявление" onClose={closeModal} disabled={isSubmitting} size="lg">
           <label className={styles.field}>
             <div className={styles.fieldLabel}>Заголовок</div>
@@ -211,7 +214,7 @@ export default function AnnouncementPage() {
       </AnimatePresence>
 
       <AnimatePresence>
-        {canManage && activeModal === "delete" && (
+        {canDelete && activeModal === "delete" && (
         <Modal title="Удалить объявление" onClose={closeModal} disabled={isSubmitting}>
           <div className={styles.modalText}>Вы точно хотите удалить объявление? Это действие нельзя отменить.</div>
           <div className={styles.modalActions}>

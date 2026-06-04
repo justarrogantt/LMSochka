@@ -1,8 +1,10 @@
 import os
+import shutil
 
 # Конфигурим окружение ДО импорта приложения, чтобы settings подхватил тестовые значения
 os.environ.setdefault("SECRET_KEY", "test-secret-key-do-not-use-in-prod")
 os.environ["DATABASE_NAME"] = "test_lms.db"
+os.environ["UPLOAD_DIR"] = "/tmp/lmsochka-test-uploads"
 
 from pathlib import Path
 
@@ -18,8 +20,10 @@ from app.main import app  # noqa: E402
 async def _fresh_db():
     """Каждый тест получает чистую БД."""
     db_path = Path("test_lms.db")
+    upload_path = Path(os.environ["UPLOAD_DIR"])
     if db_path.exists():
         db_path.unlink()
+    shutil.rmtree(upload_path, ignore_errors=True)
 
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
@@ -29,6 +33,7 @@ async def _fresh_db():
     await engine.dispose()
     if db_path.exists():
         db_path.unlink()
+    shutil.rmtree(upload_path, ignore_errors=True)
 
 
 @pytest_asyncio.fixture

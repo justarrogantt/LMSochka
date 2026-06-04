@@ -108,9 +108,11 @@ async def update_assignment(
     db: AsyncSession = Depends(get_db),
 ) -> AssignmentDTO:
     """Редактировать. teacher/creator. Менять max_grade при наличии оценок нельзя (422)."""
-    _, cls, _ = ctx
+    user, cls, member = ctx
     try:
-        return await assignment_service.update_assignment(cls.id, aid, body, db)
+        return await assignment_service.update_assignment(
+            cls.id, aid, user, member, body, db
+        )
     except ServiceError as e:
         raise HTTPException(status_code=e.status_code, detail=str(e)) from e
 
@@ -124,9 +126,9 @@ async def delete_assignment(
     db: AsyncSession = Depends(get_db),
 ) -> Response:
     """Soft delete. teacher/creator. Связанные решения/оценки остаются в БД."""
-    _, cls, _ = ctx
+    user, cls, member = ctx
     try:
-        await assignment_service.delete_assignment(cls.id, aid, db)
+        await assignment_service.delete_assignment(cls.id, aid, user, member, db)
     except ServiceError as e:
         raise HTTPException(status_code=e.status_code, detail=str(e)) from e
     return Response(status_code=204)

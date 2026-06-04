@@ -33,26 +33,29 @@ const EMPTY_FORM: FormState = { title: "", content: "" }
 
 type AnnouncementCardProps = {
   item: AnnouncementDto
-  canManage: boolean
   onOpen: () => void
   onEdit: () => void
   onDelete: () => void
 }
 
 // Карточка-превью объявления в списке
-function AnnouncementCard({ item, canManage, onOpen, onEdit, onDelete }: AnnouncementCardProps) {
+function AnnouncementCard({ item, onOpen, onEdit, onDelete }: AnnouncementCardProps) {
   return (
     <div className={styles.card} onClick={onOpen}>
       <div className={styles.cardHead}>
         <div className={styles.cardTitle}>{truncate(item.title, 80)}</div>
-        {canManage && (
+        {(item.can_edit || item.can_delete) && (
           <div className={styles.cardActions} onClick={(e) => e.stopPropagation()}>
-            <button className={styles.iconButton} type="button" aria-label="Редактировать объявление" onClick={onEdit}>
-              <EditIcon className={styles.icon} />
-            </button>
-            <button className={styles.iconButton} type="button" aria-label="Удалить объявление" onClick={onDelete}>
-              <DeleteIcon className={styles.icon} />
-            </button>
+            {item.can_edit && (
+              <button className={styles.iconButton} type="button" aria-label="Редактировать объявление" onClick={onEdit}>
+                <EditIcon className={styles.icon} />
+              </button>
+            )}
+            {item.can_delete && (
+              <button className={styles.iconButton} type="button" aria-label="Удалить объявление" onClick={onDelete}>
+                <DeleteIcon className={styles.icon} />
+              </button>
+            )}
           </div>
         )}
       </div>
@@ -246,7 +249,6 @@ export default function ClassAnnouncementsPage() {
               <motion.div key={item.id} variants={listItem}>
                 <AnnouncementCard
                   item={item}
-                  canManage={canManage}
                   onOpen={() => navigate(`/classes/${classId}/announcements/${item.id}`)}
                   onEdit={() => openEditModal(item)}
                   onDelete={() => setDeletingId(item.id)}

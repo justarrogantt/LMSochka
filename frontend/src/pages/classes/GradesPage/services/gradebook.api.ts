@@ -8,7 +8,8 @@ const GradebookAssignmentSchema = z.object({
   id: z.number(),
   title: z.string(),
   max_grade: z.number(),
-  due_at: z.string().nullable()
+  due_at: z.string().nullable(),
+  created_at: z.string()
 }).strip()
 
 // Готовая сводка по студенту из журнала оценок.
@@ -27,6 +28,7 @@ const RawGradebookStudentSchema = z.object({
   first_name: z.string().nullable(),
   last_name: z.string().nullable(),
   is_active: z.boolean(),
+  learning_started_at: z.string(),
   summary: GradebookStudentSummarySchema.optional()
 }).strip()
 
@@ -110,6 +112,7 @@ const StudentAssignmentsPageSchema = z.object({
     title: z.string(),
     max_grade: z.number(),
     due_at: z.string().nullable(),
+    created_at: z.string(),
     my_submission: z.object({
       submission_id: z.number(),
       status: z.enum(["draft", "submitted", "returned", "graded"]),
@@ -166,7 +169,8 @@ export async function getStudentGradebook(classId: number, viewer: GradebookView
       id: item.id,
       title: item.title,
       max_grade: item.max_grade,
-      due_at: item.due_at
+      due_at: item.due_at,
+      created_at: item.created_at
     }))
     const cells = page.items.map((item) => {
       const status = item.my_submission?.status ?? "draft"
@@ -192,6 +196,7 @@ export async function getStudentGradebook(classId: number, viewer: GradebookView
       students: [{
         ...viewer,
         is_active: true,
+        learning_started_at: assignments[0]?.created_at ?? new Date().toISOString(),
         summary: {
           average_percent: average,
           graded_count: cells.filter((cell) => cell.status === "graded").length,

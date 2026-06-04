@@ -1,7 +1,7 @@
 import { z } from "zod"
 import { Api } from "../../../../services/api"
 import { parseApiResponse, throwApiResponseError } from "../../../../services/response"
-import type { Errors } from "../../../../types/api.types"
+import type { Errors, PageDto } from "../../../../types/api.types"
 
 // Роли участников курса.
 const ClassRoleSchema = z.enum(["creator", "teacher", "student"])
@@ -40,6 +40,10 @@ const REMOVE_CLASS_MEMBER_ERRORS: Errors = {
   default: "Не удалось удалить участника из курса"
 }
 
+const RESTORE_CLASS_MEMBER_ERRORS: Errors = {
+  default: "Не удалось восстановить участника"
+}
+
 export async function getClassMembers(classId: number): Promise<ClassMembersDto> {
   try {
     const response = await Api.fetchGet(`/api/classes/${classId}/members`, CLASS_MEMBERS_ERRORS)
@@ -69,6 +73,36 @@ export async function updateClassMemberRole(
 export async function removeClassMember(classId: number, userId: number): Promise<ClassMembersDto> {
   try {
     const response = await Api.fetchDelete(`/api/classes/${classId}/members/${userId}`, REMOVE_CLASS_MEMBER_ERRORS)
+    return await parseApiResponse(response, ClassMembersSchema)
+  } catch (error) {
+    throwApiResponseError(error)
+  }
+}
+
+export async function getRemovedClassMembers(classId: number): Promise<PageDto<ClassMemberDto>> {
+  try {
+    const response = await Api.fetchGet(`/api/classes/${classId}/members/removed?limit=100`, CLASS_MEMBERS_ERRORS)
+    return await parseApiResponse(
+      response,
+      z.object({
+        items: z.array(ClassMemberSchema),
+        total: z.number(),
+        page: z.number(),
+        limit: z.number()
+      }).strip()
+    )
+  } catch (error) {
+    throwApiResponseError(error)
+  }
+}
+
+export async function restoreClassMember(classId: number, userId: number): Promise<ClassMembersDto> {
+  try {
+    const response = await Api.fetchPost(
+      `/api/classes/${classId}/members/${userId}/restore`,
+      {},
+      RESTORE_CLASS_MEMBER_ERRORS
+    )
     return await parseApiResponse(response, ClassMembersSchema)
   } catch (error) {
     throwApiResponseError(error)

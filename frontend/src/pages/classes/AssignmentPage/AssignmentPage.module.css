@@ -106,7 +106,19 @@
   font-size: 14px;
   font-weight: 600;
   text-decoration: none;
+  border: 0;
+  cursor: pointer;
   transition: background 0.16s ease;
+}
+
+.fileActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.hiddenFileInput {
+  display: none;
 }
 
 .materialLink:hover {
@@ -334,6 +346,8 @@
   font-size: 14px;
   font-weight: 600;
   text-decoration: none;
+  border: 0;
+  cursor: pointer;
   transition: background 0.16s ease;
 }
 

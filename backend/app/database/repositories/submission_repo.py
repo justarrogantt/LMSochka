@@ -3,6 +3,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database.models import (
     AssignmentsTable,
+    ClassMembersTable,
+    ClassRole,
     GradesTable,
     SubmissionsTable,
     SubmissionStatus,
@@ -54,8 +56,19 @@ async def get_with_student_by_id(
         select(SubmissionsTable, UsersTable, GradesTable)
         .join(UsersTable, UsersTable.id == SubmissionsTable.student_id)
         .join(AssignmentsTable, AssignmentsTable.id == SubmissionsTable.assignment_id)
+        .join(
+            ClassMembersTable,
+            (ClassMembersTable.class_id == AssignmentsTable.class_id)
+            & (ClassMembersTable.user_id == SubmissionsTable.student_id),
+        )
         .outerjoin(GradesTable, GradesTable.submission_id == SubmissionsTable.id)
-        .where(SubmissionsTable.id == sid, _ASSIGNMENT_ACTIVE)
+        .where(
+            SubmissionsTable.id == sid,
+            _ASSIGNMENT_ACTIVE,
+            ClassMembersTable.role == ClassRole.STUDENT,
+            ClassMembersTable.learning_started_at.is_not(None),
+            ClassMembersTable.learning_started_at <= AssignmentsTable.created_at,
+        )
     )
     row = result.first()
     return (row[0], row[1], row[2]) if row else None
@@ -72,8 +85,19 @@ async def list_for_assignment(
         select(SubmissionsTable, UsersTable, GradesTable)
         .join(UsersTable, UsersTable.id == SubmissionsTable.student_id)
         .join(AssignmentsTable, AssignmentsTable.id == SubmissionsTable.assignment_id)
+        .join(
+            ClassMembersTable,
+            (ClassMembersTable.class_id == AssignmentsTable.class_id)
+            & (ClassMembersTable.user_id == SubmissionsTable.student_id),
+        )
         .outerjoin(GradesTable, GradesTable.submission_id == SubmissionsTable.id)
-        .where(SubmissionsTable.assignment_id == assignment_id, _ASSIGNMENT_ACTIVE)
+        .where(
+            SubmissionsTable.assignment_id == assignment_id,
+            _ASSIGNMENT_ACTIVE,
+            ClassMembersTable.role == ClassRole.STUDENT,
+            ClassMembersTable.learning_started_at.is_not(None),
+            ClassMembersTable.learning_started_at <= AssignmentsTable.created_at,
+        )
     )
     if status is not None:
         query = query.where(SubmissionsTable.status == status)
@@ -98,7 +122,18 @@ async def count_for_assignment(
     query = (
         select(func.count(SubmissionsTable.id))
         .join(AssignmentsTable, AssignmentsTable.id == SubmissionsTable.assignment_id)
-        .where(SubmissionsTable.assignment_id == assignment_id, _ASSIGNMENT_ACTIVE)
+        .join(
+            ClassMembersTable,
+            (ClassMembersTable.class_id == AssignmentsTable.class_id)
+            & (ClassMembersTable.user_id == SubmissionsTable.student_id),
+        )
+        .where(
+            SubmissionsTable.assignment_id == assignment_id,
+            _ASSIGNMENT_ACTIVE,
+            ClassMembersTable.role == ClassRole.STUDENT,
+            ClassMembersTable.learning_started_at.is_not(None),
+            ClassMembersTable.learning_started_at <= AssignmentsTable.created_at,
+        )
     )
     if status is not None:
         query = query.where(SubmissionsTable.status == status)
@@ -172,9 +207,18 @@ async def stats_for_assignments(
             returned_expr,
         )
         .join(AssignmentsTable, AssignmentsTable.id == SubmissionsTable.assignment_id)
+        .join(
+            ClassMembersTable,
+            (ClassMembersTable.class_id == AssignmentsTable.class_id)
+            & (ClassMembersTable.user_id == SubmissionsTable.student_id),
+        )
         .where(
             SubmissionsTable.assignment_id.in_(assignment_ids),
             _ASSIGNMENT_ACTIVE,
+            ClassMembersTable.role == ClassRole.STUDENT,
+            ClassMembersTable.deleted_at.is_(None),
+            ClassMembersTable.learning_started_at.is_not(None),
+            ClassMembersTable.learning_started_at <= AssignmentsTable.created_at,
         )
         .group_by(SubmissionsTable.assignment_id)
     )
@@ -193,11 +237,19 @@ async def list_for_gradebook(
     result = await db.execute(
         select(SubmissionsTable, GradesTable)
         .join(AssignmentsTable, AssignmentsTable.id == SubmissionsTable.assignment_id)
+        .join(
+            ClassMembersTable,
+            (ClassMembersTable.class_id == AssignmentsTable.class_id)
+            & (ClassMembersTable.user_id == SubmissionsTable.student_id),
+        )
         .outerjoin(GradesTable, GradesTable.submission_id == SubmissionsTable.id)
         .where(
             SubmissionsTable.assignment_id.in_(assignment_ids),
             SubmissionsTable.student_id.in_(student_ids),
             _ASSIGNMENT_ACTIVE,
+            ClassMembersTable.role == ClassRole.STUDENT,
+            ClassMembersTable.learning_started_at.is_not(None),
+            ClassMembersTable.learning_started_at <= AssignmentsTable.created_at,
         )
     )
     return [(sub, grade) for sub, grade in result.all()]

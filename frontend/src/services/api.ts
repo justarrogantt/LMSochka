@@ -220,11 +220,19 @@ export class Api {
         throw new ApiError(Api.getErrorMessage(401, errors, errorsReplace), 401)
       }
 
+      function buildHeaders() {
+        const headers = Api.getHeaders(withAuth)
+        if (init.body instanceof FormData) {
+          delete headers["Content-Type"]
+        }
+        return headers
+      }
+
       let response = await Api.fetchWithTimeout(
         path,
         {
           ...init,
-          headers: Api.getHeaders(withAuth)
+          headers: buildHeaders()
         },
         timeoutMs
       )
@@ -241,7 +249,7 @@ export class Api {
           path,
           {
             ...init,
-            headers: Api.getHeaders(withAuth)
+            headers: buildHeaders()
           },
           timeoutMs
         )
@@ -400,6 +408,17 @@ export class Api {
       withAuth,
       timeoutMs
     )
+  }
+
+  static async fetchUpload(
+    path: string,
+    file: File,
+    errors: Errors = {},
+    timeoutMs: number = REQUEST_TIMEOUT_MS
+  ): Promise<Response> {
+    const body = new FormData()
+    body.append("upload", file)
+    return Api.request(path, { method: "POST", body }, errors, false, true, timeoutMs)
   }
 
   static async fetchDelete(

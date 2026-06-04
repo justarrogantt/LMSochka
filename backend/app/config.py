@@ -14,6 +14,8 @@ class Settings(BaseSettings):
 
     PASSWORD_MIN_LENGTH: int = 8
     JOIN_CODE_LENGTH: int = 8
+    UPLOAD_DIR: str = "uploads"
+    MAX_UPLOAD_SIZE: int = 20 * 1024 * 1024
 
     @property
     def database_url(self) -> str:

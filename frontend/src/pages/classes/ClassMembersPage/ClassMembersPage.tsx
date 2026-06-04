@@ -19,7 +19,9 @@ import { listContainer, listItem } from "../../../shared/motion"
 import type { ClassRole } from "../../../types/class.types"
 import {
   getClassMembers,
+  getRemovedClassMembers,
   removeClassMember,
+  restoreClassMember,
   updateClassMemberRole,
   type ClassMemberDto
 } from "./services/classMembers.api"
@@ -84,9 +86,10 @@ type MemberCardProps = {
   canManage: boolean
   onRoleChange: () => void
   onDelete: () => void
+  onRestore?: () => void
 }
 
-function MemberCard({ member, badgeRole, canManage, onRoleChange, onDelete }: MemberCardProps) {
+function MemberCard({ member, badgeRole, canManage, onRoleChange, onDelete, onRestore }: MemberCardProps) {
   const name = getMemberName(member)
   const badge = roleBadge[badgeRole ?? member.role]
   const BadgeIcon = badge.Icon
@@ -112,6 +115,11 @@ function MemberCard({ member, badgeRole, canManage, onRoleChange, onDelete }: Me
           </button>
         </>
       )}
+      {onRestore && (
+        <button className={styles.primaryButton} type="button" onClick={onRestore}>
+          Восстановить
+        </button>
+      )}
     </div>
   )
 }
@@ -122,6 +130,7 @@ export default function ClassMembersPage() {
   const canManageMembers = classDetail?.permissions.can_manage_members ?? false
 
   const [members, setMembers] = useState<ClassMemberDto[]>([])
+  const [removedMembers, setRemovedMembers] = useState<ClassMemberDto[]>([])
   const [search, setSearch] = useState("")
   const [isLoading, setIsLoading] = useState(true)
   const [selectedMember, setSelectedMember] = useState<ClassMemberDto | null>(null)
@@ -140,6 +149,12 @@ export default function ClassMembersPage() {
       try {
         const data = await getClassMembers(classDetail.id)
         setMembers(data.items)
+        if (canManageMembers) {
+          const removed = await getRemovedClassMembers(classDetail.id)
+          setRemovedMembers(removed.items)
+        } else {
+          setRemovedMembers([])
+        }
       } catch (error) {
         if (error instanceof ApiSilentError) return
         showToast({ type: "error", message: (error as Error).message })
@@ -149,7 +164,7 @@ export default function ClassMembersPage() {
     }
 
     void loadMembers()
-  }, [classDetail?.id])
+  }, [classDetail?.id, canManageMembers])
 
   function openRoleModal(member: ClassMemberDto) {
     setSelectedMember(member)
@@ -189,9 +204,26 @@ export default function ClassMembersPage() {
     try {
       const updated = await removeClassMember(classDetail.id, memberId)
       setMembers(updated.items)
+      const removed = await getRemovedClassMembers(classDetail.id)
+      setRemovedMembers(removed.items)
       showToast({ type: "neutral", message: "Участник удален из курса" })
     } catch (error) {
       setMembers(prevMembers)
+      showToast({ type: "error", message: (error as Error).message })
+    } finally {
+      setIsSubmitting(false)
+    }
+  }
+
+  async function submitRestoreMember(member: ClassMemberDto) {
+    if (!classDetail?.id || isSubmitting) return
+    setIsSubmitting(true)
+    try {
+      const updated = await restoreClassMember(classDetail.id, member.user_id)
+      setMembers(updated.items)
+      setRemovedMembers((prev) => prev.filter((item) => item.user_id !== member.user_id))
+      showToast({ type: "neutral", message: "Участник восстановлен как студент" })
+    } catch (error) {
       showToast({ type: "error", message: (error as Error).message })
     } finally {
       setIsSubmitting(false)
@@ -305,6 +337,24 @@ export default function ClassMembersPage() {
             </motion.div>
           </div>
         </>
+      )}
+
+      {canManageMembers && removedMembers.length > 0 && (
+        <div className={styles.group}>
+          <div className={styles.groupTitle}>Исключённые</div>
+          <div className={styles.members}>
+            {removedMembers.map((member) => (
+              <MemberCard
+                key={member.user_id}
+                member={member}
+                canManage={false}
+                onRoleChange={() => {}}
+                onDelete={() => {}}
+                onRestore={() => void submitRestoreMember(member)}
+              />
+            ))}
+          </div>
+        </div>
       )}
 
       {!hasMembers && <div className={styles.emptyMessage}>Участников пока нет</div>}

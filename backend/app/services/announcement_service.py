@@ -14,7 +14,13 @@ from app.schemas.user_schemas import UserBriefDTO
 from app.services import notification_service
 
 
-def _dto(ann: AnnouncementsTable, author: UsersTable) -> AnnouncementDTO:
+def _dto(
+    ann: AnnouncementsTable,
+    author: UsersTable,
+    user: UsersTable,
+    member: ClassMembersTable,
+) -> AnnouncementDTO:
+    can_manage = ann.author_id == user.id or member.role == ClassRole.CREATOR
     return AnnouncementDTO(
         id=ann.id,
         class_id=ann.class_id,
@@ -23,6 +29,8 @@ def _dto(ann: AnnouncementsTable, author: UsersTable) -> AnnouncementDTO:
         content=ann.content,
         created_at=ann.created_at,
         updated_at=ann.updated_at,
+        can_edit=can_manage,
+        can_delete=can_manage,
     )
 
 
@@ -30,6 +38,7 @@ async def create_announcement(
     class_id: int,
     class_name: str,
     author: UsersTable,
+    member: ClassMembersTable,
     title: str,
     content: str,
     db: AsyncSession,
@@ -51,16 +60,22 @@ async def create_announcement(
         class_name=class_name,
         db=db,
     )
-    return _dto(ann, author)
+    return _dto(ann, author, author, member)
 
 
 async def list_announcements(
-    class_id: int, page: int, limit: int, offset: int, db: AsyncSession
+    class_id: int,
+    page: int,
+    limit: int,
+    offset: int,
+    user: UsersTable,
+    member: ClassMembersTable,
+    db: AsyncSession,
 ) -> PageDTO[AnnouncementDTO]:
     rows = await announcement_repo.list_for_class(class_id, limit, offset, db)
     total = await announcement_repo.count_for_class(class_id, db)
     return PageDTO[AnnouncementDTO](
-        items=[_dto(a, u) for a, u in rows],
+        items=[_dto(a, u, user, member) for a, u in rows],
         total=total,
         page=page,
         limit=limit,
@@ -68,13 +83,17 @@ async def list_announcements(
 
 
 async def get_announcement(
-    class_id: int, aid: int, db: AsyncSession
+    class_id: int,
+    aid: int,
+    user: UsersTable,
+    member: ClassMembersTable,
+    db: AsyncSession,
 ) -> AnnouncementDTO:
     row = await announcement_repo.get_with_author(aid, class_id, db)
     if row is None:
         raise ServiceError("Объявление не найдено", 404)
     ann, author = row
-    return _dto(ann, author)
+    return _dto(ann, author, user, member)
 
 
 def _can_edit(
@@ -111,7 +130,7 @@ async def update_announcement(
     )
     # если поменялся сам автор класса (creator редактирует чужое) — все равно
     # автор объявления остаётся прежним, повторно подтягивать не надо
-    return _dto(ann, author)
+    return _dto(ann, author, user, member)
 
 
 async def delete_announcement(

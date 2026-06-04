@@ -8,12 +8,14 @@ import sys
 # Force UTF-8 output
 sys.stdout.reconfigure(encoding='utf-8')
 
-HOST = "103.246.144.199"
-PORT = 22
-USER = "root"
-PASSWORD = "St3J_t_VnewhstA"
-DEPLOY_DIR = "/opt/LMS"
-BACKEND_PORT = 8002
+# Все параметры подключения берём из окружения.
+# Несекретные значения имеют дефолты, пароль — обязателен и в коде не хранится.
+HOST = os.environ.get("DEPLOY_HOST", "103.246.144.199")
+PORT = int(os.environ.get("DEPLOY_PORT", "22"))
+USER = os.environ.get("DEPLOY_USER", "root")
+PASSWORD = os.environ.get("DEPLOY_PASSWORD")
+DEPLOY_DIR = os.environ.get("DEPLOY_DIR", "/opt/LMS")
+BACKEND_PORT = int(os.environ.get("DEPLOY_BACKEND_PORT", "8002"))
 
 # Local project root (two levels up from this script)
 LOCAL_ROOT = os.path.dirname(os.path.abspath(__file__))
@@ -56,6 +58,14 @@ def upload_dir(sftp, local_dir, remote_dir, skip=None):
 
 
 def main():
+    if not PASSWORD:
+        sys.exit(
+            "Не задан пароль деплоя. Установите переменную окружения DEPLOY_PASSWORD, "
+            "например: DEPLOY_PASSWORD=... python3 deploy.py\n"
+            "Опционально можно переопределить DEPLOY_HOST, DEPLOY_PORT, DEPLOY_USER, "
+            "DEPLOY_DIR, DEPLOY_BACKEND_PORT."
+        )
+
     client = paramiko.SSHClient()
     client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
     print(f"Connecting to {HOST}...")

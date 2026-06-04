@@ -210,6 +210,10 @@ async def test_teacher_can_list_submissions_and_filter_by_status(client):
     creator_token, teacher_token, student_token, _, class_id = (
         await _setup_class_with_student_and_teacher(client)
     )
+    # второй студент вступает до создания задания, чтобы оно входило в его период
+    student2_token, _ = await _register(client, "student2@example.com")
+    await _join_open(client, student2_token, class_id)
+
     aid = await _make_assignment(client, creator_token, class_id)
 
     # submitted
@@ -224,8 +228,6 @@ async def test_teacher_can_list_submissions_and_filter_by_status(client):
     )
 
     # draft from second student
-    student2_token, _ = await _register(client, "student2@example.com")
-    await _join_open(client, student2_token, class_id)
     await client.put(
         f"/api/assignments/{aid}/my-submission",
         json={"answer_text": "draft answer"},

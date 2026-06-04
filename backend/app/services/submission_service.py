@@ -5,11 +5,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.database.models import (
     AssignmentsTable,
     GradesTable,
+    StoredFilesTable,
     SubmissionsTable,
     SubmissionStatus,
     UsersTable,
 )
-from app.database.repositories import class_repo, grade_repo, submission_repo
+from app.database.repositories import class_repo, file_repo, grade_repo, submission_repo
 from app.schemas.errors import ServiceError
 from app.schemas.pagination import PageDTO
 from app.schemas.submission_schemas import (
@@ -18,7 +19,7 @@ from app.schemas.submission_schemas import (
     SubmissionGradeDTO,
 )
 from app.schemas.user_schemas import UserBriefDTO
-from app.services import access, notification_service
+from app.services import access, file_service, notification_service
 
 
 def _is_late(submission: SubmissionsTable, assignment: AssignmentsTable) -> bool:
@@ -32,6 +33,7 @@ def _dto(
     student: UsersTable,
     assignment: AssignmentsTable,
     grade: GradesTable | None,
+    attachment_file: StoredFilesTable | None = None,
 ) -> SubmissionDTO:
     return SubmissionDTO(
         id=submission.id,
@@ -39,6 +41,7 @@ def _dto(
         student=UserBriefDTO.model_validate(student),
         answer_text=submission.answer_text,
         attachment_url=submission.attachment_url,
+        attachment_file=file_service.dto(attachment_file),
         status=submission.status,
         return_comment=submission.return_comment,
         submitted_at=submission.submitted_at,
@@ -92,7 +95,10 @@ async def save_my_submission(
 
     await db.commit()
     await db.refresh(sub)
-    return _dto(sub, user, asg, grade)
+    attachment_file = (
+        await file_repo.get(sub.attachment_file_id, db) if sub.attachment_file_id else None
+    )
+    return _dto(sub, user, asg, grade, attachment_file)
 
 
 async def submit_my_submission(
@@ -115,7 +121,10 @@ async def submit_my_submission(
     await db.commit()
     await db.refresh(sub)
     grade = await grade_repo.get_by_submission(sub.id, db)
-    return _dto(sub, user, asg, grade)
+    attachment_file = (
+        await file_repo.get(sub.attachment_file_id, db) if sub.attachment_file_id else None
+    )
+    return _dto(sub, user, asg, grade, attachment_file)
 
 
 async def get_my_submission(
@@ -128,7 +137,10 @@ async def get_my_submission(
     if sub is None:
         return None
     grade = await grade_repo.get_by_submission(sub.id, db)
-    return _dto(sub, user, asg, grade)
+    attachment_file = (
+        await file_repo.get(sub.attachment_file_id, db) if sub.attachment_file_id else None
+    )
+    return _dto(sub, user, asg, grade, attachment_file)
 
 
 async def list_assignment_submissions(
@@ -144,9 +156,16 @@ async def list_assignment_submissions(
     await access.ensure_teacher_or_creator(asg.class_id, user.id, db)
 
     rows = await submission_repo.list_for_assignment(asg.id, status, limit, offset, db)
+    files = await file_repo.get_many(
+        [sub.attachment_file_id for sub, _, _ in rows if sub.attachment_file_id],
+        db,
+    )
     total = await submission_repo.count_for_assignment(asg.id, status, db)
     return PageDTO[SubmissionDTO](
-        items=[_dto(sub, student, asg, grade) for sub, student, grade in rows],
+        items=[
+            _dto(sub, student, asg, grade, files.get(sub.attachment_file_id))
+            for sub, student, grade in rows
+        ],
         total=total,
         page=page,
         limit=limit,
@@ -165,7 +184,10 @@ async def get_submission(
     if user.id != sub.student_id:
         await access.ensure_teacher_or_creator(asg.class_id, user.id, db)
 
-    return _dto(sub, student, asg, grade)
+    attachment_file = (
+        await file_repo.get(sub.attachment_file_id, db) if sub.attachment_file_id else None
+    )
+    return _dto(sub, student, asg, grade, attachment_file)
 
 
 async def return_submission(
@@ -209,4 +231,7 @@ async def return_submission(
             assignment_id=asg.id,
             db=db,
         )
-    return _dto(sub, student, asg, grade)
+    attachment_file = (
+        await file_repo.get(sub.attachment_file_id, db) if sub.attachment_file_id else None
+    )
+    return _dto(sub, student, asg, grade, attachment_file)

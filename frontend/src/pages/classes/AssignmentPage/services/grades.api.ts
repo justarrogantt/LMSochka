@@ -1,5 +1,6 @@
 import { z } from "zod"
 import { Api } from "../../../../services/api"
+import { StoredFileSchema } from "../../../../services/files.api"
 import { parseApiResponse, throwApiResponseError } from "../../../../services/response"
 import type { Errors } from "../../../../types/api.types"
 import type { SubmissionDto } from "./submissions.api"
@@ -29,6 +30,7 @@ const SubmissionSchema = z.object({
   student: GradeUserSchema,
   answer_text: z.string(),
   attachment_url: z.string().nullable(),
+  attachment_file: StoredFileSchema.nullable(),
   status: z.enum(["draft", "submitted", "returned", "graded"]),
   return_comment: z.string().nullable(),
   submitted_at: z.string().nullable(),
