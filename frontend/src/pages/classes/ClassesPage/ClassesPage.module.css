@@ -122,13 +122,6 @@
 }
 
 /* ───────── Адаптив ───────── */
-/* Сетка карточек: 3 колонки → 2 на планшете → 1 на телефоне */
-@media (max-width: 1024px) {
-  .cards {
-    grid-template-columns: repeat(2, 1fr);
-  }
-}
-
 @media (max-width: 768px) {
   /* Тулбар не помещается в строку: поиск на всю ширину, кнопки переносятся ниже */
   .actions {
@@ -143,10 +136,6 @@
   .actions > .secondaryButton,
   .actions > .primaryButton {
     flex: 1 1 auto;
-  }
-
-  .cards {
-    grid-template-columns: 1fr;
   }
 }
 
@@ -401,4 +390,18 @@
 .modal button:disabled {
   opacity: 0.45;
   pointer-events: none;
+}
+
+/* Сетка карточек курсов: 3 → 2 (планшет) → 1 (телефон).
+   Правила в конце файла, чтобы перекрыть базовое .cards { repeat(3, 1fr) } выше. */
+@media (max-width: 1024px) {
+  .cards {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (max-width: 768px) {
+  .cards {
+    grid-template-columns: 1fr;
+  }
 }

@@ -44,6 +44,7 @@
   gap: 8px;
   font-size: 14px;
   font-weight: 600;
+  white-space: nowrap;
   cursor: pointer;
   transition:
     background 0.16s ease,
@@ -274,4 +275,13 @@
 .modal button:disabled {
   opacity: 0.45;
   pointer-events: none;
+}
+
+/* ───────── Адаптив ───────── */
+@media (max-width: 768px) {
+  /* Заголовок секции и кнопку «Создать» складываем в столбик */
+  .pageHead {
+    flex-direction: column;
+    align-items: stretch;
+  }
 }

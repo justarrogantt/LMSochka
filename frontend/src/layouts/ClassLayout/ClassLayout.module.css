@@ -270,3 +270,17 @@
   opacity: 0.45;
   pointer-events: none;
 }
+
+/* ───────── Адаптив ───────── */
+@media (max-width: 768px) {
+  /* Шапка курса: название и кнопки управления в столбик, чтобы заголовок
+     не сжимался в узкую колонку и не рвался посреди слова */
+  .classHead {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .title {
+    font-size: 26px;
+  }
+}
