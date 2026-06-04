@@ -158,7 +158,15 @@ async def get_gradebook(
     submissions_rows = await submission_repo.list_for_gradebook(assignment_ids, student_ids, db)
 
     assignments_by_id = {a.id: a for a in assignments}
-    total_assignments = len(assignments)
+    eligible_assignment_counts = {
+        u.id: sum(
+            1
+            for assignment in assignments
+            if m.learning_started_at is not None
+            and assignment.created_at >= m.learning_started_at
+        )
+        for u, m in students_rows
+    }
     summary_map: dict[int, dict[str, float | int]] = {
         u.id: {
             "graded_count": 0,
@@ -218,6 +226,7 @@ async def get_gradebook(
                 title=a.title,
                 max_grade=a.max_grade,
                 due_at=a.due_at,
+                created_at=a.created_at,
             )
             for a in assignments
         ],
@@ -228,6 +237,7 @@ async def get_gradebook(
                 first_name=u.first_name,
                 last_name=u.last_name,
                 is_active=m.deleted_at is None,
+                learning_started_at=m.learning_started_at,
                 summary=GradebookStudentSummaryDTO(
                     average_percent=(
                         round(
@@ -239,7 +249,7 @@ async def get_gradebook(
                     graded_count=int(summary_map[u.id]["graded_count"]),
                     submitted_count=int(summary_map[u.id]["submitted_count"]),
                     pending_review_count=int(summary_map[u.id]["pending_review_count"]),
-                    total_assignments=total_assignments,
+                    total_assignments=eligible_assignment_counts[u.id],
                 ),
             )
             for u, m in students_rows

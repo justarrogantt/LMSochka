@@ -84,6 +84,9 @@ class ClassMembersTable(Base):
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"))
     role: Mapped[ClassRole] = mapped_column(Enum(ClassRole))
     joined_at: Mapped[datetime] = mapped_column(server_default=func.now())
+    # Начало текущего учебного периода. Заполняется только для student и
+    # обновляется при повторном вступлении, восстановлении и понижении до student.
+    learning_started_at: Mapped[datetime | None] = mapped_column(default=None)
     # soft delete: запись остаётся в БД, чтобы оценки и сданные решения ушедшего
     # участника не потерялись (нужны для аудита и просмотра в gradebook)
     deleted_at: Mapped[datetime | None] = mapped_column(default=None)
@@ -132,7 +135,7 @@ class AssignmentsTable(Base):
     # максимальный балл, обязательно > 0; шкала фиксируется при создании.
     # Менять можно только пока нет ни одной оценки по заданию (см. сервис)
     max_grade: Mapped[float] = mapped_column(Float)
-    created_at: Mapped[datetime] = mapped_column(server_default=func.now())
+    created_at: Mapped[datetime] = mapped_column(default=datetime.now)
     updated_at: Mapped[datetime | None] = mapped_column(onupdate=func.now())
     # soft delete: задание уходит из выдачи, но связанные решения и оценки
     # сохраняются в БД для аудита

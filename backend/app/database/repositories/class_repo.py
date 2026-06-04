@@ -4,6 +4,7 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database.models import (
+    AssignmentsTable,
     ClassesTable,
     ClassMembersTable,
     ClassRole,
@@ -82,7 +83,12 @@ async def create_class(
 async def add_member(
     class_id: int, user_id: int, role: ClassRole, db: AsyncSession
 ) -> ClassMembersTable:
-    member = ClassMembersTable(class_id=class_id, user_id=user_id, role=role)
+    member = ClassMembersTable(
+        class_id=class_id,
+        user_id=user_id,
+        role=role,
+        learning_started_at=datetime.now(UTC) if role == ClassRole.STUDENT else None,
+    )
     db.add(member)
     await db.flush()
     return member
@@ -136,6 +142,8 @@ async def get_member_with_user(
 async def update_member_role(
     member: ClassMembersTable, new_role: ClassRole, db: AsyncSession
 ) -> ClassMembersTable:
+    if member.role != ClassRole.STUDENT and new_role == ClassRole.STUDENT:
+        member.learning_started_at = datetime.now(UTC)
     member.role = new_role
     db.add(member)
     await db.commit()
@@ -169,6 +177,7 @@ async def reactivate_member(
     member.removal_reason = None
     member.role = ClassRole.STUDENT
     member.joined_at = datetime.now(UTC)
+    member.learning_started_at = member.joined_at
     db.add(member)
     await db.commit()
     await db.refresh(member)
@@ -321,6 +330,31 @@ async def count_active_students_for_classes(
         .group_by(ClassMembersTable.class_id)
     )
     return {class_id: int(cnt) for class_id, cnt in result.all()}
+
+
+async def count_eligible_students_for_assignments(
+    assignment_ids: list[int], db: AsyncSession
+) -> dict[int, int]:
+    """Сколько активных студентов обязаны выполнять каждое задание."""
+    if not assignment_ids:
+        return {}
+
+    result = await db.execute(
+        select(AssignmentsTable.id, func.count(ClassMembersTable.id))
+        .join(
+            ClassMembersTable,
+            ClassMembersTable.class_id == AssignmentsTable.class_id,
+        )
+        .where(
+            AssignmentsTable.id.in_(assignment_ids),
+            ClassMembersTable.role == ClassRole.STUDENT,
+            _MEMBER_ACTIVE,
+            ClassMembersTable.learning_started_at.is_not(None),
+            ClassMembersTable.learning_started_at <= AssignmentsTable.created_at,
+        )
+        .group_by(AssignmentsTable.id)
+    )
+    return {assignment_id: int(cnt) for assignment_id, cnt in result.all()}
 
 
 async def list_students_for_gradebook(

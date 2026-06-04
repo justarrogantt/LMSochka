@@ -129,11 +129,17 @@ async def list_assignments(
         limit,
         offset,
         only_pending_review=only_pending_review,
+        learning_started_at=(
+            member.learning_started_at if member.role == ClassRole.STUDENT else None
+        ),
         db=db,
     )
     total = await assignment_repo.count_for_class(
         class_id,
         only_pending_review=only_pending_review,
+        learning_started_at=(
+            member.learning_started_at if member.role == ClassRole.STUDENT else None
+        ),
         db=db,
     )
     aids = [a.id for a, _ in rows]
@@ -159,10 +165,11 @@ async def list_assignments(
     else:
         # teacher/creator видят прогресс сдачи (групповой запрос + один на counts)
         stats_map = await submission_repo.stats_for_assignments(aids, db)
-        counts = await class_repo.count_by_role(class_id, db)
-        students_total = counts[ClassRole.STUDENT]
+        eligible_counts = await class_repo.count_eligible_students_for_assignments(
+            aids, db
+        )
         items = [
-            _dto(a, u, stats=_stats_for(a.id, stats_map, students_total))
+            _dto(a, u, stats=_stats_for(a.id, stats_map, eligible_counts.get(a.id, 0)))
             for a, u in rows
         ]
         pending_review_total = await assignment_repo.count_pending_review_for_class(
@@ -200,6 +207,11 @@ async def get_assignment(
     asg, author = row
 
     if member.role == ClassRole.STUDENT:
+        if (
+            member.learning_started_at is None
+            or asg.created_at < member.learning_started_at
+        ):
+            raise ServiceError("Задание не найдено", 404)
         sub = await submission_repo.get_by_assignment_and_student(
             asg.id, member.user_id, db
         )
@@ -210,8 +222,14 @@ async def get_assignment(
         return _dto(asg, author, my_submission=my_submission)
 
     stats_map = await submission_repo.stats_for_assignments([asg.id], db)
-    counts = await class_repo.count_by_role(class_id, db)
-    return _dto(asg, author, stats=_stats_for(asg.id, stats_map, counts[ClassRole.STUDENT]))
+    eligible_counts = await class_repo.count_eligible_students_for_assignments(
+        [asg.id], db
+    )
+    return _dto(
+        asg,
+        author,
+        stats=_stats_for(asg.id, stats_map, eligible_counts.get(asg.id, 0)),
+    )
 
 
 async def update_assignment(

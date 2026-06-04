@@ -10,6 +10,7 @@ class GradebookAssignmentDTO(BaseModel):
     title: str
     max_grade: float
     due_at: datetime | None
+    created_at: datetime
 
 
 class GradebookStudentDTO(BaseModel):
@@ -18,6 +19,7 @@ class GradebookStudentDTO(BaseModel):
     first_name: str | None
     last_name: str | None
     is_active: bool
+    learning_started_at: datetime
     summary: "GradebookStudentSummaryDTO"
 
 
