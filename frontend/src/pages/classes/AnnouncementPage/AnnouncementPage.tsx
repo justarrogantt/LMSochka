@@ -1,10 +1,12 @@
 import { useEffect, useState } from "react"
+import { AnimatePresence } from "framer-motion"
 import { useNavigate, useOutletContext, useParams } from "react-router-dom"
 import ArrowIcon from "../../../assets/icons/classes/arrow.svg?react"
 import DeleteIcon from "../../../assets/icons/classes/delete.svg?react"
 import EditIcon from "../../../assets/icons/classes/settings.svg?react"
-import Loading from "../../../components/Loading/Loading"
 import Modal from "../../../components/Modal/Modal"
+import CardsSkeleton from "../../../components/Skeleton/CardsSkeleton"
+import LoadingSwap from "../../../components/Skeleton/LoadingSwap"
 import { useToast } from "../../../components/Toast/ToastProvider"
 import { ApiSilentError } from "../../../services/api"
 import { formatDateTime } from "../../../services/helpers"
@@ -154,25 +156,26 @@ export default function AnnouncementPage() {
         )}
       </div>
 
-      {isLoading && <Loading />}
+      <LoadingSwap isLoading={isLoading} skeleton={<CardsSkeleton count={1} variant="feed" />}>
+        {announcement && (
+          <div className={styles.card}>
+            <div className={styles.title}>{announcement.title}</div>
 
-      {!isLoading && announcement && (
-        <div className={styles.card}>
-          <div className={styles.title}>{announcement.title}</div>
+            <div className={styles.content}>{announcement.content}</div>
 
-          <div className={styles.content}>{announcement.content}</div>
-
-          <div className={styles.meta}>
-            <div>{announcement.author.email}</div>
-            <div>{formatDateTime(announcement.created_at)}</div>
-            {announcement.updated_at && announcement.updated_at !== announcement.created_at && (
-              <div>изменено {formatDateTime(announcement.updated_at)}</div>
-            )}
+            <div className={styles.meta}>
+              <div>{announcement.author.email}</div>
+              <div>{formatDateTime(announcement.created_at)}</div>
+              {announcement.updated_at && announcement.updated_at !== announcement.created_at && (
+                <div>изменено {formatDateTime(announcement.updated_at)}</div>
+              )}
+            </div>
           </div>
-        </div>
-      )}
+        )}
+      </LoadingSwap>
 
-      {canManage && activeModal === "edit" && (
+      <AnimatePresence>
+        {canManage && activeModal === "edit" && (
         <Modal title="Редактировать объявление" onClose={closeModal} disabled={isSubmitting} size="lg">
           <label className={styles.field}>
             <div className={styles.fieldLabel}>Заголовок</div>
@@ -204,9 +207,11 @@ export default function AnnouncementPage() {
             </button>
           </div>
         </Modal>
-      )}
+        )}
+      </AnimatePresence>
 
-      {canManage && activeModal === "delete" && (
+      <AnimatePresence>
+        {canManage && activeModal === "delete" && (
         <Modal title="Удалить объявление" onClose={closeModal} disabled={isSubmitting}>
           <div className={styles.modalText}>Вы точно хотите удалить объявление? Это действие нельзя отменить.</div>
           <div className={styles.modalActions}>
@@ -218,7 +223,8 @@ export default function AnnouncementPage() {
             </button>
           </div>
         </Modal>
-      )}
+        )}
+      </AnimatePresence>
     </div>
   )
 }

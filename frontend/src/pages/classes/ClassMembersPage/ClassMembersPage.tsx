@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react"
+import { AnimatePresence, motion } from "framer-motion"
 import { useOutletContext } from "react-router-dom"
 import CreatorIcon from "../../../assets/icons/classes/creator.svg?react"
 import DeleteIcon from "../../../assets/icons/classes/delete.svg?react"
@@ -7,12 +8,14 @@ import SettingsIcon from "../../../assets/icons/classes/settings.svg?react"
 import CoursesIcon from "../../../assets/icons/layout/courses.svg?react"
 import SearchIcon from "../../../assets/icons/layout/search.svg?react"
 import Modal from "../../../components/Modal/Modal"
-import Loading from "../../../components/Loading/Loading"
+import LoadingSwap from "../../../components/Skeleton/LoadingSwap"
+import Skeleton from "../../../components/Skeleton/Skeleton"
 import { useToast } from "../../../components/Toast/ToastProvider"
 import type { ClassLayoutContext } from "../../../layouts/ClassLayout/ClassLayout"
 import { transferOwnership } from "../../../layouts/ClassLayout/services/class.api"
 import { ApiSilentError } from "../../../services/api"
 import { formatUserName } from "../../../services/helpers"
+import { listContainer, listItem } from "../../../shared/motion"
 import type { ClassRole } from "../../../types/class.types"
 import {
   getClassMembers,
@@ -30,6 +33,49 @@ const roleBadge: Record<ClassRole, { label: string; className: string; Icon: typ
 
 function getMemberName(member: ClassMemberDto) {
   return formatUserName(member)
+}
+
+// Карточка-заглушка участника — повторяет реальную (аватар + имя/почта + бейдж роли).
+function MemberSkeletonCard() {
+  return (
+    <div className={styles.memberCard}>
+      <Skeleton width={44} height={44} radius={999} />
+      <div className={styles.memberInfo}>
+        <Skeleton width={150} height={14} radius={999} />
+        <Skeleton width={210} height={11} radius={999} />
+      </div>
+      <Skeleton width={120} height={30} radius={999} />
+    </div>
+  )
+}
+
+// Скелетон вкладки «Участники»: реальные заголовки групп + карточки-заглушки под ними.
+export function MembersSkeleton() {
+  return (
+    <div className={styles.skeletonGroups}>
+      <div className={styles.group}>
+        <div className={styles.groupTitle}>Создатель</div>
+        <div className={styles.members}>
+          <MemberSkeletonCard />
+        </div>
+      </div>
+      <div className={styles.group}>
+        <div className={styles.groupTitle}>Преподаватели</div>
+        <div className={styles.members}>
+          <MemberSkeletonCard />
+          <MemberSkeletonCard />
+        </div>
+      </div>
+      <div className={styles.group}>
+        <div className={styles.groupTitle}>Студенты</div>
+        <div className={styles.members}>
+          <MemberSkeletonCard />
+          <MemberSkeletonCard />
+          <MemberSkeletonCard />
+        </div>
+      </div>
+    </div>
+  )
 }
 
 type MemberCardProps = {
@@ -192,7 +238,7 @@ export default function ClassMembersPage() {
           <div className={styles.text}>Преподаватели и студенты, которые состоят в курсе.</div>
         </div>
 
-        {hasMembers && (
+        {(isLoading || hasMembers) && (
           <label className={styles.search}>
             <div className={styles.searchControl}>
               <SearchIcon className={styles.searchFieldIcon} />
@@ -202,65 +248,71 @@ export default function ClassMembersPage() {
                 placeholder="Поиск по имени или почте"
                 value={search}
                 onChange={(event) => setSearch(event.target.value)}
+                disabled={isLoading}
               />
             </div>
           </label>
         )}
       </div>
 
-      {isLoading && <Loading />}
-
-      {!isLoading && hasMembers && hasFiltered && (
+      <LoadingSwap isLoading={isLoading} skeleton={<MembersSkeleton />} gap={24}>
+      {hasMembers && hasFiltered && (
         <>
           <div className={styles.group}>
             <div className={styles.groupTitle}>Создатель</div>
-            <div className={styles.members}>
+            <motion.div className={styles.members} variants={listContainer} initial="hidden" animate="visible">
               {creators.map((member) => (
-                <MemberCard key={member.user_id} member={member} canManage={false} onRoleChange={() => {}} onDelete={() => {}} />
+                <motion.div key={member.user_id} variants={listItem}>
+                  <MemberCard member={member} canManage={false} onRoleChange={() => {}} onDelete={() => {}} />
+                </motion.div>
               ))}
               {creators.length === 0 && <div className={styles.groupEmpty}>Пока никого нет</div>}
-            </div>
+            </motion.div>
           </div>
 
           <div className={styles.group}>
             <div className={styles.groupTitle}>Преподаватели</div>
-            <div className={styles.members}>
+            <motion.div className={styles.members} variants={listContainer} initial="hidden" animate="visible">
               {teachers.map((member) => (
-                <MemberCard
-                  key={member.user_id}
-                  member={member}
-                  badgeRole={member.role === "creator" ? "teacher" : undefined}
-                  canManage={canManageMembers && member.role !== "creator"}
-                  onRoleChange={() => openRoleModal(member)}
-                  onDelete={() => setMemberToDelete(member)}
-                />
+                <motion.div key={member.user_id} variants={listItem}>
+                  <MemberCard
+                    member={member}
+                    badgeRole={member.role === "creator" ? "teacher" : undefined}
+                    canManage={canManageMembers && member.role !== "creator"}
+                    onRoleChange={() => openRoleModal(member)}
+                    onDelete={() => setMemberToDelete(member)}
+                  />
+                </motion.div>
               ))}
               {teachers.length === 0 && <div className={styles.groupEmpty}>Пока никого нет</div>}
-            </div>
+            </motion.div>
           </div>
 
           <div className={styles.group}>
             <div className={styles.groupTitle}>Студенты</div>
-            <div className={styles.members}>
+            <motion.div className={styles.members} variants={listContainer} initial="hidden" animate="visible">
               {students.map((member) => (
-                <MemberCard
-                  key={member.user_id}
-                  member={member}
-                  canManage={canManageMembers}
-                  onRoleChange={() => openRoleModal(member)}
-                  onDelete={() => setMemberToDelete(member)}
-                />
+                <motion.div key={member.user_id} variants={listItem}>
+                  <MemberCard
+                    member={member}
+                    canManage={canManageMembers}
+                    onRoleChange={() => openRoleModal(member)}
+                    onDelete={() => setMemberToDelete(member)}
+                  />
+                </motion.div>
               ))}
               {students.length === 0 && <div className={styles.groupEmpty}>Пока никого нет</div>}
-            </div>
+            </motion.div>
           </div>
         </>
       )}
 
-      {!isLoading && !hasMembers && <div className={styles.emptyMessage}>Участников пока нет</div>}
-      {!isLoading && hasMembers && !hasFiltered && <div className={styles.emptyMessage}>Участники не найдены</div>}
+      {!hasMembers && <div className={styles.emptyMessage}>Участников пока нет</div>}
+      {hasMembers && !hasFiltered && <div className={styles.emptyMessage}>Участники не найдены</div>}
+      </LoadingSwap>
 
-      {selectedMember && !memberToTransfer && (
+      <AnimatePresence>
+        {selectedMember && !memberToTransfer && (
         <Modal title="Изменить роль участника" onClose={() => !isSubmitting && setSelectedMember(null)} disabled={isSubmitting}>
           <div className={styles.modalText}>{getMemberName(selectedMember)}</div>
 
@@ -302,9 +354,11 @@ export default function ClassMembersPage() {
             </button>
           </div>
         </Modal>
-      )}
+        )}
+      </AnimatePresence>
 
-      {memberToDelete && (
+      <AnimatePresence>
+        {memberToDelete && (
         <Modal title="Удалить участника" onClose={() => !isSubmitting && setMemberToDelete(null)} disabled={isSubmitting}>
           <div className={styles.modalText}>Вы точно хотите удалить участника из курса?</div>
           <div className={styles.modalText}>{getMemberName(memberToDelete)}</div>
@@ -317,9 +371,11 @@ export default function ClassMembersPage() {
             </button>
           </div>
         </Modal>
-      )}
+        )}
+      </AnimatePresence>
 
-      {memberToTransfer && (
+      <AnimatePresence>
+        {memberToTransfer && (
         <Modal title="Передать владение курсом" onClose={() => !isSubmitting && setMemberToTransfer(null)} disabled={isSubmitting}>
           <div className={styles.modalText}>
             Сделать владельцем курса участника {getMemberName(memberToTransfer)}?
@@ -336,7 +392,8 @@ export default function ClassMembersPage() {
             </button>
           </div>
         </Modal>
-      )}
+        )}
+      </AnimatePresence>
     </div>
   )
 }

@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react"
+import { motion } from "framer-motion"
 import { NavLink, Outlet, useNavigate } from "react-router-dom"
 import logo from "../../assets/logo.svg"
 import CoursesIcon from "../../assets/icons/layout/courses.svg?react"
@@ -10,6 +11,7 @@ import NotificationsBell from "../../components/NotificationsBell/NotificationsB
 import { useToast } from "../../components/Toast/ToastProvider"
 import { useAuth } from "../../contexts/AuthContext"
 import { NotificationsProvider } from "../../contexts/NotificationsContext"
+import { DURATION, EASE_OUT } from "../../shared/motion"
 import { Api, ApiError, ApiSilentError } from "../../services/api"
 import { logout as logoutRequest } from "../../services/auth.api"
 import { formatUserName } from "../../services/helpers"
@@ -37,6 +39,10 @@ const menuItems = [
 ]
 
 const SIDEBAR_OPEN_STORAGE_KEY = "sidebar_open"
+
+// Ширина сайдбара в развёрнутом/свёрнутом виде (анимируем между ними)
+const SIDEBAR_WIDTH_OPEN = 256
+const SIDEBAR_WIDTH_COLLAPSED = 80
 
 function getInitialSidebarOpen() {
   const saved = localStorage.getItem(SIDEBAR_OPEN_STORAGE_KEY)
@@ -124,7 +130,12 @@ export default function AppLayout() {
         </header>
 
         <div className={styles.shell}>
-          <aside className={styles.sidebar}>
+          <motion.aside
+            className={styles.sidebar}
+            initial={false}
+            animate={{ width: isSidebarOpen ? SIDEBAR_WIDTH_OPEN : SIDEBAR_WIDTH_COLLAPSED }}
+            transition={{ duration: DURATION.sidebar, ease: EASE_OUT }}
+          >
             <nav className={styles.menu} aria-label="Основное меню">
               {menuItems.map((item) => {
                 const Icon = item.icon
@@ -137,7 +148,9 @@ export default function AppLayout() {
                     end={item.end}
                     title={item.title}
                   >
-                    <Icon className={styles.menuIcon} />
+                    <span className={styles.menuIconBox}>
+                      <Icon className={styles.menuIcon} />
+                    </span>
                     <span className={styles.menuLabel}>{item.title}</span>
                   </NavLink>
                 )
@@ -145,10 +158,12 @@ export default function AppLayout() {
             </nav>
 
             <button className={styles.logoutButton} type="button" onClick={logout} title="Выйти">
-              <ExitIcon className={styles.logoutIcon} />
+              <span className={styles.menuIconBox}>
+                <ExitIcon className={styles.logoutIcon} />
+              </span>
               <span className={styles.menuLabel}>Выйти</span>
             </button>
-          </aside>
+          </motion.aside>
 
           <div className={styles.main}>
             <div className={styles.scrollArea}>

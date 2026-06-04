@@ -1,12 +1,15 @@
 import { useEffect, useState, type FormEvent } from "react"
+import { motion } from "framer-motion"
 import { useNavigate } from "react-router-dom"
 import ArrowIcon from "../../../assets/icons/classes/arrow.svg?react"
 import SearchIcon from "../../../assets/icons/layout/search.svg?react"
-import Loading from "../../../components/Loading/Loading"
 import Pagination from "../../../components/Pagination/Pagination"
+import CardsSkeleton from "../../../components/Skeleton/CardsSkeleton"
+import LoadingSwap from "../../../components/Skeleton/LoadingSwap"
 import { useToast } from "../../../components/Toast/ToastProvider"
 import { ApiSilentError } from "../../../services/api"
 import { formatDateTime, truncate } from "../../../services/helpers"
+import { listContainer, listItem } from "../../../shared/motion"
 import { getPublicClasses, joinOpenClass, type PublicClassDto } from "./services/publicClasses.api"
 import styles from "./PublicClassesPage.module.css"
 
@@ -135,22 +138,24 @@ export default function PublicClassesPage() {
         </button>
       </form>
 
-      {isLoading && <Loading />}
-
-      <div className={styles.cards}>
-        {!isLoading &&
-          classes.map((item) => (
-            <PublicClassCard
-              key={item.id}
-              item={item}
-              isJoining={submittingIds.has(item.id)}
-              onOpen={() => navigate(`/classes/${item.id}`)}
-              onJoin={() => void joinById(item.id)}
-            />
-          ))}
-
-        {!isLoading && classes.length === 0 && <div className={styles.emptyMessage}>Тут пока пусто</div>}
-      </div>
+      <LoadingSwap isLoading={isLoading} skeleton={<CardsSkeleton className={styles.cards} count={6} />}>
+        {classes.length === 0 ? (
+          <div className={styles.emptyMessage}>Тут пока пусто</div>
+        ) : (
+          <motion.div className={styles.cards} variants={listContainer} initial="hidden" animate="visible">
+            {classes.map((item) => (
+              <motion.div key={item.id} variants={listItem}>
+                <PublicClassCard
+                  item={item}
+                  isJoining={submittingIds.has(item.id)}
+                  onOpen={() => navigate(`/classes/${item.id}`)}
+                  onJoin={() => void joinById(item.id)}
+                />
+              </motion.div>
+            ))}
+          </motion.div>
+        )}
+      </LoadingSwap>
 
       <Pagination page={currentPage} total={totalItems} limit={LIMIT} onChange={(page) => void loadPublicClasses(page, appliedSearch)} />
     </div>

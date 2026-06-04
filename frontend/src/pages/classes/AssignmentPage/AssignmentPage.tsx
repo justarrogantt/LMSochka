@@ -1,11 +1,12 @@
 import { useEffect, useState } from "react"
+import { AnimatePresence } from "framer-motion"
 import { useNavigate, useOutletContext, useParams } from "react-router-dom"
 import ArrowIcon from "../../../assets/icons/classes/arrow.svg?react"
 import DeleteIcon from "../../../assets/icons/classes/delete.svg?react"
 import EditIcon from "../../../assets/icons/classes/settings.svg?react"
-import Loading from "../../../components/Loading/Loading"
 import Modal from "../../../components/Modal/Modal"
 import Pagination from "../../../components/Pagination/Pagination"
+import CardsSkeleton from "../../../components/Skeleton/CardsSkeleton"
 import { useToast } from "../../../components/Toast/ToastProvider"
 import { ApiSilentError } from "../../../services/api"
 import { formatDateTime } from "../../../services/helpers"
@@ -452,7 +453,7 @@ export default function AssignmentPage() {
         )}
       </div>
 
-      {isLoading && <Loading />}
+      {isLoading && <CardsSkeleton count={2} variant="feed" />}
 
       {!isLoading && assignment && (
         <div className={styles.card}>
@@ -484,7 +485,7 @@ export default function AssignmentPage() {
             {mySubmission && <StatusBadge status={mySubmission.status} />}
           </div>
 
-          {isMyLoading && <Loading />}
+          {isMyLoading && <CardsSkeleton count={1} variant="feed" />}
 
           {!isMyLoading && (
             <div className={styles.submissionBox}>
@@ -585,7 +586,7 @@ export default function AssignmentPage() {
             ))}
           </div>
 
-          {isSubsLoading && <Loading />}
+          {isSubsLoading && <CardsSkeleton count={2} variant="member" />}
 
           {!isSubsLoading && submissions.length > 0 && (
             <div className={styles.subList}>
@@ -614,7 +615,8 @@ export default function AssignmentPage() {
         </div>
       )}
 
-      {canManage && activeModal === "edit" && (
+      <AnimatePresence>
+        {canManage && activeModal === "edit" && (
         <Modal title="Редактировать задание" onClose={closeModal} disabled={isSubmitting}>
           <label className={styles.field}>
             <div className={styles.fieldLabel}>Название</div>
@@ -682,9 +684,11 @@ export default function AssignmentPage() {
             </button>
           </div>
         </Modal>
-      )}
+        )}
+      </AnimatePresence>
 
-      {canManage && activeModal === "delete" && (
+      <AnimatePresence>
+        {canManage && activeModal === "delete" && (
         <Modal title="Удалить задание" onClose={closeModal} disabled={isSubmitting}>
           <div className={styles.modalText}>Вы точно хотите удалить задание? Это действие нельзя отменить.</div>
           <div className={styles.modalActions}>
@@ -696,10 +700,12 @@ export default function AssignmentPage() {
             </button>
           </div>
         </Modal>
-      )}
+        )}
+      </AnimatePresence>
 
       {/* Окно проверки решения студента */}
-      {canGrade && selected && (
+      <AnimatePresence>
+        {canGrade && selected && (
         <Modal title="Решение студента" onClose={closeReview} disabled={isReviewBusy}>
           <div className={styles.reviewHead}>
             <div className={styles.subName}>{studentName(selected.student)}</div>
@@ -799,7 +805,8 @@ export default function AssignmentPage() {
             </>
           )}
         </Modal>
-      )}
+        )}
+      </AnimatePresence>
     </div>
   )
 }

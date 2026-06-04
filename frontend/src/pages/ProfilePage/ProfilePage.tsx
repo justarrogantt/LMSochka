@@ -1,4 +1,5 @@
 import { useRef, useState } from "react"
+import { AnimatePresence } from "framer-motion"
 import EditIcon from "../../assets/icons/classes/edit.svg?react"
 import Modal from "../../components/Modal/Modal"
 import { useToast } from "../../components/Toast/ToastProvider"
@@ -72,9 +73,11 @@ export default function ProfilePage() {
         </div>
       </div>
 
-      {isEditing && user && (
-        <EditProfileModal user={user} onSaved={setUser} onClose={() => setIsEditing(false)} />
-      )}
+      <AnimatePresence>
+        {isEditing && user && (
+          <EditProfileModal user={user} onSaved={setUser} onClose={() => setIsEditing(false)} />
+        )}
+      </AnimatePresence>
     </div>
   )
 }

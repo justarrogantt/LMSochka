@@ -1,12 +1,16 @@
 import { useEffect, useState } from "react"
-import { NavLink, Outlet, useNavigate, useParams } from "react-router-dom"
+import { AnimatePresence } from "framer-motion"
+import { NavLink, Outlet, useLocation, useNavigate, useParams } from "react-router-dom"
 import ArrowIcon from "../../assets/icons/classes/arrow.svg?react"
 import DeleteIcon from "../../assets/icons/classes/delete.svg?react"
 import EditIcon from "../../assets/icons/classes/settings.svg?react"
 import ExitIcon from "../../assets/icons/layout/exit.svg?react"
-import Loading from "../../components/Loading/Loading"
 import Modal from "../../components/Modal/Modal"
+import CardsSkeleton from "../../components/Skeleton/CardsSkeleton"
+import LoadingSwap from "../../components/Skeleton/LoadingSwap"
 import { useToast } from "../../components/Toast/ToastProvider"
+import { OverviewSkeleton } from "../../pages/classes/ClassPage/ClassPage"
+import { MembersSkeleton } from "../../pages/classes/ClassMembersPage/ClassMembersPage"
 import copy from "copy-to-clipboard"
 import { ApiSilentError } from "../../services/api"
 import { deleteClass, getClassDetail, leaveClass, updateClass, type ClassDetailDto, type ClassType } from "./services/class.api"
@@ -20,6 +24,22 @@ const tabs = [
   { title: "Оценки", path: "grades" },
   { title: "Объявления", path: "announcements" }
 ]
+
+// Скелетон под активную вкладку, пока грузятся данные курса
+function classTabSkeleton(tabPath: string) {
+  switch (tabPath) {
+    case "members":
+      return <MembersSkeleton />
+    case "assignments":
+      return <CardsSkeleton variant="assignment" count={5} />
+    case "grades":
+      return <CardsSkeleton variant="member" count={4} />
+    case "announcements":
+      return <CardsSkeleton variant="feed" count={5} />
+    default:
+      return <OverviewSkeleton />
+  }
+}
 
 type EditFormState = {
   name: string
@@ -40,6 +60,12 @@ export default function ClassLayout() {
   const navigate = useNavigate()
   const showToast = useToast()
   const basePath = `/classes/${classId}`
+
+  // Активная вкладка (по URL) — чтобы показать соответствующий скелетон при загрузке
+  const { pathname } = useLocation()
+  const activeTabPath = pathname.startsWith(basePath)
+    ? pathname.slice(basePath.length).replace(/^\//, "")
+    : ""
 
   // Данные курса
   const [classDetail, setClassDetail] = useState<ClassDetailDto | null>(null)
@@ -212,10 +238,12 @@ export default function ClassLayout() {
         ))}
       </div>
 
-      {isLoading && <Loading />}
-      {!isLoading && <Outlet context={{ classDetail, setClassDetail } satisfies ClassLayoutContext} />}
+      <LoadingSwap isLoading={isLoading} skeleton={classTabSkeleton(activeTabPath)}>
+        <Outlet context={{ classDetail, setClassDetail } satisfies ClassLayoutContext} />
+      </LoadingSwap>
 
-      {isDeleteModalOpen && (
+      <AnimatePresence>
+        {isDeleteModalOpen && (
         <Modal title={canDeleteClass ? "Удалить курс" : "Покинуть курс"} onClose={() => !isSubmitting && setIsDeleteModalOpen(false)} disabled={isSubmitting}>
           <div className={styles.modalText}>
             {canDeleteClass ? "Вы точно хотите удалить курс? Это действие нельзя отменить." : "Вы точно хотите покинуть курс?"}
@@ -235,9 +263,11 @@ export default function ClassLayout() {
             )}
           </div>
         </Modal>
-      )}
+        )}
+      </AnimatePresence>
 
-      {isEditModalOpen && (
+      <AnimatePresence>
+        {isEditModalOpen && (
         <Modal title="Редактировать курс" onClose={() => !isSubmitting && setIsEditModalOpen(false)} disabled={isSubmitting}>
           <label className={styles.field}>
             <div className={styles.fieldLabel}>Название курса</div>
@@ -281,7 +311,8 @@ export default function ClassLayout() {
             </button>
           </div>
         </Modal>
-      )}
+        )}
+      </AnimatePresence>
     </div>
   )
 }

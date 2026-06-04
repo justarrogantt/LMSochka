@@ -45,6 +45,11 @@
   color: var(--color-accent-active);
 }
 
+.switchButton:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
 .titleBlock {
   display: flex;
   flex-direction: column;

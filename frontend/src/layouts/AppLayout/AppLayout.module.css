@@ -182,8 +182,8 @@
 }
 
 .sidebar {
-  width: var(--sidebar-width);
-  flex: 0 0 var(--sidebar-width);
+  /* Ширину анимирует framer-motion (motion.aside), поэтому здесь её не фиксируем */
+  flex: 0 0 auto;
   /* На 1px заходим под шапку, чтобы между шапкой и сайдбаром не было линии-шва */
   margin-top: -1px;
   padding: 18px 16px;
@@ -206,12 +206,12 @@
 
 .menuButton {
   min-height: 46px;
-  padding: 0 14px;
+  padding: 0;
   border-radius: var(--radius-md);
   color: var(--color-muted);
   display: flex;
   align-items: center;
-  gap: 13px;
+  gap: 0;
   text-decoration: none;
   font-size: 14px;
   font-weight: 600;
@@ -220,6 +220,16 @@
   transition:
     background 0.16s ease,
     color 0.16s ease;
+}
+
+/* Фикс-квадрат под иконку: при свёрнутом сайдбаре (inner ≈ 48px) иконка ровно по центру,
+   при развёрнутом она на той же позиции — поэтому при сворачивании ничего не «прыгает». */
+.menuIconBox {
+  flex: 0 0 48px;
+  height: 46px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .menuButton:hover {
@@ -241,34 +251,34 @@
 }
 
 .menuLabel {
+  display: flex;
+  justify-content: flex-start;
+  flex: 1;
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
+  white-space: nowrap;
+  opacity: 1;
+  transition: opacity 0.18s ease;
 }
 
-.appCollapsed .menuButton {
-  justify-content: center;
-  padding: 0;
-  gap: 0;
-}
-
+/* В свёрнутом виде подпись плавно гаснет; иконка остаётся на месте (её держит iconBox). */
 .appCollapsed .menuLabel {
-  display: none;
+  opacity: 0;
 }
 
 .logoutButton {
   flex: 0 0 auto;
-  display: flex;
-  justify-content: center;
   min-height: 46px;
-  padding: 0 14px;
+  padding: 0;
   border: 1px solid var(--color-line);
   border-radius: var(--radius-md);
   background: var(--color-surface);
   color: var(--color-text);
   display: flex;
   align-items: center;
-  gap: 13px;
+  justify-content: center;
+  gap: 0;
   font-size: 14px;
   font-weight: 600;
   white-space: nowrap;
@@ -280,6 +290,32 @@
     color 0.16s ease;
 }
 
+/* У кнопки выхода иконка и подпись стоят группой по центру (а не слева, как в меню):
+   бокс иконки и подпись сжимаются по содержимому. */
+.logoutButton .menuIconBox {
+  flex: 0 0 auto;
+  height: auto;
+}
+
+/* Отступ держит margin подписи (а не gap кнопки), чтобы он плавно схлопывался вместе с ней.
+   Подпись сворачивается по ширине и прозрачности синхронно с анимацией ширины сайдбара
+   (та же длительность 0.25s и кривая) — поэтому иконка плавно «доезжает» в центр без рывка. */
+.logoutButton .menuLabel {
+  flex: 0 0 auto;
+  max-width: 64px;
+  margin-left: 10px;
+  transition:
+    opacity 0.25s cubic-bezier(0.22, 1, 0.36, 1),
+    max-width 0.25s cubic-bezier(0.22, 1, 0.36, 1),
+    margin-left 0.25s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.appCollapsed .logoutButton .menuLabel {
+  opacity: 0;
+  max-width: 0;
+  margin-left: 0;
+}
+
 .logoutButton:hover {
   background: var(--color-soft);
   border-color: var(--color-line-strong);
@@ -287,16 +323,10 @@
 }
 
 .logoutIcon {
-  width: 18px;
-  height: 18px;
-  flex: 0 0 18px;
+  width: 22px;
+  height: 22px;
+  flex: 0 0 22px;
   color: currentColor;
-}
-
-.appCollapsed .logoutButton {
-  justify-content: center;
-  padding: 0;
-  gap: 0;
 }
 
 .main {

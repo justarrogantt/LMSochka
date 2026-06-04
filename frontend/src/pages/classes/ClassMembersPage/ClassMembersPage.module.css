@@ -92,6 +92,13 @@
   gap: 12px;
 }
 
+/* Контейнер групп в скелетоне — те же отступы, что между реальными группами */
+.skeletonGroups {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
 .emptyMessage {
   min-height: 220px;
   color: var(--color-muted);

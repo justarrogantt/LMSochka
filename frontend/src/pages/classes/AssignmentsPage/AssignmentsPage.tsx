@@ -1,14 +1,17 @@
 import { useEffect, useState } from "react"
+import { AnimatePresence, motion } from "framer-motion"
 import { useNavigate, useOutletContext, useParams } from "react-router-dom"
 import AddIcon from "../../../assets/icons/classes/add.svg?react"
 import DeleteIcon from "../../../assets/icons/classes/delete.svg?react"
 import EditIcon from "../../../assets/icons/classes/settings.svg?react"
-import Loading from "../../../components/Loading/Loading"
 import Modal from "../../../components/Modal/Modal"
 import Pagination from "../../../components/Pagination/Pagination"
+import CardsSkeleton from "../../../components/Skeleton/CardsSkeleton"
+import LoadingSwap from "../../../components/Skeleton/LoadingSwap"
 import { useToast } from "../../../components/Toast/ToastProvider"
 import { ApiSilentError } from "../../../services/api"
 import { formatDateTime, truncate } from "../../../services/helpers"
+import { listContainer, listItem } from "../../../shared/motion"
 import type { ClassLayoutContext } from "../../../layouts/ClassLayout/ClassLayout"
 import {
   createAssignment,
@@ -263,6 +266,7 @@ export default function AssignmentsPage() {
               className={`${styles.switchButton} ${viewMode === "all" ? styles.switchButtonActive : ""}`}
               type="button"
               onClick={() => setViewMode("all")}
+              disabled={isLoading}
             >
               Все задания
             </button>
@@ -270,6 +274,7 @@ export default function AssignmentsPage() {
               className={`${styles.switchButton} ${viewMode === "pending" ? styles.switchButtonActive : ""}`}
               type="button"
               onClick={() => setViewMode("pending")}
+              disabled={isLoading}
             >
               На проверке {pendingReviewTotal > 0 ? `(${pendingReviewTotal})` : ""}
             </button>
@@ -281,32 +286,32 @@ export default function AssignmentsPage() {
         )}
       </div>
 
-      {isLoading && <Loading />}
-
-      {!isLoading && items.length > 0 && (
-        <div className={styles.cards}>
-          {items.map((item) => (
-            <AssignmentCard
-              key={item.id}
-              item={item}
-              canManage={canManage}
-              onOpen={() => navigate(`/classes/${classId}/assignments/${item.id}`)}
-              onEdit={() => openEditModal(item)}
-              onDelete={() => setDeletingId(item.id)}
-            />
-          ))}
-        </div>
-      )}
-
-      {!isLoading && items.length === 0 && (
-        <div className={styles.emptyMessage}>
-          {viewMode === "pending" ? "Нет заданий на проверке" : "Заданий пока нет"}
-        </div>
-      )}
+      <LoadingSwap isLoading={isLoading} skeleton={<CardsSkeleton className={styles.cards} count={5} variant="assignment" />}>
+        {items.length === 0 ? (
+          <div className={styles.emptyMessage}>
+            {viewMode === "pending" ? "Нет заданий на проверке" : "Заданий пока нет"}
+          </div>
+        ) : (
+          <motion.div className={styles.cards} variants={listContainer} initial="hidden" animate="visible">
+            {items.map((item) => (
+              <motion.div key={item.id} variants={listItem}>
+                <AssignmentCard
+                  item={item}
+                  canManage={canManage}
+                  onOpen={() => navigate(`/classes/${classId}/assignments/${item.id}`)}
+                  onEdit={() => openEditModal(item)}
+                  onDelete={() => setDeletingId(item.id)}
+                />
+              </motion.div>
+            ))}
+          </motion.div>
+        )}
+      </LoadingSwap>
 
       <Pagination page={currentPage} total={totalItems} limit={LIMIT} onChange={(p) => void loadPage(p, viewMode)} />
 
-      {canManage && isFormOpen && (
+      <AnimatePresence>
+        {canManage && isFormOpen && (
         <Modal title={editingId ? "Редактировать задание" : "Создать задание"} onClose={closeFormModal} disabled={isSubmitting}>
           <label className={styles.field}>
             <div className={styles.fieldLabel}>Название</div>
@@ -383,9 +388,11 @@ export default function AssignmentsPage() {
             </button>
           </div>
         </Modal>
-      )}
+        )}
+      </AnimatePresence>
 
-      {canManage && deletingId && (
+      <AnimatePresence>
+        {canManage && deletingId && (
         <Modal title="Удалить задание" onClose={closeDeleteModal} disabled={isSubmitting}>
           <div className={styles.modalText}>Вы точно хотите удалить задание? Это действие нельзя отменить.</div>
           <div className={styles.modalActions}>
@@ -397,7 +404,8 @@ export default function AssignmentsPage() {
             </button>
           </div>
         </Modal>
-      )}
+        )}
+      </AnimatePresence>
     </div>
   )
 }

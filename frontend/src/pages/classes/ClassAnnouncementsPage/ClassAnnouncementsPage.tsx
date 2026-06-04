@@ -1,14 +1,17 @@
 import { useEffect, useState } from "react"
+import { AnimatePresence, motion } from "framer-motion"
 import { useNavigate, useOutletContext, useParams } from "react-router-dom"
 import AddIcon from "../../../assets/icons/classes/add.svg?react"
 import DeleteIcon from "../../../assets/icons/classes/delete.svg?react"
 import EditIcon from "../../../assets/icons/classes/settings.svg?react"
-import Loading from "../../../components/Loading/Loading"
 import Modal from "../../../components/Modal/Modal"
 import Pagination from "../../../components/Pagination/Pagination"
+import CardsSkeleton from "../../../components/Skeleton/CardsSkeleton"
+import LoadingSwap from "../../../components/Skeleton/LoadingSwap"
 import { useToast } from "../../../components/Toast/ToastProvider"
 import { ApiSilentError } from "../../../services/api"
 import { formatDateTime, truncate } from "../../../services/helpers"
+import { listContainer, listItem } from "../../../shared/motion"
 import type { ClassLayoutContext } from "../../../layouts/ClassLayout/ClassLayout"
 import {
   createAnnouncement,
@@ -234,28 +237,30 @@ export default function ClassAnnouncementsPage() {
         )}
       </div>
 
-      {isLoading && <Loading />}
-
-      {!isLoading && items.length > 0 && (
-        <div className={styles.cards}>
-          {items.map((item) => (
-            <AnnouncementCard
-              key={item.id}
-              item={item}
-              canManage={canManage}
-              onOpen={() => navigate(`/classes/${classId}/announcements/${item.id}`)}
-              onEdit={() => openEditModal(item)}
-              onDelete={() => setDeletingId(item.id)}
-            />
-          ))}
-        </div>
-      )}
-
-      {!isLoading && items.length === 0 && <div className={styles.emptyMessage}>Объявлений пока нет</div>}
+      <LoadingSwap isLoading={isLoading} skeleton={<CardsSkeleton className={styles.cards} count={5} variant="feed" />}>
+        {items.length === 0 ? (
+          <div className={styles.emptyMessage}>Объявлений пока нет</div>
+        ) : (
+          <motion.div className={styles.cards} variants={listContainer} initial="hidden" animate="visible">
+            {items.map((item) => (
+              <motion.div key={item.id} variants={listItem}>
+                <AnnouncementCard
+                  item={item}
+                  canManage={canManage}
+                  onOpen={() => navigate(`/classes/${classId}/announcements/${item.id}`)}
+                  onEdit={() => openEditModal(item)}
+                  onDelete={() => setDeletingId(item.id)}
+                />
+              </motion.div>
+            ))}
+          </motion.div>
+        )}
+      </LoadingSwap>
 
       <Pagination page={currentPage} total={totalItems} limit={LIMIT} onChange={(p) => void loadPage(p)} />
 
-      {canManage && isFormOpen && (
+      <AnimatePresence>
+        {canManage && isFormOpen && (
         <Modal title={editingId ? "Редактировать объявление" : "Создать объявление"} onClose={closeFormModal} disabled={isSubmitting} size="lg">
           <label className={styles.field}>
             <div className={styles.fieldLabel}>Заголовок</div>
@@ -294,9 +299,11 @@ export default function ClassAnnouncementsPage() {
             </button>
           </div>
         </Modal>
-      )}
+        )}
+      </AnimatePresence>
 
-      {canManage && deletingId && (
+      <AnimatePresence>
+        {canManage && deletingId && (
         <Modal title="Удалить объявление" onClose={closeDeleteModal} disabled={isSubmitting}>
           <div className={styles.modalText}>Вы точно хотите удалить объявление? Это действие нельзя отменить.</div>
           <div className={styles.modalActions}>
@@ -308,7 +315,8 @@ export default function ClassAnnouncementsPage() {
             </button>
           </div>
         </Modal>
-      )}
+        )}
+      </AnimatePresence>
     </div>
   )
 }

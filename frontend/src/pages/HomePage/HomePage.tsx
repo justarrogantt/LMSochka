@@ -1,7 +1,9 @@
+import { motion } from "framer-motion"
 import { NavLink } from "react-router-dom"
 import ChevronRightIcon from "../../assets/icons/pagination/chevron-right.svg?react"
 import { useAuth } from "../../contexts/AuthContext"
 import { formatUserName } from "../../services/helpers"
+import { DURATION, EASE_OUT, listContainer, listItem } from "../../shared/motion"
 import styles from "./HomePage.module.css"
 
 // Приветствие в зависимости от времени суток
@@ -72,45 +74,52 @@ export default function HomePage() {
 
   return (
     <div className={styles.page}>
-      <div className={styles.hero}>
+      <motion.div
+        className={styles.hero}
+        initial={{ opacity: 0, y: 14 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: DURATION.card, ease: EASE_OUT }}
+      >
         <div className={styles.heroText}>
           <div className={styles.greeting}>{getGreeting()}, {greetingName}</div>
           <div className={styles.subtitle}>
             Это ваша учебная платформа: курсы, задания, объявления и оценки — всё в одном месте.
           </div>
         </div>
-      </div>
+      </motion.div>
 
       <div className={styles.section}>
         <div className={styles.sectionTitle}>С чего начать</div>
 
-        <div className={styles.steps}>
+        <motion.div className={styles.steps} variants={listContainer} initial="hidden" animate="visible">
           {steps.map((step, index) => (
-            <NavLink key={step.path} className={styles.step} to={step.path}>
-              <div className={styles.stepNumber}>{index + 1}</div>
+            <motion.div key={step.path} variants={listItem}>
+              <NavLink className={styles.step} to={step.path}>
+                <div className={styles.stepNumber}>{index + 1}</div>
 
-              <div className={styles.stepBody}>
-                <div className={styles.stepTitle}>{step.title}</div>
-                <div className={styles.stepText}>{step.text}</div>
-              </div>
+                <div className={styles.stepBody}>
+                  <div className={styles.stepTitle}>{step.title}</div>
+                  <div className={styles.stepText}>{step.text}</div>
+                </div>
 
-              <ChevronRightIcon className={styles.stepArrow} />
-            </NavLink>
+                <ChevronRightIcon className={styles.stepArrow} />
+              </NavLink>
+            </motion.div>
           ))}
-        </div>
+        </motion.div>
       </div>
 
       <div className={styles.section}>
         <div className={styles.sectionTitle}>Что умеет платформа</div>
 
-        <div className={styles.features}>
+        <motion.div className={styles.features} variants={listContainer} initial="hidden" animate="visible">
           {features.map((feature) => (
-            <div key={feature.title} className={styles.feature}>
+            <motion.div key={feature.title} className={styles.feature} variants={listItem}>
               <div className={styles.featureTitle}>{feature.title}</div>
               <div className={styles.featureText}>{feature.text}</div>
-            </div>
+            </motion.div>
           ))}
-        </div>
+        </motion.div>
       </div>
     </div>
   )

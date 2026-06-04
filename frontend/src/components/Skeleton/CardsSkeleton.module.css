@@ -1,0 +1,110 @@
+.shell {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.titleBar {
+  margin-bottom: 2px;
+}
+
+/* Контейнер по умолчанию — вертикальная колонка. Страница может передать свой грид. */
+.list {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+/* Базовая карточка (лента/задание/участник/оценки) */
+.card {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 20px;
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-soft);
+}
+
+/* Карточка курса — повторяет реальную: заголовок, бейджи во всю ширину, стат-блоки снизу */
+.courseCard {
+  min-height: 196px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 20px;
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-soft);
+}
+
+.badgesRow {
+  display: flex;
+  gap: 10px;
+}
+
+/* Бейдж тянется на равную долю строки */
+.badge {
+  flex: 1;
+}
+
+.statsRow {
+  margin-top: auto;
+  display: flex;
+  gap: 10px;
+}
+
+.statBox {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 14px;
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-md);
+  background: var(--color-surface-2);
+}
+
+.spreadRow {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.headRow {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+/* Ряд иконок-кнопок в карточке задания (редактировать/удалить) */
+.actionsRow {
+  display: flex;
+  gap: 8px;
+}
+
+/* Мета-строка карточки объявления: автор + дата */
+.metaRow {
+  display: flex;
+  gap: 16px;
+}
+
+.pushRight {
+  margin-left: auto;
+}
+
+/* Карточка участника — горизонтальная */
+.memberCard {
+  flex-direction: row;
+  align-items: center;
+  gap: 14px;
+}
+
+.memberInfo {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}

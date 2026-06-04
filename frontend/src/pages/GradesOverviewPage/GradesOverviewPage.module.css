@@ -74,6 +74,14 @@
   box-shadow: 0 0 0 4px var(--color-accent-ring);
 }
 
+/* Контейнер секций результата */
+.results {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
 /* Секция «Где я учусь» / «Где я преподаю» */
 .section {
   display: flex;

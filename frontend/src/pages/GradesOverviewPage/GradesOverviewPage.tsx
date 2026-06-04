@@ -1,9 +1,12 @@
 import { useEffect, useState } from "react"
+import { motion } from "framer-motion"
 import { Link } from "react-router-dom"
 import SearchIcon from "../../assets/icons/layout/search.svg?react"
-import Loading from "../../components/Loading/Loading"
+import CardsSkeleton from "../../components/Skeleton/CardsSkeleton"
+import LoadingSwap from "../../components/Skeleton/LoadingSwap"
 import { useToast } from "../../components/Toast/ToastProvider"
 import { ApiSilentError } from "../../services/api"
+import { listContainer, listItem } from "../../shared/motion"
 import { getGradesOverview, type CourseGradesSummary } from "./services/gradesOverview.api"
 import styles from "./GradesOverviewPage.module.css"
 
@@ -39,15 +42,18 @@ function CourseCard({ course }: { course: CourseGradesSummary }) {
 }
 
 // Секция с заголовком и сеткой курсов — общая для «учусь» и «преподаю».
+// Карточки появляются со стаггером через variants.
 function GradesSection({ title, courses }: { title: string; courses: CourseGradesSummary[] }) {
   return (
     <div className={styles.section}>
       <div className={styles.sectionTitle}>{title}</div>
-      <div className={styles.cards}>
+      <motion.div className={styles.cards} variants={listContainer} initial="hidden" animate="visible">
         {courses.map((course) => (
-          <CourseCard key={course.class_id} course={course} />
+          <motion.div key={course.class_id} variants={listItem}>
+            <CourseCard course={course} />
+          </motion.div>
         ))}
-      </div>
+      </motion.div>
     </div>
   )
 }
@@ -93,32 +99,34 @@ export default function GradesOverviewPage() {
         <div className={styles.text}>Сводка по оценкам и работам на проверке во всех ваших курсах.</div>
       </div>
 
-      {!isLoading && courses.length > 0 && (
-        <div className={styles.searchControl}>
-          <SearchIcon className={styles.searchIcon} />
-          <input
-            className={styles.searchInput}
-            type="text"
-            value={search}
-            onChange={(event) => setSearch(event.target.value)}
-            placeholder="Поиск по курсам"
-          />
-        </div>
-      )}
+      <div className={styles.searchControl}>
+        <SearchIcon className={styles.searchIcon} />
+        <input
+          className={styles.searchInput}
+          type="text"
+          value={search}
+          onChange={(event) => setSearch(event.target.value)}
+          placeholder="Поиск по курсам"
+          disabled={isLoading}
+        />
+      </div>
 
-      {isLoading && <Loading />}
+      <LoadingSwap isLoading={isLoading} skeleton={<CardsSkeleton className={styles.cards} count={12} variant="grades" title />}>
+        {courses.length === 0 && (
+          <div className={styles.emptyMessage}>Курсов с оценками пока нет</div>
+        )}
 
-      {!isLoading && courses.length === 0 && (
-        <div className={styles.emptyMessage}>Курсов с оценками пока нет</div>
-      )}
+        {courses.length > 0 && !hasResults && (
+          <div className={styles.emptyMessage}>По запросу «{search.trim()}» курсов не найдено</div>
+        )}
 
-      {!isLoading && courses.length > 0 && !hasResults && (
-        <div className={styles.emptyMessage}>По запросу «{search.trim()}» курсов не найдено</div>
-      )}
-
-      {studyCourses.length > 0 && <GradesSection title="Где я учусь" courses={studyCourses} />}
-
-      {teachCourses.length > 0 && <GradesSection title="Где я преподаю" courses={teachCourses} />}
+        {hasResults && (
+          <div className={styles.results}>
+            {studyCourses.length > 0 && <GradesSection title="Где я учусь" courses={studyCourses} />}
+            {teachCourses.length > 0 && <GradesSection title="Где я преподаю" courses={teachCourses} />}
+          </div>
+        )}
+      </LoadingSwap>
     </div>
   )
 }

@@ -1,4 +1,5 @@
 .page {
+  flex: 1;
   display: flex;
   flex-direction: column;
   gap: 20px;
@@ -75,6 +76,11 @@
   border-color: var(--color-accent);
   background: var(--color-surface);
   box-shadow: 0 0 0 4px var(--color-accent-ring);
+}
+
+.searchInput:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
 }
 
 .studentList {

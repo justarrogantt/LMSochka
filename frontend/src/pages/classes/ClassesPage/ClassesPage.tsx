@@ -1,4 +1,5 @@
 ﻿import { useEffect, useState } from "react"
+import { AnimatePresence, motion } from "framer-motion"
 import { useNavigate } from "react-router-dom"
 import AddIcon from "../../../assets/icons/classes/add.svg?react"
 import ClosedIcon from "../../../assets/icons/classes/closed.svg?react"
@@ -8,11 +9,13 @@ import KeyIcon from "../../../assets/icons/classes/key.svg?react"
 import MemberIcon from "../../../assets/icons/classes/member.svg?react"
 import OpenIcon from "../../../assets/icons/classes/open.svg?react"
 import SearchIcon from "../../../assets/icons/layout/search.svg?react"
-import Loading from "../../../components/Loading/Loading"
 import Modal from "../../../components/Modal/Modal"
+import CardsSkeleton from "../../../components/Skeleton/CardsSkeleton"
+import LoadingSwap from "../../../components/Skeleton/LoadingSwap"
 import { useToast } from "../../../components/Toast/ToastProvider"
 import { ApiSilentError } from "../../../services/api"
 import { truncate } from "../../../services/helpers"
+import { listContainer, listItem } from "../../../shared/motion"
 import {
   createClass,
   getMyClasses,
@@ -333,40 +336,46 @@ export default function ClassesPage() {
         </div>
       </div>
 
-      {isLoading && <Loading />}
+      <LoadingSwap isLoading={isLoading} skeleton={<CardsSkeleton className={styles.cards} count={6} />}>
+        {!hasClasses && <div className={styles.emptyMessage}>Вы пока не состоите ни в одном курсе</div>}
+        {hasClasses && !hasFilteredClasses && <div className={styles.emptyMessage}>Курсы не найдены</div>}
 
-      {!isLoading && hasFilteredClasses && (
-        <div className={styles.cards}>
-          {filteredClasses.map((item) => (
-            <ClassCard key={item.id} item={item} onOpen={(classId) => navigate(`/classes/${classId}`)} />
-          ))}
-        </div>
-      )}
+        {hasFilteredClasses && (
+          <motion.div className={styles.cards} variants={listContainer} initial="hidden" animate="visible">
+            {filteredClasses.map((item) => (
+              <motion.div key={item.id} variants={listItem}>
+                <ClassCard item={item} onOpen={(classId) => navigate(`/classes/${classId}`)} />
+              </motion.div>
+            ))}
+          </motion.div>
+        )}
+      </LoadingSwap>
 
-      {!isLoading && !hasClasses && <div className={styles.emptyMessage}>Вы пока не состоите ни в одном курсе</div>}
-      {!isLoading && hasClasses && !hasFilteredClasses && <div className={styles.emptyMessage}>Курсы не найдены</div>}
+      <AnimatePresence>
+        {activeModal === "create" && (
+          <CreateClassModal
+            newClassName={createForm.newClassName}
+            newClassType={createForm.newClassType}
+            isSubmitting={isSubmitting}
+            onNameChange={(value) => setCreateForm((prev) => ({ ...prev, newClassName: value }))}
+            onTypeChange={(value) => setCreateForm((prev) => ({ ...prev, newClassType: value }))}
+            onSubmit={submitCreateClass}
+            onClose={closeModal}
+          />
+        )}
+      </AnimatePresence>
 
-      {activeModal === "create" && (
-        <CreateClassModal
-          newClassName={createForm.newClassName}
-          newClassType={createForm.newClassType}
-          isSubmitting={isSubmitting}
-          onNameChange={(value) => setCreateForm((prev) => ({ ...prev, newClassName: value }))}
-          onTypeChange={(value) => setCreateForm((prev) => ({ ...prev, newClassType: value }))}
-          onSubmit={submitCreateClass}
-          onClose={closeModal}
-        />
-      )}
-
-      {activeModal === "join" && (
-        <JoinClassModal
-          joinCode={joinForm.joinCode}
-          isSubmitting={isSubmitting}
-          onCodeChange={(value) => setJoinForm({ joinCode: value })}
-          onSubmit={submitJoinByCode}
-          onClose={closeModal}
-        />
-      )}
+      <AnimatePresence>
+        {activeModal === "join" && (
+          <JoinClassModal
+            joinCode={joinForm.joinCode}
+            isSubmitting={isSubmitting}
+            onCodeChange={(value) => setJoinForm({ joinCode: value })}
+            onSubmit={submitJoinByCode}
+            onClose={closeModal}
+          />
+        )}
+      </AnimatePresence>
     </div>
   )
 }

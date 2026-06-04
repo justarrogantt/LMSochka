@@ -1,9 +1,11 @@
 import { useEffect, useRef, useState } from "react"
+import { AnimatePresence, motion } from "framer-motion"
 import { useNavigate } from "react-router-dom"
 import BellIcon from "../../assets/icons/layout/bell.svg?react"
 import { useNotifications } from "../../contexts/NotificationsContext"
 import { formatRelativeTime } from "../../services/helpers"
 import type { AppNotification } from "../../services/notifications.api"
+import { DURATION, EASE_OUT } from "../../shared/motion"
 import styles from "./NotificationsBell.module.css"
 
 // Куда вести по клику — на конкретную страницу сущности, а не просто на курс.
@@ -73,9 +75,16 @@ export default function NotificationsBell() {
         )}
       </button>
 
-      {isOpen && (
-        <div className={styles.panel}>
-          <div className={styles.panelHead}>
+      <AnimatePresence>
+        {isOpen && (
+          <motion.div
+            className={styles.panel}
+            initial={{ opacity: 0, y: -8, scale: 0.98 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: -8, scale: 0.98 }}
+            transition={{ duration: DURATION.panel, ease: EASE_OUT }}
+          >
+            <div className={styles.panelHead}>
             <div className={styles.panelTitle}>Уведомления</div>
             {unreadCount > 0 && (
               <button className={styles.readAll} type="button" onClick={markAllRead}>
@@ -102,8 +111,9 @@ export default function NotificationsBell() {
               </button>
             ))}
           </div>
-        </div>
-      )}
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   )
 }

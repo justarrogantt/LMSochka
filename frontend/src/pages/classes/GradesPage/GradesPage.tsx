@@ -2,7 +2,8 @@ import { useEffect, useState } from "react"
 import { Link, useOutletContext } from "react-router-dom"
 import SearchIcon from "../../../assets/icons/layout/search.svg?react"
 import SelectArrowIcon from "../../../assets/icons/select-arrow.svg?react"
-import Loading from "../../../components/Loading/Loading"
+import CardsSkeleton from "../../../components/Skeleton/CardsSkeleton"
+import LoadingSwap from "../../../components/Skeleton/LoadingSwap"
 import { useToast } from "../../../components/Toast/ToastProvider"
 import { useAuth } from "../../../contexts/AuthContext"
 import type { ClassLayoutContext } from "../../../layouts/ClassLayout/ClassLayout"
@@ -41,6 +42,8 @@ export default function GradesPage() {
 
   const [gradebook, setGradebook] = useState<GradebookDto | null>(null)
   const [isLoading, setIsLoading] = useState(true)
+  // Поиск живёт на уровне страницы, чтобы оставаться видимым (но неактивным) во время загрузки.
+  const [search, setSearch] = useState("")
 
   const canViewGradebook = classDetail?.permissions.can_view_gradebook ?? false
 
@@ -81,6 +84,9 @@ export default function GradesPage() {
   gradebook?.cells.forEach((cell) => cellMap.set(cellKey(cell.student_id, cell.assignment_id), cell))
 
   const hasData = gradebook && gradebook.students.length > 0
+  // Поиск показываем во время загрузки (неактивным) и когда есть данные.
+  const showSearch = isLoading || hasData
+  const searchPlaceholder = canViewGradebook ? "Поиск по студенту" : "Поиск по заданию"
 
   return (
     <div className={styles.page}>
@@ -91,22 +97,37 @@ export default function GradesPage() {
         </div>
       </div>
 
-      {isLoading && <Loading />}
-
-      {!isLoading && hasData && canViewGradebook && (
-        <TeacherGradebook gradebook={gradebook!} cellMap={cellMap} />
+      {showSearch && (
+        <label className={styles.search}>
+          <div className={styles.searchControl}>
+            <SearchIcon className={styles.searchFieldIcon} />
+            <input
+              className={styles.searchInput}
+              type="search"
+              placeholder={searchPlaceholder}
+              value={search}
+              onChange={(event) => setSearch(event.target.value)}
+              disabled={isLoading}
+            />
+          </div>
+        </label>
       )}
 
-      {!isLoading && hasData && !canViewGradebook && (
-        <StudentGrades
-          classId={classDetail!.id}
-          assignments={gradebook!.assignments}
-          cellMap={cellMap}
-          student={gradebook!.students[0]}
-        />
-      )}
+      <LoadingSwap isLoading={isLoading} skeleton={<CardsSkeleton count={4} variant="member" />}>
+        {hasData && canViewGradebook && <TeacherGradebook gradebook={gradebook!} cellMap={cellMap} search={search} />}
 
-      {!isLoading && !hasData && <div className={styles.emptyMessage}>Данных по оценкам пока нет</div>}
+        {hasData && !canViewGradebook && (
+          <StudentGrades
+            classId={classDetail!.id}
+            assignments={gradebook!.assignments}
+            cellMap={cellMap}
+            student={gradebook!.students[0]}
+            search={search}
+          />
+        )}
+
+        {!hasData && <div className={styles.emptyMessage}>Данных по оценкам пока нет</div>}
+      </LoadingSwap>
     </div>
   )
 }
@@ -114,10 +135,10 @@ export default function GradesPage() {
 type TeacherGradebookProps = {
   gradebook: GradebookDto
   cellMap: Map<string, GradebookCell>
+  search: string
 }
 
-function TeacherGradebook({ gradebook, cellMap }: TeacherGradebookProps) {
-  const [search, setSearch] = useState("")
+function TeacherGradebook({ gradebook, cellMap, search }: TeacherGradebookProps) {
   const [openStudentId, setOpenStudentId] = useState<number | null>(null)
 
   const query = search.trim().toLowerCase()
@@ -129,19 +150,6 @@ function TeacherGradebook({ gradebook, cellMap }: TeacherGradebookProps) {
 
   return (
     <>
-      <label className={styles.search}>
-        <div className={styles.searchControl}>
-          <SearchIcon className={styles.searchFieldIcon} />
-          <input
-            className={styles.searchInput}
-            type="search"
-            placeholder="Поиск по студенту"
-            value={search}
-            onChange={(event) => setSearch(event.target.value)}
-          />
-        </div>
-      </label>
-
       {students.length > 0 ? (
         <div className={styles.studentList}>
           {students.map((student) => (
@@ -237,11 +245,10 @@ type StudentGradesProps = {
   assignments: GradebookAssignment[]
   cellMap: Map<string, GradebookCell>
   student: GradebookStudent
+  search: string
 }
 
-function StudentGrades({ classId, assignments, cellMap, student }: StudentGradesProps) {
-  const [search, setSearch] = useState("")
-
+function StudentGrades({ classId, assignments, cellMap, student, search }: StudentGradesProps) {
   const average = student.summary.average_percent
   const gradedCount = student.summary.graded_count
   const totalAssignments = student.summary.total_assignments
@@ -262,19 +269,6 @@ function StudentGrades({ classId, assignments, cellMap, student }: StudentGrades
           <div className={styles.summaryValue}>{gradedCount} из {totalAssignments}</div>
         </div>
       </div>
-
-      <label className={styles.search}>
-        <div className={styles.searchControl}>
-          <SearchIcon className={styles.searchFieldIcon} />
-          <input
-            className={styles.searchInput}
-            type="search"
-            placeholder="Поиск по заданию"
-            value={search}
-            onChange={(event) => setSearch(event.target.value)}
-          />
-        </div>
-      </label>
 
       {visible.length > 0 ? (
         <div className={styles.gradeList}>
