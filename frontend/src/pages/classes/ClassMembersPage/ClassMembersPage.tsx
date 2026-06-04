@@ -8,12 +8,10 @@ import SettingsIcon from "../../../assets/icons/classes/settings.svg?react"
 import CoursesIcon from "../../../assets/icons/layout/courses.svg?react"
 import SearchIcon from "../../../assets/icons/layout/search.svg?react"
 import Modal from "../../../components/Modal/Modal"
-import LoadingSwap from "../../../components/Skeleton/LoadingSwap"
-import Skeleton from "../../../components/Skeleton/Skeleton"
 import { useToast } from "../../../components/Toast/ToastProvider"
 import type { ClassLayoutContext } from "../../../layouts/ClassLayout/ClassLayout"
 import { transferOwnership } from "../../../layouts/ClassLayout/services/class.api"
-import { ApiSilentError } from "../../../services/api"
+import { ApiError } from "../../../services/api"
 import { formatUserName } from "../../../services/helpers"
 import { listContainer, listItem } from "../../../shared/motion"
 import type { ClassRole } from "../../../types/class.types"
@@ -25,6 +23,7 @@ import {
   updateClassMemberRole,
   type ClassMemberDto
 } from "./services/classMembers.api"
+import SkeletonLoader from "./SkeletonLoader/SkeletonLoader"
 import styles from "./ClassMembersPage.module.css"
 
 const roleBadge: Record<ClassRole, { label: string; className: string; Icon: typeof CreatorIcon }> = {
@@ -37,55 +36,12 @@ function getMemberName(member: ClassMemberDto) {
   return formatUserName(member)
 }
 
-// Карточка-заглушка участника — повторяет реальную (аватар + имя/почта + бейдж роли).
-function MemberSkeletonCard() {
-  return (
-    <div className={styles.memberCard}>
-      <Skeleton width={44} height={44} radius={999} />
-      <div className={styles.memberInfo}>
-        <Skeleton width={150} height={14} radius={999} />
-        <Skeleton width={210} height={11} radius={999} />
-      </div>
-      <Skeleton width={120} height={30} radius={999} />
-    </div>
-  )
-}
-
-// Скелетон вкладки «Участники»: реальные заголовки групп + карточки-заглушки под ними.
-export function MembersSkeleton() {
-  return (
-    <div className={styles.skeletonGroups}>
-      <div className={styles.group}>
-        <div className={styles.groupTitle}>Создатель</div>
-        <div className={styles.members}>
-          <MemberSkeletonCard />
-        </div>
-      </div>
-      <div className={styles.group}>
-        <div className={styles.groupTitle}>Преподаватели</div>
-        <div className={styles.members}>
-          <MemberSkeletonCard />
-          <MemberSkeletonCard />
-        </div>
-      </div>
-      <div className={styles.group}>
-        <div className={styles.groupTitle}>Студенты</div>
-        <div className={styles.members}>
-          <MemberSkeletonCard />
-          <MemberSkeletonCard />
-          <MemberSkeletonCard />
-        </div>
-      </div>
-    </div>
-  )
-}
-
 type MemberCardProps = {
   member: ClassMemberDto
   badgeRole?: ClassRole
   canManage: boolean
-  onRoleChange: () => void
-  onDelete: () => void
+  onRoleChange?: () => void
+  onDelete?: () => void
   onRestore?: () => void
 }
 
@@ -129,14 +85,27 @@ export default function ClassMembersPage() {
   const showToast = useToast()
   const canManageMembers = classDetail?.permissions.can_manage_members ?? false
 
+  // Активные участники курса
   const [members, setMembers] = useState<ClassMemberDto[]>([])
+
+  // Исключённые участники, доступные для восстановления владельцу/преподавателю
   const [removedMembers, setRemovedMembers] = useState<ClassMemberDto[]>([])
+
+  // Локальный поиск по участникам
   const [search, setSearch] = useState("")
+
+  // Первичная загрузка вкладки
   const [isLoading, setIsLoading] = useState(true)
+
+  // Участник и новая роль в модалке смены роли
   const [selectedMember, setSelectedMember] = useState<ClassMemberDto | null>(null)
   const [selectedRole, setSelectedRole] = useState<"teacher" | "student">("student")
+
+  // Участник, выбранный для удаления или передачи владения
   const [memberToDelete, setMemberToDelete] = useState<ClassMemberDto | null>(null)
   const [memberToTransfer, setMemberToTransfer] = useState<ClassMemberDto | null>(null)
+
+  // Идет ли запрос из модалок управления участниками
   const [isSubmitting, setIsSubmitting] = useState(false)
 
   useEffect(() => {
@@ -156,8 +125,8 @@ export default function ClassMembersPage() {
           setRemovedMembers([])
         }
       } catch (error) {
-        if (error instanceof ApiSilentError) return
-        showToast({ type: "error", message: (error as Error).message })
+        if (!(error instanceof ApiError)) throw error
+        showToast({ type: "error", message: error.message })
       } finally {
         setIsLoading(false)
       }
@@ -186,7 +155,8 @@ export default function ClassMembersPage() {
       showToast({ type: "neutral", message: "Роль участника обновлена" })
     } catch (error) {
       setMembers(prevMembers)
-      showToast({ type: "error", message: (error as Error).message })
+      if (!(error instanceof ApiError)) throw error
+      showToast({ type: "error", message: error.message })
     } finally {
       setIsSubmitting(false)
     }
@@ -209,7 +179,8 @@ export default function ClassMembersPage() {
       showToast({ type: "neutral", message: "Участник удален из курса" })
     } catch (error) {
       setMembers(prevMembers)
-      showToast({ type: "error", message: (error as Error).message })
+      if (!(error instanceof ApiError)) throw error
+      showToast({ type: "error", message: error.message })
     } finally {
       setIsSubmitting(false)
     }
@@ -224,7 +195,8 @@ export default function ClassMembersPage() {
       setRemovedMembers((prev) => prev.filter((item) => item.user_id !== member.user_id))
       showToast({ type: "neutral", message: "Участник восстановлен как студент" })
     } catch (error) {
-      showToast({ type: "error", message: (error as Error).message })
+      if (!(error instanceof ApiError)) throw error
+      showToast({ type: "error", message: error.message })
     } finally {
       setIsSubmitting(false)
     }
@@ -245,7 +217,8 @@ export default function ClassMembersPage() {
       setSelectedMember(null)
       showToast({ type: "neutral", message: `Курс передан: ${getMemberName(target)}` })
     } catch (error) {
-      showToast({ type: "error", message: (error as Error).message })
+      if (!(error instanceof ApiError)) throw error
+      showToast({ type: "error", message: error.message })
     } finally {
       setIsSubmitting(false)
     }
@@ -287,7 +260,10 @@ export default function ClassMembersPage() {
         )}
       </div>
 
-      <LoadingSwap isLoading={isLoading} skeleton={<MembersSkeleton />} gap={24}>
+      {isLoading && <SkeletonLoader />}
+
+      {!isLoading && (
+        <>
       {hasMembers && hasFiltered && (
         <>
           <div className={styles.group}>
@@ -295,7 +271,7 @@ export default function ClassMembersPage() {
             <motion.div className={styles.members} variants={listContainer} initial="hidden" animate="visible">
               {creators.map((member) => (
                 <motion.div key={member.user_id} variants={listItem}>
-                  <MemberCard member={member} canManage={false} onRoleChange={() => {}} onDelete={() => {}} />
+                  <MemberCard member={member} canManage={false} />
                 </motion.div>
               ))}
               {creators.length === 0 && <div className={styles.groupEmpty}>Пока никого нет</div>}
@@ -348,8 +324,6 @@ export default function ClassMembersPage() {
                 key={member.user_id}
                 member={member}
                 canManage={false}
-                onRoleChange={() => {}}
-                onDelete={() => {}}
                 onRestore={() => void submitRestoreMember(member)}
               />
             ))}
@@ -359,7 +333,8 @@ export default function ClassMembersPage() {
 
       {!hasMembers && <div className={styles.emptyMessage}>Участников пока нет</div>}
       {hasMembers && !hasFiltered && <div className={styles.emptyMessage}>Участники не найдены</div>}
-      </LoadingSwap>
+        </>
+      )}
 
       <AnimatePresence>
         {selectedMember && !memberToTransfer && (

@@ -1,5 +1,5 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from "react"
-import { Api, ApiSilentError } from "../services/api"
+import { Api, ApiError } from "../services/api"
 import {
   getNotifications,
   markAllNotificationsRead,
@@ -36,7 +36,7 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
         setNotifications(page.items)
         setUnreadCount(page.unread_count)
       } catch (error) {
-        if (error instanceof ApiSilentError) return
+        if (!(error instanceof ApiError)) throw error
         // Уведомления не критичны — не спамим тостом на каждом экране, просто молчим
       } finally {
         if (isActive) setIsLoading(false)
@@ -80,7 +80,7 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
       try {
         await markNotificationRead(id)
       } catch (error) {
-        if (error instanceof ApiSilentError) return
+        if (!(error instanceof ApiError)) throw error
         setNotifications(prevNotifications)
         setUnreadCount(prevUnread)
       }
@@ -100,7 +100,7 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
       try {
         await markAllNotificationsRead()
       } catch (error) {
-        if (error instanceof ApiSilentError) return
+        if (!(error instanceof ApiError)) throw error
         setNotifications(prevNotifications)
         setUnreadCount(prevUnread)
       }

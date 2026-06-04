@@ -17,13 +17,11 @@ const ToastContext = createContext<ShowToast | null>(null)
 
 export function ToastProvider({ children }: { children: ReactNode }) {
   const [toast, setToast] = useState<Toast | null>(null)
-  const [viewportBottom, setViewportBottom] = useState(24)
   const closeTimerRef = useRef<number | null>(null)
 
 function showToast(nextToast: Toast) {
     const duration = nextToast.duration ?? 3000
 
-    setViewportBottom(75)
     setToast(nextToast)
 
     if (closeTimerRef.current) {
@@ -40,7 +38,7 @@ function showToast(nextToast: Toast) {
       {children}
 
       {createPortal(
-        <div className={styles.viewport} style={{ bottom: viewportBottom }}>
+        <div className={styles.viewport} style={{ bottom: 30 }}>
           <AnimatePresence mode="wait">
             {toast && (
               <motion.div

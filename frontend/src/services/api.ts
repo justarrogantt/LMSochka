@@ -7,8 +7,6 @@ import { wait } from "./helpers"
 const REQUEST_TIMEOUT_MS = 120_000
 export const API_UNAUTHORIZED_EVENT = "api:unauthorized"
 
-let isPageUnloading = false
-
 type WebSocketDataHandler = (data: unknown) => void
 
 type WebSocketConnection = {
@@ -17,18 +15,6 @@ type WebSocketConnection = {
 
 type HeaderContentType = "json" | "form-data"
 
-window.addEventListener("pagehide", () => {
-  isPageUnloading = true
-})
-
-window.addEventListener("beforeunload", () => {
-  isPageUnloading = true
-})
-
-window.addEventListener("pageshow", () => {
-  isPageUnloading = false
-})
-
 export class ApiError extends Error {
   status?: number
 
@@ -36,13 +22,6 @@ export class ApiError extends Error {
     super(message)
     this.name = "ApiError"
     this.status = status
-  }
-}
-
-export class ApiSilentError extends Error {
-  constructor() {
-    super()
-    this.name = "ApiSilentError"
   }
 }
 
@@ -265,10 +244,6 @@ export class Api {
 
       return response
     } catch (error: unknown) {
-      if (isPageUnloading) {
-        throw new ApiSilentError()
-      }
-
       // Abort из-за таймаута мапим в 408 для единообразной обработки в UI.
       if (error instanceof DOMException && error.name === "AbortError") {
         throw new ApiError(Api.getErrorMessage(408, errors, errorsReplace), 408)

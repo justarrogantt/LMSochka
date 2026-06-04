@@ -5,10 +5,8 @@ import ArrowIcon from "../../../assets/icons/classes/arrow.svg?react"
 import DeleteIcon from "../../../assets/icons/classes/delete.svg?react"
 import EditIcon from "../../../assets/icons/classes/settings.svg?react"
 import Modal from "../../../components/Modal/Modal"
-import CardsSkeleton from "../../../components/Skeleton/CardsSkeleton"
-import LoadingSwap from "../../../components/Skeleton/LoadingSwap"
 import { useToast } from "../../../components/Toast/ToastProvider"
-import { ApiSilentError } from "../../../services/api"
+import { ApiError } from "../../../services/api"
 import { formatDateTime } from "../../../services/helpers"
 import {
   getAnnouncement,
@@ -16,6 +14,7 @@ import {
   deleteAnnouncement,
   type AnnouncementDto
 } from "../ClassAnnouncementsPage/services/announcement.api"
+import SkeletonLoader from "./SkeletonLoader/SkeletonLoader"
 import styles from "./AnnouncementPage.module.css"
 
 type FormState = {
@@ -56,8 +55,8 @@ export default function AnnouncementPage() {
         const data = await getAnnouncement(parsedClassId, parsedAnnouncementId)
         setAnnouncement(data)
       } catch (error) {
-        if (error instanceof ApiSilentError) return
-        showToast({ type: "error", message: (error as Error).message })
+        if (!(error instanceof ApiError)) throw error
+        showToast({ type: "error", message: error.message })
         navigate(`/classes/${classId}/announcements`, { replace: true })
       } finally {
         setIsLoading(false)
@@ -106,7 +105,8 @@ export default function AnnouncementPage() {
       showToast({ type: "neutral", message: "Объявление обновлено" })
     } catch (error) {
       setAnnouncement(prev)
-      showToast({ type: "error", message: (error as Error).message })
+      if (!(error instanceof ApiError)) throw error
+      showToast({ type: "error", message: error.message })
     } finally {
       setIsSubmitting(false)
     }
@@ -123,7 +123,8 @@ export default function AnnouncementPage() {
       showToast({ type: "neutral", message: "Объявление удалено" })
       navigate(`/classes/${classId}/announcements`, { replace: true })
     } catch (error) {
-      showToast({ type: "error", message: (error as Error).message })
+      if (!(error instanceof ApiError)) throw error
+      showToast({ type: "error", message: error.message })
       setIsSubmitting(false)
     }
   }
@@ -159,23 +160,23 @@ export default function AnnouncementPage() {
         )}
       </div>
 
-      <LoadingSwap isLoading={isLoading} skeleton={<CardsSkeleton count={1} variant="feed" />}>
-        {announcement && (
-          <div className={styles.card}>
-            <div className={styles.title}>{announcement.title}</div>
+      {isLoading && <SkeletonLoader />}
 
-            <div className={styles.content}>{announcement.content}</div>
+      {!isLoading && announcement && (
+        <div className={styles.card}>
+          <div className={styles.title}>{announcement.title}</div>
 
-            <div className={styles.meta}>
-              <div>{announcement.author.email}</div>
-              <div>{formatDateTime(announcement.created_at)}</div>
-              {announcement.updated_at && announcement.updated_at !== announcement.created_at && (
-                <div>изменено {formatDateTime(announcement.updated_at)}</div>
-              )}
-            </div>
+          <div className={styles.content}>{announcement.content}</div>
+
+          <div className={styles.meta}>
+            <div>{announcement.author.email}</div>
+            <div>{formatDateTime(announcement.created_at)}</div>
+            {announcement.updated_at && announcement.updated_at !== announcement.created_at && (
+              <div>изменено {formatDateTime(announcement.updated_at)}</div>
+            )}
           </div>
-        )}
-      </LoadingSwap>
+        </div>
+      )}
 
       <AnimatePresence>
         {canEdit && activeModal === "edit" && (

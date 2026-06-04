@@ -6,7 +6,6 @@
   overflow: hidden;
 }
 
-/* Едва заметный блик пробегает поверх ровной заливки — мягко, без «мигания». */
 .skeleton::after {
   content: "";
   position: absolute;

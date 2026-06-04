@@ -1,10 +1,10 @@
-﻿// Страница регистрации нового пользователя.
+// Страница регистрации нового пользователя.
 import { useNavigate } from "react-router-dom"
 import { useState, type ChangeEvent, type FormEvent, type MouseEvent } from "react"
 import AuthLayout from "../../../layouts/AuthLayout/AuthLayout"
 import styles from "../../../layouts/AuthLayout/AuthLayout.module.css"
 import { useAuth } from "../../../contexts/AuthContext"
-import { ApiSilentError } from "../../../services/api"
+import { ApiError } from "../../../services/api"
 import { register as registerRequest } from "./services/register.api"
 
 type RegisterForm = {
@@ -141,9 +141,8 @@ export default function RegisterPage() {
       setUser(authData.user)
       navigate("/classes", { replace: true })
     } catch (error) {
-      if (error instanceof ApiSilentError) return
-
-      setServerError((error as Error).message)
+      if (!(error instanceof ApiError)) throw error
+      setServerError(error.message)
     } finally {
       setIsSubmitting(false)
     }

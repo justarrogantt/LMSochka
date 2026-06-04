@@ -1,4 +1,4 @@
-﻿import { useEffect, useState } from "react"
+import { useEffect, useState } from "react"
 import { AnimatePresence, motion } from "framer-motion"
 import { useNavigate } from "react-router-dom"
 import AddIcon from "../../../assets/icons/classes/add.svg?react"
@@ -10,12 +10,11 @@ import MemberIcon from "../../../assets/icons/classes/member.svg?react"
 import OpenIcon from "../../../assets/icons/classes/open.svg?react"
 import SearchIcon from "../../../assets/icons/layout/search.svg?react"
 import Modal from "../../../components/Modal/Modal"
-import CardsSkeleton from "../../../components/Skeleton/CardsSkeleton"
-import LoadingSwap from "../../../components/Skeleton/LoadingSwap"
 import { useToast } from "../../../components/Toast/ToastProvider"
-import { ApiSilentError } from "../../../services/api"
+import { ApiError } from "../../../services/api"
 import { truncate } from "../../../services/helpers"
 import { listContainer, listItem } from "../../../shared/motion"
+import SkeletonLoader from "./SkeletonLoader/SkeletonLoader"
 import {
   createClass,
   getMyClasses,
@@ -223,10 +222,10 @@ export default function ClassesPage() {
         const nextClasses = await getMyClasses()
         setClasses(nextClasses)
       } catch (error) {
-        if (error instanceof ApiSilentError) return
+        if (!(error instanceof ApiError)) throw error
         showToast({
           type: "error",
-          message: (error as Error).message
+          message: error.message
         })
       } finally {
         setIsLoading(false)
@@ -259,10 +258,10 @@ export default function ClassesPage() {
       setActiveModal(null)
       showToast({ type: "neutral", message: "Курс создан" })
     } catch (error) {
-      if (error instanceof ApiSilentError) return
+      if (!(error instanceof ApiError)) throw error
       showToast({
         type: "error",
-        message: (error as Error).message
+        message: error.message
       })
     } finally {
       setIsSubmitting(false)
@@ -284,9 +283,10 @@ export default function ClassesPage() {
       setActiveModal(null)
       showToast({ type: "neutral", message: "Вы вступили в курс" })
     } catch (error) {
+      if (!(error instanceof ApiError)) throw error
       showToast({
         type: "error",
-        message: (error as Error).message
+        message: error.message
       })
     } finally {
       setIsSubmitting(false)
@@ -336,7 +336,10 @@ export default function ClassesPage() {
         </div>
       </div>
 
-      <LoadingSwap isLoading={isLoading} skeleton={<CardsSkeleton className={styles.cards} count={6} />}>
+      {isLoading && <SkeletonLoader />}
+
+      {!isLoading && (
+        <>
         {!hasClasses && <div className={styles.emptyMessage}>Вы пока не состоите ни в одном курсе</div>}
         {hasClasses && !hasFilteredClasses && <div className={styles.emptyMessage}>Курсы не найдены</div>}
 
@@ -349,7 +352,8 @@ export default function ClassesPage() {
             ))}
           </motion.div>
         )}
-      </LoadingSwap>
+        </>
+      )}
 
       <AnimatePresence>
         {activeModal === "create" && (

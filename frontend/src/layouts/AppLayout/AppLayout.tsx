@@ -12,7 +12,7 @@ import { useToast } from "../../components/Toast/ToastProvider"
 import { useAuth } from "../../contexts/AuthContext"
 import { NotificationsProvider } from "../../contexts/NotificationsContext"
 import { DURATION, EASE_OUT } from "../../shared/motion"
-import { Api, ApiError, ApiSilentError } from "../../services/api"
+import { Api, ApiError } from "../../services/api"
 import { logout as logoutRequest } from "../../services/auth.api"
 import { formatUserName } from "../../services/helpers"
 import styles from "./AppLayout.module.css"
@@ -61,6 +61,7 @@ export default function AppLayout() {
   const userInitial = userName.trim().charAt(0).toUpperCase() || "U"
 
   const [isSidebarOpen, setIsSidebarOpen] = useState<boolean>(getInitialSidebarOpen)
+  const [isLoggingOut, setIsLoggingOut] = useState(false)
 
   useEffect(() => {
     saveSidebarOpen(isSidebarOpen)
@@ -75,14 +76,15 @@ export default function AppLayout() {
   }
 
   async function logout() {
+    if (isLoggingOut) return
+
+    setIsLoggingOut(true)
     try {
       await logoutRequest()
       Api.clearTokens()
       setUser(null)
       navigate("/login", { replace: true })
     } catch (error) {
-      if (error instanceof ApiSilentError) return
-
       if (error instanceof ApiError && error.status === 401) {
         Api.clearTokens()
         setUser(null)
@@ -90,10 +92,10 @@ export default function AppLayout() {
         return
       }
 
-      showToast({
-        type: "error",
-        message: (error as Error).message
-      })
+      if (!(error instanceof ApiError)) throw error
+      showToast({ type: "error", message: error.message })
+    } finally {
+      setIsLoggingOut(false)
     }
   }
 
@@ -157,11 +159,11 @@ export default function AppLayout() {
               })}
             </nav>
 
-            <button className={styles.logoutButton} type="button" onClick={logout} title="Выйти">
+            <button className={styles.logoutButton} type="button" onClick={logout} title="Выйти" disabled={isLoggingOut}>
               <span className={styles.menuIconBox}>
                 <ExitIcon className={styles.logoutIcon} />
               </span>
-              <span className={styles.menuLabel}>Выйти</span>
+              <span className={styles.menuLabel}>{isLoggingOut ? "Выходим" : "Выйти"}</span>
             </button>
           </motion.aside>
 

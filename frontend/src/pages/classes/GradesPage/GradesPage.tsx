@@ -2,12 +2,10 @@ import { useEffect, useState } from "react"
 import { Link, useOutletContext } from "react-router-dom"
 import SearchIcon from "../../../assets/icons/layout/search.svg?react"
 import SelectArrowIcon from "../../../assets/icons/select-arrow.svg?react"
-import CardsSkeleton from "../../../components/Skeleton/CardsSkeleton"
-import LoadingSwap from "../../../components/Skeleton/LoadingSwap"
 import { useToast } from "../../../components/Toast/ToastProvider"
 import { useAuth } from "../../../contexts/AuthContext"
 import type { ClassLayoutContext } from "../../../layouts/ClassLayout/ClassLayout"
-import { ApiSilentError } from "../../../services/api"
+import { ApiError } from "../../../services/api"
 import { formatDateTime } from "../../../services/helpers"
 import {
   getGradebook,
@@ -18,6 +16,7 @@ import {
   type GradebookStatus,
   type GradebookStudent
 } from "./services/gradebook.api"
+import SkeletonLoader from "./SkeletonLoader/SkeletonLoader"
 import styles from "./GradesPage.module.css"
 
 const STATUS_LABELS: Record<GradebookStatus, string> = {
@@ -69,8 +68,8 @@ export default function GradesPage() {
         if (!data) return
         setGradebook(data)
       } catch (error) {
-        if (error instanceof ApiSilentError) return
-        showToast({ type: "error", message: (error as Error).message })
+        if (!(error instanceof ApiError)) throw error
+        showToast({ type: "error", message: error.message })
       } finally {
         setIsLoading(false)
       }
@@ -113,7 +112,10 @@ export default function GradesPage() {
         </label>
       )}
 
-      <LoadingSwap isLoading={isLoading} skeleton={<CardsSkeleton count={4} variant="member" />}>
+      {isLoading && <SkeletonLoader />}
+
+      {!isLoading && (
+        <>
         {hasData && canViewGradebook && <TeacherGradebook gradebook={gradebook!} cellMap={cellMap} search={search} />}
 
         {hasData && !canViewGradebook && (
@@ -127,7 +129,8 @@ export default function GradesPage() {
         )}
 
         {!hasData && <div className={styles.emptyMessage}>Данных по оценкам пока нет</div>}
-      </LoadingSwap>
+        </>
+      )}
     </div>
   )
 }

@@ -4,13 +4,12 @@ import { useNavigate } from "react-router-dom"
 import ArrowIcon from "../../../assets/icons/classes/arrow.svg?react"
 import SearchIcon from "../../../assets/icons/layout/search.svg?react"
 import Pagination from "../../../components/Pagination/Pagination"
-import CardsSkeleton from "../../../components/Skeleton/CardsSkeleton"
-import LoadingSwap from "../../../components/Skeleton/LoadingSwap"
 import { useToast } from "../../../components/Toast/ToastProvider"
-import { ApiSilentError } from "../../../services/api"
+import { ApiError } from "../../../services/api"
 import { formatDateTime, truncate } from "../../../services/helpers"
 import { listContainer, listItem } from "../../../shared/motion"
 import { getPublicClasses, joinOpenClass, type PublicClassDto } from "./services/publicClasses.api"
+import SkeletonLoader from "./SkeletonLoader/SkeletonLoader"
 import styles from "./PublicClassesPage.module.css"
 
 const LIMIT = 3
@@ -67,8 +66,8 @@ export default function PublicClassesPage() {
       setTotalItems(data.total)
       setCurrentPage(data.page)
     } catch (error) {
-      if (error instanceof ApiSilentError) return
-      showToast({ type: "error", message: (error as Error).message })
+      if (!(error instanceof ApiError)) throw error
+      showToast({ type: "error", message: error.message })
     } finally {
       setIsLoading(false)
     }
@@ -95,7 +94,8 @@ export default function PublicClassesPage() {
       setClasses((prev) => prev.map((item) => (item.id === classId ? { ...item, is_member: true } : item)))
       showToast({ type: "neutral", message: "Вы вступили в курс" })
     } catch (error) {
-      showToast({ type: "error", message: (error as Error).message })
+      if (!(error instanceof ApiError)) throw error
+      showToast({ type: "error", message: error.message })
     } finally {
       setSubmittingIds((prev) => {
         const next = new Set(prev)
@@ -138,7 +138,10 @@ export default function PublicClassesPage() {
         </button>
       </form>
 
-      <LoadingSwap isLoading={isLoading} skeleton={<CardsSkeleton className={styles.cards} count={6} />}>
+      {isLoading && <SkeletonLoader />}
+
+      {!isLoading && (
+        <>
         {classes.length === 0 ? (
           <div className={styles.emptyMessage}>Тут пока пусто</div>
         ) : (
@@ -155,7 +158,8 @@ export default function PublicClassesPage() {
             ))}
           </motion.div>
         )}
-      </LoadingSwap>
+        </>
+      )}
 
       <Pagination page={currentPage} total={totalItems} limit={LIMIT} onChange={(page) => void loadPublicClasses(page, appliedSearch)} />
     </div>

@@ -37,7 +37,6 @@ function plural(count: number, one: string, few: string, many: string): string {
 }
 
 // Относительное время «N минут/часов/дней назад» — для уведомлений и лент.
-// Для давних дат откатываемся на обычную дату.
 export function formatRelativeTime(value: string): string {
   const utcValue = /z$/i.test(value) ? value : `${value}Z`
   const date = new Date(utcValue)

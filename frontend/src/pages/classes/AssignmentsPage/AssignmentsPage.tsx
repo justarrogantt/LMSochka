@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react"
+import { useEffect, useState, type ChangeEvent } from "react"
 import { AnimatePresence, motion } from "framer-motion"
 import { useNavigate, useOutletContext, useParams } from "react-router-dom"
 import AddIcon from "../../../assets/icons/classes/add.svg?react"
@@ -6,10 +6,9 @@ import DeleteIcon from "../../../assets/icons/classes/delete.svg?react"
 import EditIcon from "../../../assets/icons/classes/settings.svg?react"
 import Modal from "../../../components/Modal/Modal"
 import Pagination from "../../../components/Pagination/Pagination"
-import CardsSkeleton from "../../../components/Skeleton/CardsSkeleton"
-import LoadingSwap from "../../../components/Skeleton/LoadingSwap"
 import { useToast } from "../../../components/Toast/ToastProvider"
-import { ApiSilentError } from "../../../services/api"
+import { ApiError } from "../../../services/api"
+import { ACCEPTED_FILE_INPUT, ACCEPTED_FILE_TYPES_LABEL, validateUploadFile } from "../../../services/files.api"
 import { formatDateTime, truncate } from "../../../services/helpers"
 import { listContainer, listItem } from "../../../shared/motion"
 import type { ClassLayoutContext } from "../../../layouts/ClassLayout/ClassLayout"
@@ -21,6 +20,7 @@ import {
   updateAssignment,
   type AssignmentDto
 } from "./services/assignments.api"
+import SkeletonLoader from "./SkeletonLoader/SkeletonLoader"
 import styles from "./AssignmentsPage.module.css"
 
 const LIMIT = 10
@@ -90,19 +90,37 @@ export default function AssignmentsPage() {
   const navigate = useNavigate()
   const showToast = useToast()
 
+  // Задания текущей страницы
   const [items, setItems] = useState<AssignmentDto[]>([])
+
+  // Первичная загрузка и переключение вкладок
   const [isLoading, setIsLoading] = useState(true)
+
+  // Пагинация списка заданий
   const [currentPage, setCurrentPage] = useState(1)
   const [totalItems, setTotalItems] = useState(0)
+
+  // Серверный счётчик вкладки "На проверке"
   const [pendingReviewTotal, setPendingReviewTotal] = useState(0)
+
+  // Режим списка: все задания или только ожидающие проверки
+  const [viewMode, setViewMode] = useState<"all" | "pending">("all")
+
+  // Состояние модалок формы и удаления
   const [editingId, setEditingId] = useState<number | null>(null)
   const [isFormOpen, setIsFormOpen] = useState(false)
   const [deletingId, setDeletingId] = useState<number | null>(null)
+
+  // Флаг отправки запросов из модалок
   const [isSubmitting, setIsSubmitting] = useState(false)
-  const [viewMode, setViewMode] = useState<"all" | "pending">("all")
+
+  // Поля формы задания и исходные значения для проверки изменений
   const [form, setForm] = useState<FormState>(EMPTY_FORM)
   const [initialForm, setInitialForm] = useState<FormState>(EMPTY_FORM)
+
+  // Новый файл материала, выбранный в модалке
   const [materialFile, setMaterialFile] = useState<File | null>(null)
+  const [materialFileError, setMaterialFileError] = useState("")
 
   async function loadPage(page: number, mode: "all" | "pending" = viewMode) {
     if (!classDetail?.id) return
@@ -114,8 +132,8 @@ export default function AssignmentsPage() {
       setPendingReviewTotal(data.pending_review_total)
       setCurrentPage(page)
     } catch (error) {
-      if (error instanceof ApiSilentError) return
-      showToast({ type: "error", message: (error as Error).message })
+      if (!(error instanceof ApiError)) throw error
+      showToast({ type: "error", message: error.message })
     } finally {
       setIsLoading(false)
     }
@@ -125,13 +143,23 @@ export default function AssignmentsPage() {
     void loadPage(1, viewMode)
   }, [classDetail?.id, viewMode])
 
-  function closeFormModal() {
-    if (isSubmitting) return
-    setIsFormOpen(false)
+  function resetFormState() {
     setEditingId(null)
     setForm(EMPTY_FORM)
     setInitialForm(EMPTY_FORM)
     setMaterialFile(null)
+    setMaterialFileError("")
+  }
+
+  function closeFormModal() {
+    if (isSubmitting) return
+    setIsFormOpen(false)
+    resetFormState()
+  }
+
+  function finishFormModal() {
+    setIsFormOpen(false)
+    resetFormState()
   }
 
   function closeDeleteModal() {
@@ -144,6 +172,7 @@ export default function AssignmentsPage() {
     setInitialForm(EMPTY_FORM)
     setEditingId(null)
     setMaterialFile(null)
+    setMaterialFileError("")
     setIsFormOpen(true)
   }
 
@@ -159,6 +188,7 @@ export default function AssignmentsPage() {
     setInitialForm(saved)
     setEditingId(item.id)
     setMaterialFile(null)
+    setMaterialFileError("")
     setIsFormOpen(true)
   }
 
@@ -176,66 +206,95 @@ export default function AssignmentsPage() {
     }
   }
 
-  async function submitCreate() {
+  function onMaterialFileChange(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0] ?? null
+    setMaterialFile(null)
+    setMaterialFileError("")
+
+    if (!file) return
+
+    const error = validateUploadFile(file)
+    if (error) {
+      setMaterialFileError(error)
+      event.target.value = ""
+      return
+    }
+
+    setMaterialFile(file)
+  }
+
+  async function rollbackCreatedAssignment(assignmentId: number) {
     if (!classDetail?.id) return
 
+    try {
+      await deleteAssignment(classDetail.id, assignmentId)
+    } catch (error) {
+      if (!(error instanceof ApiError)) throw error
+      showToast({ type: "error", message: error.message })
+    }
+  }
+
+  async function submitCreate() {
+    if (!classDetail?.id || materialFileError) return
+
     const body = buildBody()
-    closeFormModal()
     setIsSubmitting(true)
+    let created: AssignmentDto | null = null
 
     try {
-      const created = await createAssignment(classDetail.id, body)
+      created = await createAssignment(classDetail.id, body)
       if (materialFile) {
-        await uploadAssignmentMaterial(classDetail.id, created.id, materialFile)
+        try {
+          await uploadAssignmentMaterial(classDetail.id, created.id, materialFile)
+        } catch (error) {
+          await rollbackCreatedAssignment(created.id)
+          if (!(error instanceof ApiError)) throw error
+          setMaterialFileError(error.message)
+          return
+        }
       }
       showToast({ type: "neutral", message: "Задание создано" })
+      finishFormModal()
       if (viewMode === "all") {
         void loadPage(1, "all")
       } else {
         setViewMode("all")
       }
     } catch (error) {
-      showToast({ type: "error", message: (error as Error).message })
+      if (!(error instanceof ApiError)) throw error
+      showToast({ type: "error", message: error.message })
     } finally {
       setIsSubmitting(false)
     }
   }
 
   async function submitEdit() {
-    if (!classDetail?.id || !editingId) return
+    if (!classDetail?.id || !editingId || materialFileError) return
 
     const id = editingId
     const body = buildBody()
-    const prevItems = items
-
-    setItems((prev) =>
-      prev.map((it) =>
-        it.id === id
-          ? {
-              ...it,
-              title: body.title,
-              description: body.description ?? "",
-              material_url: body.material_url,
-              due_at: body.due_at,
-              max_grade: body.max_grade
-            }
-          : it
-      )
-    )
-    closeFormModal()
     setIsSubmitting(true)
 
     try {
-      let updated = await updateAssignment(classDetail.id, id, body)
+      let uploadedMaterial: AssignmentDto["material_file"] = null
       if (materialFile) {
-        const uploaded = await uploadAssignmentMaterial(classDetail.id, id, materialFile)
-        updated = { ...updated, material_file: uploaded }
+        try {
+          uploadedMaterial = await uploadAssignmentMaterial(classDetail.id, id, materialFile)
+        } catch (error) {
+          if (!(error instanceof ApiError)) throw error
+          setMaterialFileError(error.message)
+          return
+        }
       }
+
+      let updated = await updateAssignment(classDetail.id, id, body)
+      if (uploadedMaterial) updated = { ...updated, material_file: uploadedMaterial }
       setItems((prev) => prev.map((it) => (it.id === updated.id ? updated : it)))
       showToast({ type: "neutral", message: "Задание обновлено" })
+      finishFormModal()
     } catch (error) {
-      setItems(prevItems)
-      showToast({ type: "error", message: (error as Error).message })
+      if (!(error instanceof ApiError)) throw error
+      showToast({ type: "error", message: error.message })
     } finally {
       setIsSubmitting(false)
     }
@@ -252,7 +311,8 @@ export default function AssignmentsPage() {
       const nextPage = items.length === 1 && currentPage > 1 ? currentPage - 1 : currentPage
       void loadPage(nextPage, viewMode)
     } catch (error) {
-      showToast({ type: "error", message: (error as Error).message })
+      if (!(error instanceof ApiError)) throw error
+      showToast({ type: "error", message: error.message })
     } finally {
       setIsSubmitting(false)
     }
@@ -265,7 +325,7 @@ export default function AssignmentsPage() {
     form.material_url.trim() !== initialForm.material_url.trim() ||
     form.due_at !== initialForm.due_at ||
     form.max_grade !== initialForm.max_grade
-  const canSubmit = !isSubmitting && isFilled && (editingId === null || isChanged || materialFile !== null)
+  const canSubmit = !isSubmitting && !materialFileError && isFilled && (editingId === null || isChanged || materialFile !== null)
   const canManage = classDetail?.permissions.can_create_assignment ?? false
 
   return (
@@ -302,7 +362,10 @@ export default function AssignmentsPage() {
         )}
       </div>
 
-      <LoadingSwap isLoading={isLoading} skeleton={<CardsSkeleton className={styles.cards} count={5} variant="assignment" />}>
+      {isLoading && <SkeletonLoader />}
+
+      {!isLoading && (
+        <>
         {items.length === 0 ? (
           <div className={styles.emptyMessage}>
             {viewMode === "pending" ? "Нет заданий на проверке" : "Заданий пока нет"}
@@ -322,7 +385,8 @@ export default function AssignmentsPage() {
             ))}
           </motion.div>
         )}
-      </LoadingSwap>
+        </>
+      )}
 
       <Pagination page={currentPage} total={totalItems} limit={LIMIT} onChange={(p) => void loadPage(p, viewMode)} />
 
@@ -346,9 +410,13 @@ export default function AssignmentsPage() {
             <input
               className={styles.input}
               type="file"
-              onChange={(event) => setMaterialFile(event.target.files?.[0] ?? null)}
+              accept={ACCEPTED_FILE_INPUT}
+              onChange={onMaterialFileChange}
               disabled={isSubmitting}
             />
+            <div className={styles.fieldHint}>Доступные форматы: {ACCEPTED_FILE_TYPES_LABEL}</div>
+            {materialFile && <div className={styles.fieldHint}>Выбран файл: {materialFile.name}</div>}
+            {materialFileError && <div className={styles.fieldError}>{materialFileError}</div>}
           </label>
 
           <label className={styles.field}>

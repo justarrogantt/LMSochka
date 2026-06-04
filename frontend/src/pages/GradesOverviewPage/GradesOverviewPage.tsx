@@ -2,12 +2,11 @@ import { useEffect, useState } from "react"
 import { motion } from "framer-motion"
 import { Link } from "react-router-dom"
 import SearchIcon from "../../assets/icons/layout/search.svg?react"
-import CardsSkeleton from "../../components/Skeleton/CardsSkeleton"
-import LoadingSwap from "../../components/Skeleton/LoadingSwap"
 import { useToast } from "../../components/Toast/ToastProvider"
-import { ApiSilentError } from "../../services/api"
+import { ApiError } from "../../services/api"
 import { listContainer, listItem } from "../../shared/motion"
 import { getGradesOverview, type CourseGradesSummary } from "./services/gradesOverview.api"
+import SkeletonLoader from "./SkeletonLoader/SkeletonLoader"
 import styles from "./GradesOverviewPage.module.css"
 
 function averageClassName(value: number | null) {
@@ -72,8 +71,8 @@ export default function GradesOverviewPage() {
         const data = await getGradesOverview()
         setCourses(data.courses)
       } catch (error) {
-        if (error instanceof ApiSilentError) return
-        showToast({ type: "error", message: (error as Error).message })
+        if (!(error instanceof ApiError)) throw error
+        showToast({ type: "error", message: error.message })
       } finally {
         setIsLoading(false)
       }
@@ -111,7 +110,10 @@ export default function GradesOverviewPage() {
         />
       </div>
 
-      <LoadingSwap isLoading={isLoading} skeleton={<CardsSkeleton className={styles.cards} count={12} variant="grades" title />}>
+      {isLoading && <SkeletonLoader />}
+
+      {!isLoading && (
+        <>
         {courses.length === 0 && (
           <div className={styles.emptyMessage}>Курсов с оценками пока нет</div>
         )}
@@ -126,7 +128,8 @@ export default function GradesOverviewPage() {
             {teachCourses.length > 0 && <GradesSection title="Где я преподаю" courses={teachCourses} />}
           </div>
         )}
-      </LoadingSwap>
+        </>
+      )}
     </div>
   )
 }

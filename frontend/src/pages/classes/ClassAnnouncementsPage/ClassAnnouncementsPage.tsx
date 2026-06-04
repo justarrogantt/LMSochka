@@ -6,10 +6,8 @@ import DeleteIcon from "../../../assets/icons/classes/delete.svg?react"
 import EditIcon from "../../../assets/icons/classes/settings.svg?react"
 import Modal from "../../../components/Modal/Modal"
 import Pagination from "../../../components/Pagination/Pagination"
-import CardsSkeleton from "../../../components/Skeleton/CardsSkeleton"
-import LoadingSwap from "../../../components/Skeleton/LoadingSwap"
 import { useToast } from "../../../components/Toast/ToastProvider"
-import { ApiSilentError } from "../../../services/api"
+import { ApiError } from "../../../services/api"
 import { formatDateTime, truncate } from "../../../services/helpers"
 import { listContainer, listItem } from "../../../shared/motion"
 import type { ClassLayoutContext } from "../../../layouts/ClassLayout/ClassLayout"
@@ -20,6 +18,7 @@ import {
   updateAnnouncement,
   type AnnouncementDto
 } from "./services/announcement.api"
+import SkeletonLoader from "./SkeletonLoader/SkeletonLoader"
 import styles from "./ClassAnnouncementsPage.module.css"
 
 const LIMIT = 10
@@ -112,8 +111,8 @@ export default function ClassAnnouncementsPage() {
       setTotalItems(data.total)
       setCurrentPage(page)
     } catch (error) {
-      if (error instanceof ApiSilentError) return
-      showToast({ type: "error", message: (error as Error).message })
+      if (!(error instanceof ApiError)) throw error
+      showToast({ type: "error", message: error.message })
     } finally {
       setIsLoading(false)
     }
@@ -170,7 +169,8 @@ export default function ClassAnnouncementsPage() {
       showToast({ type: "neutral", message: "Объявление создано" })
       void loadPage(1)
     } catch (error) {
-      showToast({ type: "error", message: (error as Error).message })
+      if (!(error instanceof ApiError)) throw error
+      showToast({ type: "error", message: error.message })
     } finally {
       setIsSubmitting(false)
     }
@@ -195,7 +195,8 @@ export default function ClassAnnouncementsPage() {
       showToast({ type: "neutral", message: "Объявление обновлено" })
     } catch (error) {
       setItems(prevItems)
-      showToast({ type: "error", message: (error as Error).message })
+      if (!(error instanceof ApiError)) throw error
+      showToast({ type: "error", message: error.message })
     } finally {
       setIsSubmitting(false)
     }
@@ -213,7 +214,8 @@ export default function ClassAnnouncementsPage() {
       const nextPage = items.length === 1 && currentPage > 1 ? currentPage - 1 : currentPage
       void loadPage(nextPage)
     } catch (error) {
-      showToast({ type: "error", message: (error as Error).message })
+      if (!(error instanceof ApiError)) throw error
+      showToast({ type: "error", message: error.message })
     } finally {
       setIsSubmitting(false)
     }
@@ -240,7 +242,10 @@ export default function ClassAnnouncementsPage() {
         )}
       </div>
 
-      <LoadingSwap isLoading={isLoading} skeleton={<CardsSkeleton className={styles.cards} count={5} variant="feed" />}>
+      {isLoading && <SkeletonLoader />}
+
+      {!isLoading && (
+        <>
         {items.length === 0 ? (
           <div className={styles.emptyMessage}>Объявлений пока нет</div>
         ) : (
@@ -257,7 +262,8 @@ export default function ClassAnnouncementsPage() {
             ))}
           </motion.div>
         )}
-      </LoadingSwap>
+        </>
+      )}
 
       <Pagination page={currentPage} total={totalItems} limit={LIMIT} onChange={(p) => void loadPage(p)} />
 

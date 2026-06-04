@@ -6,13 +6,14 @@ import DeleteIcon from "../../assets/icons/classes/delete.svg?react"
 import EditIcon from "../../assets/icons/classes/settings.svg?react"
 import ExitIcon from "../../assets/icons/layout/exit.svg?react"
 import Modal from "../../components/Modal/Modal"
-import CardsSkeleton from "../../components/Skeleton/CardsSkeleton"
-import LoadingSwap from "../../components/Skeleton/LoadingSwap"
 import { useToast } from "../../components/Toast/ToastProvider"
-import { OverviewSkeleton } from "../../pages/classes/ClassPage/ClassPage"
-import { MembersSkeleton } from "../../pages/classes/ClassMembersPage/ClassMembersPage"
+import OverviewSkeletonLoader from "../../pages/classes/ClassPage/SkeletonLoader/SkeletonLoader"
+import MembersSkeletonLoader from "../../pages/classes/ClassMembersPage/SkeletonLoader/SkeletonLoader"
+import AssignmentsSkeletonLoader from "../../pages/classes/AssignmentsPage/SkeletonLoader/SkeletonLoader"
+import AnnouncementsSkeletonLoader from "../../pages/classes/ClassAnnouncementsPage/SkeletonLoader/SkeletonLoader"
+import GradesSkeletonLoader from "../../pages/classes/GradesPage/SkeletonLoader/SkeletonLoader"
 import copy from "copy-to-clipboard"
-import { ApiSilentError } from "../../services/api"
+import { ApiError } from "../../services/api"
 import { deleteClass, getClassDetail, leaveClass, updateClass, type ClassDetailDto, type ClassType } from "./services/class.api"
 import styles from "./ClassLayout.module.css"
 
@@ -29,15 +30,15 @@ const tabs = [
 function classTabSkeleton(tabPath: string) {
   switch (tabPath) {
     case "members":
-      return <MembersSkeleton />
+      return <MembersSkeletonLoader />
     case "assignments":
-      return <CardsSkeleton variant="assignment" count={5} />
+      return <AssignmentsSkeletonLoader />
     case "grades":
-      return <CardsSkeleton variant="member" count={4} />
+      return <GradesSkeletonLoader />
     case "announcements":
-      return <CardsSkeleton variant="feed" count={5} />
+      return <AnnouncementsSkeletonLoader />
     default:
-      return <OverviewSkeleton />
+      return <OverviewSkeletonLoader />
   }
 }
 
@@ -98,8 +99,8 @@ export default function ClassLayout() {
         setClassDetail(detail)
         setEditForm({ name: detail.name, type: detail.type })
       } catch (error) {
-        if (error instanceof ApiSilentError) return
-        showToast({ type: "error", message: (error as Error).message })
+        if (!(error instanceof ApiError)) throw error
+        showToast({ type: "error", message: error.message })
       } finally {
         setIsLoading(false)
       }
@@ -142,7 +143,8 @@ export default function ClassLayout() {
     } catch (error) {
       setClassDetail(prevDetail)
       setEditForm({ name: prevDetail.name, type: prevDetail.type })
-      showToast({ type: "error", message: (error as Error).message })
+      if (!(error instanceof ApiError)) throw error
+      showToast({ type: "error", message: error.message })
     } finally {
       setIsSubmitting(false)
     }
@@ -157,7 +159,8 @@ export default function ClassLayout() {
       await deleteClass(classDetail.id)
       navigate("/classes", { replace: true })
     } catch (error) {
-      showToast({ type: "error", message: (error as Error).message })
+      if (!(error instanceof ApiError)) throw error
+      showToast({ type: "error", message: error.message })
       setIsSubmitting(false)
     }
   }
@@ -171,7 +174,8 @@ export default function ClassLayout() {
       await leaveClass(classDetail.id)
       navigate("/classes", { replace: true })
     } catch (error) {
-      showToast({ type: "error", message: (error as Error).message })
+      if (!(error instanceof ApiError)) throw error
+      showToast({ type: "error", message: error.message })
       setIsSubmitting(false)
     }
   }
@@ -238,9 +242,11 @@ export default function ClassLayout() {
         ))}
       </div>
 
-      <LoadingSwap isLoading={isLoading} skeleton={classTabSkeleton(activeTabPath)}>
+      {isLoading ? (
+        classTabSkeleton(activeTabPath)
+      ) : (
         <Outlet context={{ classDetail, setClassDetail } satisfies ClassLayoutContext} />
-      </LoadingSwap>
+      )}
 
       <AnimatePresence>
         {isDeleteModalOpen && (

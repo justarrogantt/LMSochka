@@ -1,11 +1,11 @@
-import { useRef, useState } from "react"
+import { useState } from "react"
 import { AnimatePresence } from "framer-motion"
 import EditIcon from "../../assets/icons/classes/edit.svg?react"
 import Modal from "../../components/Modal/Modal"
 import { useToast } from "../../components/Toast/ToastProvider"
 import { useAuth } from "../../contexts/AuthContext"
 import { useTheme } from "../../contexts/ThemeContext"
-import { ApiSilentError } from "../../services/api"
+import { ApiError } from "../../services/api"
 import type { AuthUser } from "../../services/auth.api"
 import { formatDateTime, formatUserName } from "../../services/helpers"
 import { changePassword, updateProfile } from "./services/profile.api"
@@ -91,6 +91,15 @@ type EditFormErrors = {
   repeatPassword?: string
 }
 
+type EditFormState = {
+  firstName: string
+  lastName: string
+  email: string
+  currentPassword: string
+  newPassword: string
+  repeatPassword: string
+}
+
 // Те же правила, что и на странице регистрации
 const nameRegex = /^[A-Za-zА-Яа-яЁё \-]+$/
 const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
@@ -106,22 +115,32 @@ type EditProfileModalProps = {
 // Модалка редактирования профиля: имя, фамилия, email (логин) и опциональная смена пароля
 function EditProfileModal({ user, onSaved, onClose }: EditProfileModalProps) {
   const showToast = useToast()
-  const [firstName, setFirstName] = useState(user.first_name ?? "")
-  const [lastName, setLastName] = useState(user.last_name ?? "")
-  const [email, setEmail] = useState(user.email)
-  const [currentPassword, setCurrentPassword] = useState("")
-  const [newPassword, setNewPassword] = useState("")
-  const [repeatPassword, setRepeatPassword] = useState("")
+
+  // Поля формы профиля и опциональной смены пароля
+  const [form, setForm] = useState<EditFormState>({
+    firstName: user.first_name ?? "",
+    lastName: user.last_name ?? "",
+    email: user.email,
+    currentPassword: "",
+    newPassword: "",
+    repeatPassword: ""
+  })
 
   // Ошибки клиентской валидации по полям и ошибка от сервера
   const [errors, setErrors] = useState<EditFormErrors>({})
   const [serverError, setServerError] = useState("")
+
+  // Идет сохранение профиля или смена пароля
   const [isSubmitting, setIsSubmitting] = useState(false)
-  // Защита от двойной отправки формы
-  const pendingRef = useRef(false)
 
   // Пароль меняем, только если пользователь тронул хоть одно из полей пароля
-  const wantsPasswordChange = Boolean(currentPassword || newPassword || repeatPassword)
+  const wantsPasswordChange = Boolean(form.currentPassword || form.newPassword || form.repeatPassword)
+
+  // Обновление одного поля формы и очистка старых ошибок
+  function setField<K extends keyof EditFormState>(field: K, value: EditFormState[K]) {
+    setForm((prev) => ({ ...prev, [field]: value }))
+    clearFieldError(field)
+  }
 
   // Сбрасываем ошибку поля и серверную ошибку при правке
   function clearFieldError(field: keyof EditFormErrors) {
@@ -133,7 +152,7 @@ function EditProfileModal({ user, onSaved, onClose }: EditProfileModalProps) {
   function validate(): boolean {
     const nextErrors: EditFormErrors = {}
 
-    const trimmedFirst = firstName.trim()
+    const trimmedFirst = form.firstName.trim()
     if (!trimmedFirst) {
       nextErrors.firstName = "Введите имя."
     } else if (trimmedFirst.length > nameMaxLength) {
@@ -142,7 +161,7 @@ function EditProfileModal({ user, onSaved, onClose }: EditProfileModalProps) {
       nextErrors.firstName = "Имя — только русские или латинские буквы."
     }
 
-    const trimmedLast = lastName.trim()
+    const trimmedLast = form.lastName.trim()
     if (!trimmedLast) {
       nextErrors.lastName = "Введите фамилию."
     } else if (trimmedLast.length > nameMaxLength) {
@@ -151,7 +170,7 @@ function EditProfileModal({ user, onSaved, onClose }: EditProfileModalProps) {
       nextErrors.lastName = "Фамилия — только русские или латинские буквы."
     }
 
-    const trimmedEmail = email.trim()
+    const trimmedEmail = form.email.trim()
     if (!trimmedEmail) {
       nextErrors.email = "Введите электронную почту."
     } else if (!emailRegex.test(trimmedEmail)) {
@@ -159,19 +178,19 @@ function EditProfileModal({ user, onSaved, onClose }: EditProfileModalProps) {
     }
 
     if (wantsPasswordChange) {
-      if (!currentPassword) {
+      if (!form.currentPassword) {
         nextErrors.currentPassword = "Введите текущий пароль."
       }
-      if (!newPassword) {
+      if (!form.newPassword) {
         nextErrors.newPassword = "Введите новый пароль."
-      } else if (newPassword.length < passwordMinLength) {
+      } else if (form.newPassword.length < passwordMinLength) {
         nextErrors.newPassword = "Пароль должен быть не короче 8 символов."
-      } else if (newPassword === currentPassword) {
+      } else if (form.newPassword === form.currentPassword) {
         nextErrors.newPassword = "Новый пароль должен отличаться от текущего."
       }
-      if (!repeatPassword) {
+      if (!form.repeatPassword) {
         nextErrors.repeatPassword = "Повторите новый пароль."
-      } else if (newPassword !== repeatPassword) {
+      } else if (form.newPassword !== form.repeatPassword) {
         nextErrors.repeatPassword = "Пароли не совпадают."
       }
     }
@@ -181,35 +200,32 @@ function EditProfileModal({ user, onSaved, onClose }: EditProfileModalProps) {
   }
 
   async function submit() {
-    if (pendingRef.current) return
+    if (isSubmitting) return
 
     setServerError("")
     if (!validate()) return
 
-    pendingRef.current = true
     setIsSubmitting(true)
     try {
       // Сначала сохраняем профиль, чтобы имя сразу обновилось в шапке и на главной
       const updated = await updateProfile({
-        first_name: firstName.trim() || null,
-        last_name: lastName.trim() || null,
-        email: email.trim()
+        first_name: form.firstName.trim() || null,
+        last_name: form.lastName.trim() || null,
+        email: form.email.trim()
       })
       onSaved(updated)
 
       // Затем, если нужно, меняем пароль отдельным запросом
       if (wantsPasswordChange) {
-        await changePassword({ current_password: currentPassword, new_password: newPassword })
+        await changePassword({ current_password: form.currentPassword, new_password: form.newPassword })
       }
 
       showToast({ type: "neutral", message: "Профиль обновлён" })
       onClose()
     } catch (error) {
-      if (error instanceof ApiSilentError) return
-      // Ошибку (email занят, неверный текущий пароль и т.п.) показываем прямо в форме
-      setServerError((error as Error).message)
+      if (!(error instanceof ApiError)) throw error
+      setServerError(error.message)
     } finally {
-      pendingRef.current = false
       setIsSubmitting(false)
     }
   }
@@ -221,11 +237,8 @@ function EditProfileModal({ user, onSaved, onClose }: EditProfileModalProps) {
         <input
           className={`${styles.input} ${errors.firstName ? styles.inputError : ""}`}
           type="text"
-          value={firstName}
-          onChange={(event) => {
-            setFirstName(event.target.value)
-            clearFieldError("firstName")
-          }}
+          value={form.firstName}
+          onChange={(event) => setField("firstName", event.target.value)}
           placeholder="Иван"
           maxLength={nameMaxLength}
           disabled={isSubmitting}
@@ -238,11 +251,8 @@ function EditProfileModal({ user, onSaved, onClose }: EditProfileModalProps) {
         <input
           className={`${styles.input} ${errors.lastName ? styles.inputError : ""}`}
           type="text"
-          value={lastName}
-          onChange={(event) => {
-            setLastName(event.target.value)
-            clearFieldError("lastName")
-          }}
+          value={form.lastName}
+          onChange={(event) => setField("lastName", event.target.value)}
           placeholder="Иванов"
           maxLength={nameMaxLength}
           disabled={isSubmitting}
@@ -255,11 +265,8 @@ function EditProfileModal({ user, onSaved, onClose }: EditProfileModalProps) {
         <input
           className={`${styles.input} ${errors.email ? styles.inputError : ""}`}
           type="email"
-          value={email}
-          onChange={(event) => {
-            setEmail(event.target.value)
-            clearFieldError("email")
-          }}
+          value={form.email}
+          onChange={(event) => setField("email", event.target.value)}
           placeholder="you@example.com"
           disabled={isSubmitting}
         />
@@ -278,11 +285,8 @@ function EditProfileModal({ user, onSaved, onClose }: EditProfileModalProps) {
         <input
           className={`${styles.input} ${errors.currentPassword ? styles.inputError : ""}`}
           type="password"
-          value={currentPassword}
-          onChange={(event) => {
-            setCurrentPassword(event.target.value)
-            clearFieldError("currentPassword")
-          }}
+          value={form.currentPassword}
+          onChange={(event) => setField("currentPassword", event.target.value)}
           autoComplete="current-password"
           disabled={isSubmitting}
         />
@@ -294,11 +298,8 @@ function EditProfileModal({ user, onSaved, onClose }: EditProfileModalProps) {
         <input
           className={`${styles.input} ${errors.newPassword ? styles.inputError : ""}`}
           type="password"
-          value={newPassword}
-          onChange={(event) => {
-            setNewPassword(event.target.value)
-            clearFieldError("newPassword")
-          }}
+          value={form.newPassword}
+          onChange={(event) => setField("newPassword", event.target.value)}
           autoComplete="new-password"
           disabled={isSubmitting}
         />
@@ -310,11 +311,8 @@ function EditProfileModal({ user, onSaved, onClose }: EditProfileModalProps) {
         <input
           className={`${styles.input} ${errors.repeatPassword ? styles.inputError : ""}`}
           type="password"
-          value={repeatPassword}
-          onChange={(event) => {
-            setRepeatPassword(event.target.value)
-            clearFieldError("repeatPassword")
-          }}
+          value={form.repeatPassword}
+          onChange={(event) => setField("repeatPassword", event.target.value)}
           autoComplete="new-password"
           disabled={isSubmitting}
         />
