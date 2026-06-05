@@ -9,7 +9,7 @@ import Pagination from "../../../components/Pagination/Pagination"
 import { useToast } from "../../../components/Toast/useToast"
 import { useDelayedLoading } from "../../../hooks/useDelayedLoading"
 import { ApiError } from "../../../services/api"
-import { ACCEPTED_FILE_INPUT, ACCEPTED_FILE_TYPES_LABEL, validateUploadFile } from "../../../services/files.api"
+import { validateUploadFile } from "../../../services/files.api"
 import {
   currentDateTimeInputValue,
   formatDateTime,
@@ -18,11 +18,15 @@ import {
   toApiDateTime,
   truncate
 } from "../../../services/helpers"
-import FilePicker from "../../../components/FilePicker/FilePicker"
 import { listContainer, listItem } from "../../../shared/motion"
 import type { ClassLayoutContext } from "../../../layouts/ClassLayout/ClassLayout"
+import AssignmentFormModal, {
+  EMPTY_ASSIGNMENT_FORM,
+  type AssignmentFormState
+} from "../AssignmentFormModal/AssignmentFormModal"
 import {
   createAssignment,
+  deleteAssignmentMaterial,
   deleteAssignment,
   uploadAssignmentMaterial,
   listAssignments,
@@ -33,22 +37,6 @@ import SkeletonLoader from "./SkeletonLoader/SkeletonLoader"
 import styles from "./AssignmentsPage.module.css"
 
 const LIMIT = 10
-
-type FormState = {
-  title: string
-  description: string
-  material_url: string
-  due_at: string
-  max_grade: string
-}
-
-const EMPTY_FORM: FormState = {
-  title: "",
-  description: "",
-  material_url: "",
-  due_at: "",
-  max_grade: "100"
-}
 
 type AssignmentCardProps = {
   item: AssignmentDto
@@ -125,11 +113,12 @@ export default function AssignmentsPage() {
   const [isSubmitting, setIsSubmitting] = useState(false)
 
   // Поля формы задания и исходные значения для проверки изменений
-  const [form, setForm] = useState<FormState>(EMPTY_FORM)
-  const [initialForm, setInitialForm] = useState<FormState>(EMPTY_FORM)
+  const [form, setForm] = useState<AssignmentFormState>(EMPTY_ASSIGNMENT_FORM)
+  const [initialForm, setInitialForm] = useState<AssignmentFormState>(EMPTY_ASSIGNMENT_FORM)
 
   // Новый файл материала, выбранный в модалке
   const [materialFile, setMaterialFile] = useState<File | null>(null)
+  const [shouldDeleteMaterialFile, setShouldDeleteMaterialFile] = useState(false)
   const [materialFileError, setMaterialFileError] = useState("")
 
   async function loadPage(page: number, mode: "all" | "pending" = viewMode) {
@@ -160,9 +149,10 @@ export default function AssignmentsPage() {
 
   function resetFormState() {
     setEditingId(null)
-    setForm(EMPTY_FORM)
-    setInitialForm(EMPTY_FORM)
+    setForm(EMPTY_ASSIGNMENT_FORM)
+    setInitialForm(EMPTY_ASSIGNMENT_FORM)
     setMaterialFile(null)
+    setShouldDeleteMaterialFile(false)
     setMaterialFileError("")
   }
 
@@ -183,16 +173,17 @@ export default function AssignmentsPage() {
   }
 
   function openCreateModal() {
-    setForm(EMPTY_FORM)
-    setInitialForm(EMPTY_FORM)
+    setForm(EMPTY_ASSIGNMENT_FORM)
+    setInitialForm(EMPTY_ASSIGNMENT_FORM)
     setEditingId(null)
     setMaterialFile(null)
+    setShouldDeleteMaterialFile(false)
     setMaterialFileError("")
     setIsFormOpen(true)
   }
 
   function openEditModal(item: AssignmentDto) {
-    const saved: FormState = {
+    const saved: AssignmentFormState = {
       title: item.title,
       description: item.description,
       material_url: item.material_url ?? "",
@@ -203,11 +194,12 @@ export default function AssignmentsPage() {
     setInitialForm(saved)
     setEditingId(item.id)
     setMaterialFile(null)
+    setShouldDeleteMaterialFile(false)
     setMaterialFileError("")
     setIsFormOpen(true)
   }
 
-  function setField<K extends keyof FormState>(key: K, value: FormState[K]) {
+  function setField<K extends keyof AssignmentFormState>(key: K, value: AssignmentFormState[K]) {
     setForm((prev) => ({ ...prev, [key]: value }))
   }
 
@@ -223,6 +215,7 @@ export default function AssignmentsPage() {
 
   function onMaterialFileChange(file: File) {
     setMaterialFile(null)
+    setShouldDeleteMaterialFile(false)
     setMaterialFileError("")
 
     const error = validateUploadFile(file)
@@ -235,7 +228,13 @@ export default function AssignmentsPage() {
   }
 
   function onMaterialFileClear() {
-    setMaterialFile(null)
+    if (materialFile) {
+      setMaterialFile(null)
+      setMaterialFileError("")
+      return
+    }
+
+    setShouldDeleteMaterialFile(true)
     setMaterialFileError("")
   }
 
@@ -301,6 +300,7 @@ export default function AssignmentsPage() {
 
     try {
       let uploadedMaterial: AssignmentDto["material_file"] = null
+      let isMaterialDeleted = false
       if (materialFile) {
         try {
           uploadedMaterial = await uploadAssignmentMaterial(classDetail.id, id, materialFile)
@@ -313,8 +313,22 @@ export default function AssignmentsPage() {
         }
       }
 
+      if (!materialFile && shouldDeleteMaterialFile) {
+        try {
+          await deleteAssignmentMaterial(classDetail.id, id)
+          isMaterialDeleted = true
+        } catch (error) {
+          if (error instanceof ApiError) {
+            setMaterialFileError(error.message)
+            return
+          }
+          throw error
+        }
+      }
+
       let updated = await updateAssignment(classDetail.id, id, body)
       if (uploadedMaterial) updated = { ...updated, material_file: uploadedMaterial }
+      if (isMaterialDeleted) updated = { ...updated, material_file: null }
       setItems((prev) => prev.map((it) => (it.id === updated.id ? updated : it)))
       showToast({ type: "neutral", message: "Задание обновлено" })
       finishFormModal()
@@ -359,7 +373,16 @@ export default function AssignmentsPage() {
     form.material_url.trim() !== initialForm.material_url.trim() ||
     form.due_at !== initialForm.due_at ||
     form.max_grade !== initialForm.max_grade
-  const canSubmit = !isSubmitting && !materialFileError && !dueAtError && isFilled && (editingId === null || isChanged || materialFile !== null)
+  const editingItem = editingId === null ? null : items.find((item) => item.id === editingId) ?? null
+  const currentMaterialFile = editingItem?.material_file && !shouldDeleteMaterialFile
+    ? { name: editingItem.material_file.name, size: editingItem.material_file.size }
+    : null
+  const canSubmit = !isSubmitting && !materialFileError && !dueAtError && isFilled && (
+    editingId === null ||
+    isChanged ||
+    materialFile !== null ||
+    shouldDeleteMaterialFile
+  )
   const canManage = classDetail?.permissions.can_create_assignment ?? false
 
   return (
@@ -426,98 +449,23 @@ export default function AssignmentsPage() {
 
       <AnimatePresence>
         {canManage && isFormOpen && (
-        <Modal title={editingId ? "Редактировать задание" : "Создать задание"} onClose={closeFormModal} disabled={isSubmitting}>
-          <label className={styles.field}>
-            <div className={styles.fieldLabel}>Название</div>
-            <input
-              className={styles.input}
-              type="text"
-              value={form.title}
-              onChange={(e) => setField("title", e.target.value)}
-              placeholder="Например, Домашнее задание №1"
-              disabled={isSubmitting}
-            />
-          </label>
-
-          <div className={styles.field}>
-            <div className={styles.fieldLabel}>Файл материала <span className={styles.fieldOptional}>(необязательно, до 20 МБ)</span></div>
-            <FilePicker
-              label="Выберите файл материала"
-              accept={ACCEPTED_FILE_INPUT}
-              hint={`Доступные форматы: ${ACCEPTED_FILE_TYPES_LABEL}`}
-              file={materialFile ? { name: materialFile.name, size: materialFile.size } : null}
-              onSelect={onMaterialFileChange}
-              onRemove={onMaterialFileClear}
-              error={materialFileError}
-              disabled={isSubmitting}
-            />
-          </div>
-
-          <label className={styles.field}>
-            <div className={styles.fieldLabel}>Описание <span className={styles.fieldOptional}>(необязательно)</span></div>
-            <textarea
-              className={styles.textarea}
-              value={form.description}
-              onChange={(e) => setField("description", e.target.value)}
-              placeholder="Условие задания, что нужно сделать..."
-              disabled={isSubmitting}
-            />
-          </label>
-
-          <label className={styles.field}>
-            <div className={styles.fieldLabel}>Ссылка на материал <span className={styles.fieldOptional}>(необязательно)</span></div>
-            <input
-              className={styles.input}
-              type="url"
-              value={form.material_url}
-              onChange={(e) => setField("material_url", e.target.value)}
-              placeholder="https://..."
-              disabled={isSubmitting}
-            />
-          </label>
-
-          <div className={styles.fieldRow}>
-            <label className={styles.field}>
-              <div className={styles.fieldLabel}>Дедлайн <span className={styles.fieldOptional}>(необязательно)</span></div>
-              <input
-                className={styles.input}
-                type="datetime-local"
-                min={minDueAt}
-                value={form.due_at}
-                onChange={(e) => setField("due_at", e.target.value)}
-                disabled={isSubmitting}
-              />
-              {dueAtError && <div className={styles.fieldError}>{dueAtError}</div>}
-            </label>
-
-            <label className={styles.field}>
-              <div className={styles.fieldLabel}>Максимальный балл</div>
-              <input
-                className={styles.input}
-                type="number"
-                min="1"
-                value={form.max_grade}
-                onChange={(e) => setField("max_grade", e.target.value)}
-                placeholder="100"
-                disabled={isSubmitting}
-              />
-            </label>
-          </div>
-
-          <div className={styles.modalActions}>
-            <button className={styles.secondaryButton} type="button" onClick={closeFormModal} disabled={isSubmitting}>
-              Отмена
-            </button>
-            <button
-              className={styles.primaryButton}
-              type="button"
-              onClick={() => void (editingId ? submitEdit() : submitCreate())}
-              disabled={!canSubmit}
-            >
-              {isSubmitting ? "Сохраняем..." : editingId ? "Сохранить" : "Создать"}
-            </button>
-          </div>
-        </Modal>
+          <AssignmentFormModal
+            mode={editingId ? "edit" : "create"}
+            form={form}
+            isSubmitting={isSubmitting}
+            canSubmit={canSubmit}
+            dueAtError={dueAtError}
+            minDueAt={minDueAt}
+            materialFile={materialFile}
+            isMaterialFileBusy={isSubmitting && (Boolean(materialFile) || shouldDeleteMaterialFile)}
+            currentMaterialFile={currentMaterialFile}
+            materialFileError={materialFileError}
+            onClose={closeFormModal}
+            onSubmit={() => void (editingId ? submitEdit() : submitCreate())}
+            onFieldChange={setField}
+            onMaterialFileChange={onMaterialFileChange}
+            onMaterialFileRemove={onMaterialFileClear}
+          />
         )}
       </AnimatePresence>
 
