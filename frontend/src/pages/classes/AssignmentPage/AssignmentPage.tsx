@@ -969,7 +969,7 @@ export default function AssignmentPage() {
                     </div>
                   )}
 
-                  {mySubmission?.member_grades.length > 0 && mySubmission.group_members.length > 0 && (
+                  {mySubmission && mySubmission.member_grades.length > 0 && mySubmission.group_members.length > 0 && (
                     <div className={styles.memberGradesBox}>
                       <div className={styles.reviewLabel}>Итоговые баллы участников</div>
                       <div className={styles.memberGradesList}>
