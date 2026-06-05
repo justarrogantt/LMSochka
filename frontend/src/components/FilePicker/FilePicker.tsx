@@ -1,4 +1,7 @@
 import { useId, type ChangeEvent } from "react"
+import UploadIcon from "../../assets/icons/file/upload.svg?react"
+import DocumentIcon from "../../assets/icons/file/document.svg?react"
+import CloseIcon from "../../assets/icons/file/close.svg?react"
 import { formatFileSize } from "../../services/files.api"
 import styles from "./FilePicker.module.css"
 
@@ -53,11 +56,7 @@ export default function FilePicker({
         aria-disabled={isLocked}
       >
         <span className={styles.icon} aria-hidden="true">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M12 16V4" />
-            <path d="m7 9 5-5 5 5" />
-            <path d="M5 16v2a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-2" />
-          </svg>
+          <UploadIcon />
         </span>
         <span className={styles.label}>{busy ? busyLabel : label}</span>
         <input
@@ -73,10 +72,7 @@ export default function FilePicker({
       {file && (
         <div className={styles.chip}>
           <span className={styles.chipIcon} aria-hidden="true">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-              <path d="M14 2v6h6" />
-            </svg>
+            <DocumentIcon />
           </span>
 
           {onDownload ? (
@@ -98,10 +94,7 @@ export default function FilePicker({
               aria-label={removeTitle}
               title={removeTitle}
             >
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                <path d="M18 6 6 18" />
-                <path d="m6 6 12 12" />
-              </svg>
+              <CloseIcon aria-hidden="true" />
             </button>
           )}
         </div>
