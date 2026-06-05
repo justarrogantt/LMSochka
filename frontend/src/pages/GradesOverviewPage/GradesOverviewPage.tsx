@@ -1,8 +1,9 @@
-import { useEffect, useState } from "react"
+﻿import { useEffect, useState } from "react"
 import { motion } from "framer-motion"
 import { Link } from "react-router-dom"
 import SearchIcon from "../../assets/icons/layout/search.svg?react"
 import { useToast } from "../../components/Toast/useToast"
+import { useDelayedLoading } from "../../hooks/useDelayedLoading"
 import { ApiError } from "../../services/api"
 import { listContainer, listItem } from "../../shared/motion"
 import { getGradesOverview, type CourseGradesSummary } from "./services/gradesOverview.api"
@@ -60,6 +61,7 @@ function GradesSection({ title, courses }: { title: string; courses: CourseGrade
 export default function GradesOverviewPage() {
   const [courses, setCourses] = useState<CourseGradesSummary[]>([])
   const [isLoading, setIsLoading] = useState(true)
+  const [showSkeleton, setSkeletonLoading] = useDelayedLoading(350, false)
   // Локальный поиск по названию курса (на бэке поиска по сводке нет)
   const [search, setSearch] = useState("")
   const showToast = useToast()
@@ -67,6 +69,7 @@ export default function GradesOverviewPage() {
   useEffect(() => {
     async function load() {
       setIsLoading(true)
+      setSkeletonLoading(true)
       try {
         const data = await getGradesOverview()
         setCourses(data.courses)
@@ -78,6 +81,7 @@ export default function GradesOverviewPage() {
         throw error
       } finally {
         setIsLoading(false)
+        setSkeletonLoading(false)
       }
     }
 
@@ -113,7 +117,7 @@ export default function GradesOverviewPage() {
         />
       </div>
 
-      {isLoading && <SkeletonLoader />}
+      {showSkeleton && <SkeletonLoader />}
 
       {!isLoading && (
         <>

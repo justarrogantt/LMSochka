@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react"
+﻿import { useEffect, useState } from "react"
 import { AnimatePresence, motion } from "framer-motion"
 import { useOutletContext } from "react-router-dom"
 import CreatorIcon from "../../../assets/icons/classes/creator.svg?react"
@@ -9,6 +9,7 @@ import CoursesIcon from "../../../assets/icons/layout/courses.svg?react"
 import SearchIcon from "../../../assets/icons/layout/search.svg?react"
 import Modal from "../../../components/Modal/Modal"
 import { useToast } from "../../../components/Toast/useToast"
+import { useDelayedLoading } from "../../../hooks/useDelayedLoading"
 import type { ClassLayoutContext } from "../../../layouts/ClassLayout/ClassLayout"
 import { transferOwnership } from "../../../layouts/ClassLayout/services/class.api"
 import { ApiError } from "../../../services/api"
@@ -96,6 +97,7 @@ export default function ClassMembersPage() {
 
   // Первичная загрузка вкладки
   const [isLoading, setIsLoading] = useState(true)
+  const [showSkeleton, setSkeletonLoading] = useDelayedLoading(350, false)
 
   // Участник и новая роль в модалке смены роли
   const [selectedMember, setSelectedMember] = useState<ClassMemberDto | null>(null)
@@ -112,9 +114,12 @@ export default function ClassMembersPage() {
     async function loadMembers() {
       if (!classDetail?.id) {
         setIsLoading(false)
+        setSkeletonLoading(false)
         return
       }
 
+      setIsLoading(true)
+      setSkeletonLoading(true)
       try {
         const data = await getClassMembers(classDetail.id)
         setMembers(data.items)
@@ -132,6 +137,7 @@ export default function ClassMembersPage() {
         throw error
       } finally {
         setIsLoading(false)
+        setSkeletonLoading(false)
       }
     }
 
@@ -275,7 +281,7 @@ export default function ClassMembersPage() {
         )}
       </div>
 
-      {isLoading && <SkeletonLoader />}
+      {showSkeleton && <SkeletonLoader />}
 
       {!isLoading && (
         <>

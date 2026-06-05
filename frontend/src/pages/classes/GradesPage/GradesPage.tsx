@@ -1,10 +1,11 @@
-import { useEffect, useState } from "react"
+﻿import { useEffect, useState } from "react"
 import { AnimatePresence, motion } from "framer-motion"
 import { Link, useOutletContext } from "react-router-dom"
 import SearchIcon from "../../../assets/icons/layout/search.svg?react"
 import SelectArrowIcon from "../../../assets/icons/select-arrow.svg?react"
 import { useToast } from "../../../components/Toast/useToast"
 import { useAuth } from "../../../contexts/useAuth"
+import { useDelayedLoading } from "../../../hooks/useDelayedLoading"
 import type { ClassLayoutContext } from "../../../layouts/ClassLayout/ClassLayout"
 import { ApiError } from "../../../services/api"
 import { formatDateTime } from "../../../services/helpers"
@@ -43,6 +44,7 @@ export default function GradesPage() {
 
   const [gradebook, setGradebook] = useState<GradebookDto | null>(null)
   const [isLoading, setIsLoading] = useState(true)
+  const [showSkeleton, setSkeletonLoading] = useDelayedLoading(350, false)
   // Поиск живёт на уровне страницы, чтобы оставаться видимым (но неактивным) во время загрузки.
   const [search, setSearch] = useState("")
 
@@ -51,11 +53,13 @@ export default function GradesPage() {
   useEffect(() => {
     if (!classDetail?.id) {
       setIsLoading(false)
+      setSkeletonLoading(false)
       return
     }
 
     async function load() {
       setIsLoading(true)
+      setSkeletonLoading(true)
       try {
         const data = canViewGradebook
           ? await getGradebook(classDetail.id)
@@ -77,6 +81,7 @@ export default function GradesPage() {
         throw error
       } finally {
         setIsLoading(false)
+        setSkeletonLoading(false)
       }
     }
 
@@ -88,8 +93,7 @@ export default function GradesPage() {
   gradebook?.cells.forEach((cell) => cellMap.set(cellKey(cell.student_id, cell.assignment_id), cell))
 
   const hasData = gradebook && gradebook.students.length > 0
-  // Поиск показываем во время загрузки (неактивным) и когда есть данные.
-  const showSearch = isLoading || hasData
+  const showSearch = !isLoading && hasData
   const searchPlaceholder = canViewGradebook ? "Поиск по студенту" : "Поиск по заданию"
 
   return (
@@ -117,7 +121,7 @@ export default function GradesPage() {
         </label>
       )}
 
-      {isLoading && <SkeletonLoader gradebook={canViewGradebook} />}
+      {showSkeleton && <SkeletonLoader gradebook={canViewGradebook} />}
 
       {!isLoading && (
         <>

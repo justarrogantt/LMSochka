@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react"
+﻿import { useEffect, useState } from "react"
 import { AnimatePresence, motion } from "framer-motion"
 import { useNavigate, useOutletContext, useParams } from "react-router-dom"
 import AddIcon from "../../../assets/icons/classes/add.svg?react"
@@ -7,6 +7,7 @@ import EditIcon from "../../../assets/icons/classes/settings.svg?react"
 import Modal from "../../../components/Modal/Modal"
 import Pagination from "../../../components/Pagination/Pagination"
 import { useToast } from "../../../components/Toast/useToast"
+import { useDelayedLoading } from "../../../hooks/useDelayedLoading"
 import { ApiError } from "../../../services/api"
 import { ACCEPTED_FILE_INPUT, ACCEPTED_FILE_TYPES_LABEL, validateUploadFile } from "../../../services/files.api"
 import {
@@ -103,6 +104,7 @@ export default function AssignmentsPage() {
 
   // Первичная загрузка и переключение вкладок
   const [isLoading, setIsLoading] = useState(true)
+  const [showSkeleton, setSkeletonLoading] = useDelayedLoading(350, false)
 
   // Пагинация списка заданий
   const [currentPage, setCurrentPage] = useState(1)
@@ -133,6 +135,7 @@ export default function AssignmentsPage() {
   async function loadPage(page: number, mode: "all" | "pending" = viewMode) {
     if (!classDetail?.id) return
     setIsLoading(true)
+    setSkeletonLoading(true)
     try {
       const data = await listAssignments(classDetail.id, page, LIMIT, mode === "pending" ? "pending" : undefined)
       setItems(data.items)
@@ -147,6 +150,7 @@ export default function AssignmentsPage() {
       throw error
     } finally {
       setIsLoading(false)
+      setSkeletonLoading(false)
     }
   }
 
@@ -392,7 +396,7 @@ export default function AssignmentsPage() {
         )}
       </div>
 
-      {isLoading && <SkeletonLoader showActions={canManage} />}
+      {showSkeleton && <SkeletonLoader showActions={canManage} />}
 
       {!isLoading && (
         <>

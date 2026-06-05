@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react"
+﻿import { useEffect, useState } from "react"
 import { AnimatePresence, motion } from "framer-motion"
 import { useNavigate } from "react-router-dom"
 import AddIcon from "../../../assets/icons/classes/add.svg?react"
@@ -11,6 +11,7 @@ import OpenIcon from "../../../assets/icons/classes/open.svg?react"
 import SearchIcon from "../../../assets/icons/layout/search.svg?react"
 import Modal from "../../../components/Modal/Modal"
 import { useToast } from "../../../components/Toast/useToast"
+import { useDelayedLoading } from "../../../hooks/useDelayedLoading"
 import { ApiError } from "../../../services/api"
 import { truncate } from "../../../services/helpers"
 import { listContainer, listItem } from "../../../shared/motion"
@@ -197,6 +198,7 @@ export default function ClassesPage() {
 
   // Лоадер страницы
   const [isLoading, setIsLoading] = useState(true)
+  const [showSkeleton, setSkeletonLoading] = useDelayedLoading(350, false)
 
   // Состояние модалок
   const [activeModal, setActiveModal] = useState<ModalType>(null)
@@ -218,6 +220,7 @@ export default function ClassesPage() {
   // Загрузка списка курсов
   useEffect(() => {
     async function loadClasses() {
+      setSkeletonLoading(true)
       try {
         const nextClasses = await getMyClasses()
         setClasses(nextClasses)
@@ -232,6 +235,7 @@ export default function ClassesPage() {
         throw error
       } finally {
         setIsLoading(false)
+        setSkeletonLoading(false)
       }
     }
 
@@ -345,7 +349,7 @@ export default function ClassesPage() {
         </div>
       </div>
 
-      {isLoading && <SkeletonLoader />}
+      {showSkeleton && <SkeletonLoader />}
 
       {!isLoading && (
         <>

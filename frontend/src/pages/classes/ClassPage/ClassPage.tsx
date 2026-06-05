@@ -1,6 +1,4 @@
-import { motion } from "framer-motion"
 import { useOutletContext } from "react-router-dom"
-import { DURATION, EASE_OUT } from "../../../shared/motion"
 import type { ClassLayoutContext } from "../../../layouts/ClassLayout/ClassLayout"
 import styles from "./ClassPage.module.css"
 
@@ -9,12 +7,7 @@ export default function ClassPage() {
 
   return (
     <div className={styles.overview}>
-      <motion.div
-        className={styles.infoCard}
-        initial={{ opacity: 0, y: 14 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: DURATION.card, ease: EASE_OUT }}
-      >
+      <div className={styles.infoCard}>
         <div className={styles.cardTitle}>Информация о курсе</div>
         <div className={styles.infoRows}>
           <div className={styles.infoRow}>
@@ -44,7 +37,7 @@ export default function ClassPage() {
             <div className={styles.infoValue}>{classDetail?.join_code ?? "Недоступен"}</div>
           </div>
         </div>
-      </motion.div>
+      </div>
     </div>
   )
 }

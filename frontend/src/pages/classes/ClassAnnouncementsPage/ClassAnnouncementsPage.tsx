@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react"
+﻿import { useEffect, useState } from "react"
 import { AnimatePresence, motion } from "framer-motion"
 import { useNavigate, useOutletContext, useParams } from "react-router-dom"
 import AddIcon from "../../../assets/icons/classes/add.svg?react"
@@ -7,6 +7,7 @@ import EditIcon from "../../../assets/icons/classes/settings.svg?react"
 import Modal from "../../../components/Modal/Modal"
 import Pagination from "../../../components/Pagination/Pagination"
 import { useToast } from "../../../components/Toast/useToast"
+import { useDelayedLoading } from "../../../hooks/useDelayedLoading"
 import { ApiError } from "../../../services/api"
 import { formatDateTime, truncate } from "../../../services/helpers"
 import { listContainer, listItem } from "../../../shared/motion"
@@ -80,6 +81,7 @@ export default function ClassAnnouncementsPage() {
 
   // Лоадер страницы
   const [isLoading, setIsLoading] = useState(true)
+  const [showSkeleton, setSkeletonLoading] = useDelayedLoading(350, false)
 
   // Пагинация: текущая страница и общее число объявлений
   const [currentPage, setCurrentPage] = useState(1)
@@ -105,6 +107,7 @@ export default function ClassAnnouncementsPage() {
   async function loadPage(page: number) {
     if (!classDetail?.id) return
     setIsLoading(true)
+    setSkeletonLoading(true)
     try {
       const data = await listAnnouncements(classDetail.id, page, LIMIT)
       setItems(data.items)
@@ -118,6 +121,7 @@ export default function ClassAnnouncementsPage() {
       throw error
     } finally {
       setIsLoading(false)
+      setSkeletonLoading(false)
     }
   }
 
@@ -254,7 +258,7 @@ export default function ClassAnnouncementsPage() {
         )}
       </div>
 
-      {isLoading && <SkeletonLoader showActions={canManage} />}
+      {showSkeleton && <SkeletonLoader showActions={canManage} />}
 
       {!isLoading && (
         <>

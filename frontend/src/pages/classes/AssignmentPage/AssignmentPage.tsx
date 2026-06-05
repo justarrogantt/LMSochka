@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react"
+﻿import { useEffect, useState } from "react"
 import { AnimatePresence } from "framer-motion"
 import { useNavigate, useOutletContext, useParams } from "react-router-dom"
 import ArrowIcon from "../../../assets/icons/classes/arrow.svg?react"
@@ -7,6 +7,7 @@ import EditIcon from "../../../assets/icons/classes/settings.svg?react"
 import Modal from "../../../components/Modal/Modal"
 import Pagination from "../../../components/Pagination/Pagination"
 import { useToast } from "../../../components/Toast/useToast"
+import { useDelayedLoading } from "../../../hooks/useDelayedLoading"
 import { ApiError } from "../../../services/api"
 import {
   ACCEPTED_FILE_INPUT,
@@ -121,6 +122,7 @@ export default function AssignmentPage() {
 
   // Первичная загрузка страницы задания
   const [isLoading, setIsLoading] = useState(true)
+  const [showAssignmentSkeleton, setAssignmentSkeletonLoading] = useDelayedLoading(350, false)
 
   // Какая модалка задания сейчас открыта
   const [activeModal, setActiveModal] = useState<"edit" | "delete" | null>(null)
@@ -139,6 +141,7 @@ export default function AssignmentPage() {
 
   // Первичная загрузка моего решения
   const [isMyLoading, setIsMyLoading] = useState(true)
+  const [showMySubmissionSkeleton, setMySubmissionSkeletonLoading] = useDelayedLoading(350, false)
 
   // Поля формы моего решения
   const [submissionForm, setSubmissionForm] = useState<SubmissionFormState>({ answer_text: "", attachment_url: "" })
@@ -162,6 +165,7 @@ export default function AssignmentPage() {
 
   // Первичная загрузка списка решений
   const [isSubsLoading, setIsSubsLoading] = useState(true)
+  const [showSubmissionsSkeleton, setSubmissionsSkeletonLoading] = useDelayedLoading(350, false)
 
   // Текущая страница списка решений
   const [subsPage, setSubsPage] = useState(1)
@@ -203,8 +207,13 @@ export default function AssignmentPage() {
   // Загрузка задания по ID
   useEffect(() => {
     async function load() {
-      if (!parsedClassId || !parsedAssignmentId) return
+      if (!parsedClassId || !parsedAssignmentId) {
+        setIsLoading(false)
+        setAssignmentSkeletonLoading(false)
+        return
+      }
 
+      setAssignmentSkeletonLoading(true)
       try {
         const data = await getAssignment(parsedClassId, parsedAssignmentId)
         setAssignment(data)
@@ -217,6 +226,7 @@ export default function AssignmentPage() {
         throw error
       } finally {
         setIsLoading(false)
+        setAssignmentSkeletonLoading(false)
       }
     }
 
@@ -227,11 +237,13 @@ export default function AssignmentPage() {
   useEffect(() => {
     if (!canSubmit || !parsedAssignmentId) {
       setIsMyLoading(false)
+      setMySubmissionSkeletonLoading(false)
       return
     }
 
     async function load() {
       setIsMyLoading(true)
+      setMySubmissionSkeletonLoading(true)
       try {
         const data = await getMySubmission(parsedAssignmentId)
         setMySubmission(data)
@@ -247,6 +259,7 @@ export default function AssignmentPage() {
         throw error
       } finally {
         setIsMyLoading(false)
+        setMySubmissionSkeletonLoading(false)
       }
     }
 
@@ -257,6 +270,7 @@ export default function AssignmentPage() {
   useEffect(() => {
     if (!canGrade || !parsedAssignmentId) {
       setIsSubsLoading(false)
+      setSubmissionsSkeletonLoading(false)
       return
     }
 
@@ -266,6 +280,7 @@ export default function AssignmentPage() {
   // Загрузка страницы решений с учётом фильтра по статусу
   async function loadSubmissions(page: number, status: SubmissionStatus | null) {
     setIsSubsLoading(true)
+    setSubmissionsSkeletonLoading(true)
     try {
       const data = await listSubmissions(parsedAssignmentId, page, SUBS_LIMIT, status)
       setSubmissions(data.items)
@@ -279,6 +294,7 @@ export default function AssignmentPage() {
       throw error
     } finally {
       setIsSubsLoading(false)
+      setSubmissionsSkeletonLoading(false)
     }
   }
 
@@ -683,7 +699,7 @@ export default function AssignmentPage() {
         )}
       </div>
 
-      {isLoading && <AssignmentSkeletonLoader />}
+      {showAssignmentSkeleton && <AssignmentSkeletonLoader />}
 
       {!isLoading && assignment && (
         <div className={styles.card}>
@@ -739,7 +755,7 @@ export default function AssignmentPage() {
             {mySubmission && <StatusBadge status={mySubmission.status} />}
           </div>
 
-          {isMyLoading && <MySubmissionSkeletonLoader />}
+          {showMySubmissionSkeleton && <MySubmissionSkeletonLoader />}
 
           {!isMyLoading && (
             <div className={styles.submissionBox}>
@@ -860,7 +876,7 @@ export default function AssignmentPage() {
             ))}
           </div>
 
-          {isSubsLoading && <StudentSubmissionsSkeletonLoader />}
+          {showSubmissionsSkeleton && <StudentSubmissionsSkeletonLoader />}
 
           {!isSubsLoading && submissions.length > 0 && (
             <div className={styles.subList}>

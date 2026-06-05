@@ -1,4 +1,4 @@
-import { useEffect, useState, type CSSProperties } from "react"
+﻿import { useEffect, useState, type CSSProperties } from "react"
 import { AnimatePresence } from "framer-motion"
 import { NavLink, Outlet, useLocation, useNavigate, useParams } from "react-router-dom"
 import ArrowIcon from "../../assets/icons/classes/arrow.svg?react"
@@ -7,6 +7,7 @@ import EditIcon from "../../assets/icons/classes/settings.svg?react"
 import ExitIcon from "../../assets/icons/layout/exit.svg?react"
 import Modal from "../../components/Modal/Modal"
 import { useToast } from "../../components/Toast/useToast"
+import { useDelayedLoading } from "../../hooks/useDelayedLoading"
 import OverviewSkeletonLoader from "../../pages/classes/ClassPage/SkeletonLoader/SkeletonLoader"
 import MembersSkeletonLoader from "../../pages/classes/ClassMembersPage/SkeletonLoader/SkeletonLoader"
 import AssignmentsSkeletonLoader from "../../pages/classes/AssignmentsPage/SkeletonLoader/SkeletonLoader"
@@ -79,6 +80,7 @@ export default function ClassLayout() {
 
   // Лоадер страницы
   const [isLoading, setIsLoading] = useState(true)
+  const [showSkeleton, setSkeletonLoading] = useDelayedLoading(350, false)
 
   // Открыта ли модалка удаления/выхода
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false)
@@ -97,9 +99,11 @@ export default function ClassLayout() {
     async function loadClass() {
       if (!Number.isFinite(parsedClassId)) {
         setIsLoading(false)
+        setSkeletonLoading(false)
         return
       }
 
+      setSkeletonLoading(true)
       try {
         const detail = await getClassDetail(parsedClassId)
         setClassDetail(detail)
@@ -112,6 +116,7 @@ export default function ClassLayout() {
         throw error
       } finally {
         setIsLoading(false)
+        setSkeletonLoading(false)
       }
     }
 
@@ -212,21 +217,21 @@ export default function ClassLayout() {
             <ArrowIcon className={styles.backIcon} />
             <div>Мои курсы</div>
           </button>
-          {isLoading ? (
+          {showSkeleton ? (
             <Skeleton width={240} height={32} radius={999} />
-          ) : (
+          ) : !isLoading ? (
             <div className={styles.title}>{classDetail?.name ?? "Курс"}</div>
-          )}
+          ) : null}
         </div>
 
-        {isLoading ? (
+        {showSkeleton ? (
           <div className={styles.actions}>
             {/* код приглашения и кнопки управления курсом — пока грузятся данные */}
             <Skeleton width={210} height={40} radius={10} />
             <Skeleton width={150} height={40} radius={10} />
             <Skeleton width={120} height={40} radius={10} />
           </div>
-        ) : (
+        ) : !isLoading ? (
           <div className={styles.actions}>
             {canManageMembers && classDetail?.type === "closed" && classDetail?.join_code && (
               <button className={styles.secondaryButton} type="button" onClick={copyJoinCode}>
@@ -255,7 +260,7 @@ export default function ClassLayout() {
               </button>
             )}
           </div>
-        )}
+        ) : null}
       </div>
 
       <div className={styles.tabs}>
@@ -271,11 +276,11 @@ export default function ClassLayout() {
         ))}
       </div>
 
-      {isLoading ? (
+      {showSkeleton ? (
         classTabSkeleton(activeTabPath)
-      ) : (
+      ) : !isLoading ? (
         <Outlet context={{ classDetail, setClassDetail } satisfies ClassLayoutContext} />
-      )}
+      ) : null}
 
       <AnimatePresence>
         {isDeleteModalOpen && (

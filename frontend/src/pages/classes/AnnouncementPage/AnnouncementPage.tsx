@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react"
+﻿import { useEffect, useState } from "react"
 import { AnimatePresence } from "framer-motion"
 import { useNavigate, useParams } from "react-router-dom"
 import ArrowIcon from "../../../assets/icons/classes/arrow.svg?react"
@@ -6,6 +6,7 @@ import DeleteIcon from "../../../assets/icons/classes/delete.svg?react"
 import EditIcon from "../../../assets/icons/classes/settings.svg?react"
 import Modal from "../../../components/Modal/Modal"
 import { useToast } from "../../../components/Toast/useToast"
+import { useDelayedLoading } from "../../../hooks/useDelayedLoading"
 import { ApiError } from "../../../services/api"
 import { formatDateTime } from "../../../services/helpers"
 import {
@@ -32,6 +33,7 @@ export default function AnnouncementPage() {
 
   // Лоадер страницы
   const [isLoading, setIsLoading] = useState(true)
+  const [showSkeleton, setSkeletonLoading] = useDelayedLoading(350, false)
 
   // Активная модалка
   const [activeModal, setActiveModal] = useState<"edit" | "delete" | null>(null)
@@ -49,8 +51,13 @@ export default function AnnouncementPage() {
   // Загрузка объявления по ID
   useEffect(() => {
     async function load() {
-      if (!parsedClassId || !parsedAnnouncementId) return
+      if (!parsedClassId || !parsedAnnouncementId) {
+        setIsLoading(false)
+        setSkeletonLoading(false)
+        return
+      }
 
+      setSkeletonLoading(true)
       try {
         const data = await getAnnouncement(parsedClassId, parsedAnnouncementId)
         setAnnouncement(data)
@@ -63,6 +70,7 @@ export default function AnnouncementPage() {
         throw error
       } finally {
         setIsLoading(false)
+        setSkeletonLoading(false)
       }
     }
 
@@ -169,7 +177,7 @@ export default function AnnouncementPage() {
         )}
       </div>
 
-      {isLoading && <SkeletonLoader />}
+      {showSkeleton && <SkeletonLoader />}
 
       {!isLoading && announcement && (
         <div className={styles.card}>

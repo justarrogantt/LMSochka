@@ -1,10 +1,11 @@
-import { useEffect, useState, type FormEvent } from "react"
+﻿import { useEffect, useState, type FormEvent } from "react"
 import { motion } from "framer-motion"
 import { useNavigate } from "react-router-dom"
 import ArrowIcon from "../../../assets/icons/classes/arrow.svg?react"
 import SearchIcon from "../../../assets/icons/layout/search.svg?react"
 import Pagination from "../../../components/Pagination/Pagination"
 import { useToast } from "../../../components/Toast/useToast"
+import { useDelayedLoading } from "../../../hooks/useDelayedLoading"
 import { ApiError } from "../../../services/api"
 import { formatDateTime, truncate } from "../../../services/helpers"
 import { listContainer, listItem } from "../../../shared/motion"
@@ -51,6 +52,7 @@ export default function PublicClassesPage() {
 
   const [classes, setClasses] = useState<PublicClassDto[]>([])
   const [isLoading, setIsLoading] = useState(true)
+  const [showSkeleton, setSkeletonLoading] = useDelayedLoading(350, false)
   const [search, setSearch] = useState("")
   const [appliedSearch, setAppliedSearch] = useState("")
   const [currentPage, setCurrentPage] = useState(1)
@@ -59,6 +61,7 @@ export default function PublicClassesPage() {
 
   async function loadPublicClasses(page: number, searchText: string) {
     setIsLoading(true)
+    setSkeletonLoading(true)
 
     try {
       const data = await getPublicClasses(searchText, page, LIMIT)
@@ -73,6 +76,7 @@ export default function PublicClassesPage() {
       throw error
     } finally {
       setIsLoading(false)
+      setSkeletonLoading(false)
     }
   }
 
@@ -145,7 +149,7 @@ export default function PublicClassesPage() {
         </button>
       </form>
 
-      {isLoading && <SkeletonLoader />}
+      {showSkeleton && <SkeletonLoader />}
 
       {!isLoading && (
         <>
