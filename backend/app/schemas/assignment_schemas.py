@@ -3,8 +3,9 @@ from enum import StrEnum
 
 from pydantic import BaseModel, Field, HttpUrl, model_validator
 
-from app.database.models import SubmissionStatus
+from app.database.models import GradingMode, SubmissionStatus
 from app.schemas.file_schemas import FileDTO
+from app.schemas.group_schemas import AssignmentGroupCreate, AssignmentGroupDTO
 from app.schemas.pagination import PageDTO
 from app.schemas.user_schemas import UserBriefDTO
 
@@ -30,6 +31,8 @@ class CreateAssignmentRequest(BaseModel):
     due_at: datetime | None = None
     # шкала жёсткая: > 0. После выставления первой оценки менять max_grade нельзя
     max_grade: float = Field(gt=0)
+    # отсутствует → индивидуальное задание; присутствует → групповое
+    group: AssignmentGroupCreate | None = None
 
     @model_validator(mode="after")
     def _validate_due_at_not_past(self) -> "CreateAssignmentRequest":
@@ -113,6 +116,11 @@ class AssignmentDTO(BaseModel):
     my_submission: MySubmissionBriefDTO | None = None
     # Заполняется только для teacher/creator. У студента — всегда null.
     stats: AssignmentStatsDTO | None = None
+    # Групповые поля. У индивидуальных заданий: is_group=False, остальное null.
+    is_group: bool = False
+    grading_mode: GradingMode | None = None
+    # Команда текущего студента (только когда задание смотрит студент группового).
+    my_group: AssignmentGroupDTO | None = None
 
 
 class AssignmentPageDTO(PageDTO[AssignmentDTO]):

@@ -130,18 +130,41 @@ async def notify_assignment_created(
     assignment_id: int,
     class_name: str,
     db: AsyncSession,
+    recipient_ids: list[int] | None = None,
 ) -> None:
-    user_ids = await class_repo.list_member_user_ids(
-        class_id,
-        roles=(ClassRole.STUDENT,),
-        exclude_user_id=None,
-        include_inactive=False,
-        db=db,
-    )
+    # Для группового задания шлём только распределённым студентам (recipient_ids),
+    # для индивидуального — всем активным студентам класса.
+    if recipient_ids is None:
+        recipient_ids = await class_repo.list_member_user_ids(
+            class_id,
+            roles=(ClassRole.STUDENT,),
+            exclude_user_id=None,
+            include_inactive=False,
+            db=db,
+        )
     await _create_and_send_many(
-        user_ids=user_ids,
+        user_ids=recipient_ids,
         notification_type=NotificationType.ASSIGNMENT,
         title=f"Новое задание в курсе «{class_name}»",
+        class_id=class_id,
+        entity_id=assignment_id,
+        db=db,
+    )
+
+
+async def notify_redistribution(
+    *,
+    user_ids: list[int],
+    class_id: int,
+    assignment_id: int,
+    assignment_title: str,
+    db: AsyncSession,
+) -> None:
+    # entity_id = id задания: фронт ведёт студента на страницу задания для распределения
+    await _create_and_send_many(
+        user_ids=user_ids,
+        notification_type=NotificationType.REDISTRIBUTION,
+        title=f"Распределите оценку в команде по заданию «{assignment_title}»",
         class_id=class_id,
         entity_id=assignment_id,
         db=db,

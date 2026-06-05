@@ -40,6 +40,7 @@ async def create_assignment(
         due_at=body.due_at,
         max_grade=body.max_grade,
         db=db,
+        group=body.group,
     )
 
 

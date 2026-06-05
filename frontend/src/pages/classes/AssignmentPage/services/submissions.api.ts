@@ -14,8 +14,14 @@ function createPageSchema<T extends z.ZodType>(itemSchema: T) {
   }).strip()
 }
 
-// Статусы решения на бэке.
-const SubmissionStatusSchema = z.enum(["draft", "submitted", "returned", "graded"])
+// Статусы решения на бэке (включая «передано на перераспределение» у групповых).
+const SubmissionStatusSchema = z.enum([
+  "draft",
+  "submitted",
+  "returned",
+  "graded",
+  "pending_redistribution"
+])
 
 // Краткая карточка студента внутри решения.
 const SubmissionStudentSchema = z.object({
@@ -46,6 +52,8 @@ const SubmissionSchema = z.object({
   submitted_at: z.string().nullable(),
   is_late: z.boolean(),
   grade: SubmissionGradeSchema.nullable(),
+  // Название команды у группового решения; у индивидуального — null.
+  group_title: z.string().nullable().default(null),
   created_at: z.string(),
   updated_at: z.string().nullable()
 }).strip()

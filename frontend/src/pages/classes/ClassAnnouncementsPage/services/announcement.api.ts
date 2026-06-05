@@ -1,5 +1,6 @@
 import { z } from "zod"
 import { Api } from "../../../../services/api"
+import { deleteStoredFile, StoredFileSchema, type StoredFileDto, uploadStoredFile } from "../../../../services/files.api"
 import { parseApiResponse, throwApiResponseError } from "../../../../services/response"
 import type { Errors, PageDto } from "../../../../types/api.types"
 
@@ -27,6 +28,7 @@ const AnnouncementSchema = z.object({
   class_id: z.number(),
   title: z.string(),
   content: z.string(),
+  material_file: StoredFileSchema.nullable().default(null),
   author: UserBriefSchema,
   created_at: z.string(),
   updated_at: z.string().nullable(),
@@ -128,4 +130,16 @@ export async function deleteAnnouncement(classId: number, announcementId: number
   } catch (error) {
     throwApiResponseError(error)
   }
+}
+
+export function uploadAnnouncementMaterial(
+  classId: number,
+  announcementId: number,
+  file: File
+): Promise<StoredFileDto> {
+  return uploadStoredFile(`/api/classes/${classId}/announcements/${announcementId}/material-file`, file)
+}
+
+export function deleteAnnouncementMaterial(classId: number, announcementId: number): Promise<void> {
+  return deleteStoredFile(`/api/classes/${classId}/announcements/${announcementId}/material-file`)
 }

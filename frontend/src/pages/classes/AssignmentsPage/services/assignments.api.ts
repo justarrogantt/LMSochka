@@ -3,6 +3,7 @@ import { Api } from "../../../../services/api"
 import { deleteStoredFile, StoredFileSchema, type StoredFileDto, uploadStoredFile } from "../../../../services/files.api"
 import { parseApiResponse, throwApiResponseError } from "../../../../services/response"
 import type { Errors } from "../../../../types/api.types"
+import { AssignmentGroupSchema, GradingModeSchema, type GradingMode } from "./groups.api"
 
 // Обёртка пагинации для списка заданий.
 function createPageSchema<T extends z.ZodType>(itemSchema: T) {
@@ -22,8 +23,14 @@ const UserBriefSchema = z.object({
   last_name: z.string().nullable()
 }).strip()
 
-// Статус решения студента.
-const SubmissionStatusSchema = z.enum(["draft", "submitted", "returned", "graded"])
+// Статус решения студента (включая «передано на перераспределение» у групповых).
+const SubmissionStatusSchema = z.enum([
+  "draft",
+  "submitted",
+  "returned",
+  "graded",
+  "pending_redistribution"
+])
 
 // Краткая сводка решения текущего студента в карточке задания.
 const AssignmentMySubmissionSchema = z.object({
@@ -59,10 +66,22 @@ const AssignmentSchema = z.object({
   can_edit: z.boolean(),
   can_delete: z.boolean(),
   my_submission: AssignmentMySubmissionSchema.nullable(),
-  stats: AssignmentStatsSchema.nullable()
+  stats: AssignmentStatsSchema.nullable(),
+  // Групповые поля. У индивидуальных заданий: is_group=false, остальное null.
+  is_group: z.boolean().default(false),
+  grading_mode: GradingModeSchema.nullable().default(null),
+  my_group: AssignmentGroupSchema.nullable().default(null)
 }).strip()
 
 export type AssignmentDto = z.infer<typeof AssignmentSchema>
+
+// Блок group в запросе создания группового задания (combined-create).
+export type CreateGroupPayload = {
+  grading_mode: GradingMode
+  distribution:
+    | { mode: "manual"; groups: Array<{ title?: string; member_ids: number[] }> }
+    | { mode: "auto"; group_count: number }
+}
 
 const LIST_ASSIGNMENTS_ERRORS: Errors = {
   default: "Не удалось загрузить задания"
@@ -147,6 +166,7 @@ export async function createAssignment(
     material_url?: string | null
     due_at?: string | null
     max_grade: number
+    group?: CreateGroupPayload
   }
 ): Promise<AssignmentDto> {
   try {

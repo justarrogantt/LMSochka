@@ -39,6 +39,34 @@ async def delete_assignment_material(
     return Response(status_code=204)
 
 
+@files_router.post("/classes/{class_id}/announcements/{aid}/material-file")
+async def upload_announcement_material(
+    aid: int,
+    upload: UploadFile = File(...),
+    ctx: tuple[UsersTable, ClassesTable, ClassMembersTable] = Depends(
+        require_class_member
+    ),
+    db: AsyncSession = Depends(get_db),
+) -> FileDTO:
+    user, cls, member = ctx
+    return await file_service.upload_announcement_material(
+        cls.id, aid, user, member, upload, db
+    )
+
+
+@files_router.delete("/classes/{class_id}/announcements/{aid}/material-file", status_code=204)
+async def delete_announcement_material(
+    aid: int,
+    ctx: tuple[UsersTable, ClassesTable, ClassMembersTable] = Depends(
+        require_class_member
+    ),
+    db: AsyncSession = Depends(get_db),
+) -> Response:
+    user, cls, member = ctx
+    await file_service.delete_announcement_material(cls.id, aid, user, member, db)
+    return Response(status_code=204)
+
+
 @files_router.post("/assignments/{aid}/my-submission/attachment-file")
 async def upload_submission_attachment(
     aid: int,

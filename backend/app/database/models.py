@@ -108,10 +108,19 @@ class AnnouncementsTable(Base):
     title: Mapped[str] = mapped_column(String(200))
     # Text без жёсткого лимита в БД, max_length 10000 валидируем в Pydantic
     content: Mapped[str] = mapped_column(Text)
+    # прикреплённый файл объявления (как material_file у заданий)
+    material_file_id: Mapped[str | None] = mapped_column(
+        ForeignKey("stored_files.id", ondelete="SET NULL"), default=None
+    )
     created_at: Mapped[datetime] = mapped_column(server_default=func.now())
     updated_at: Mapped[datetime | None] = mapped_column(onupdate=func.now())
     # soft delete: объявление пропадает из выдачи, но запись остаётся для истории
     deleted_at: Mapped[datetime | None] = mapped_column(default=None)
+
+
+class GradingMode(enum.Enum):
+    EVEN = "even"             # равномерное: командная оценка = оценка каждого члена
+    INDIVIDUAL = "individual" # индивидуальное: студенты сами распределяют оценку
 
 
 class AssignmentsTable(Base):
@@ -149,6 +158,8 @@ class SubmissionStatus(enum.Enum):
     SUBMITTED = "submitted"
     RETURNED = "returned"
     GRADED = "graded"
+    # групповое + individual: командная оценка выставлена, ждём раздачи баллов студентами
+    PENDING_REDISTRIBUTION = "pending_redistribution"
 
 
 class SubmissionsTable(Base):
@@ -201,6 +212,86 @@ class GradesTable(Base):
     updated_at: Mapped[datetime | None] = mapped_column(onupdate=func.now())
 
 
+# ── Групповые задания ──
+# «Групповость» задания включается наличием строки в assignment_group_config.
+# Индивидуальные задания этих таблиц не касаются — флоу не меняется.
+
+
+class AssignmentGroupConfigTable(Base):
+    """Признак и режим группового задания. Есть строка ⇔ задание групповое."""
+
+    __tablename__ = "assignment_group_config"
+
+    assignment_id: Mapped[int] = mapped_column(
+        ForeignKey("assignments.id", ondelete="CASCADE"), primary_key=True
+    )
+    grading_mode: Mapped[GradingMode] = mapped_column(Enum(GradingMode))
+    created_at: Mapped[datetime] = mapped_column(server_default=func.now())
+
+
+class AssignmentGroupsTable(Base):
+    """Команда конкретного задания."""
+
+    __tablename__ = "assignment_groups"
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    assignment_id: Mapped[int] = mapped_column(
+        ForeignKey("assignments.id", ondelete="CASCADE")
+    )
+    title: Mapped[str] = mapped_column(String(100))
+    created_at: Mapped[datetime] = mapped_column(server_default=func.now())
+
+
+class AssignmentGroupMembersTable(Base):
+    """Состав команд. Студент ровно в одной группе на задание."""
+
+    __tablename__ = "assignment_group_members"
+    __table_args__ = (
+        UniqueConstraint("assignment_id", "user_id", name="uq_group_member_assignment_user"),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    # assignment_id денормализован сюда ради UniqueConstraint «один студент — одна группа»
+    assignment_id: Mapped[int] = mapped_column(
+        ForeignKey("assignments.id", ondelete="CASCADE")
+    )
+    group_id: Mapped[int] = mapped_column(
+        ForeignKey("assignment_groups.id", ondelete="CASCADE")
+    )
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"))
+    created_at: Mapped[datetime] = mapped_column(server_default=func.now())
+
+
+class SubmissionGroupTable(Base):
+    """Связь решения с командой. Одно решение на группу, автор — любой её член."""
+
+    __tablename__ = "submission_group"
+
+    submission_id: Mapped[int] = mapped_column(
+        ForeignKey("submissions.id", ondelete="CASCADE"), primary_key=True
+    )
+    group_id: Mapped[int] = mapped_column(
+        ForeignKey("assignment_groups.id", ondelete="CASCADE")
+    )
+
+
+class SubmissionMemberGradesTable(Base):
+    """Итоговые баллы по членам команды (только individual-режим)."""
+
+    __tablename__ = "submission_member_grades"
+    __table_args__ = (
+        UniqueConstraint("submission_id", "user_id", name="uq_member_grade_submission_user"),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    submission_id: Mapped[int] = mapped_column(
+        ForeignKey("submissions.id", ondelete="CASCADE")
+    )
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"))
+    value: Mapped[float] = mapped_column(Float)  # 0 ≤ value ≤ max_grade
+    updated_at: Mapped[datetime | None] = mapped_column(onupdate=func.now())
+
+
 class StoredFilesTable(Base):
     __tablename__ = "stored_files"
 
@@ -220,6 +311,8 @@ class NotificationType(enum.Enum):
     GRADE = "grade"
     SUBMISSION_RETURNED = "submission_returned"
     SUBMISSION_SUBMITTED = "submission_submitted"
+    # групповое + individual: членам команды нужно распределить командную оценку
+    REDISTRIBUTION = "redistribution"
 
 
 class NotificationsTable(Base):

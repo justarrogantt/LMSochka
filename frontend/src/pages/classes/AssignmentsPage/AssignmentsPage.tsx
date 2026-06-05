@@ -19,16 +19,20 @@ import {
   truncate
 } from "../../../services/helpers"
 import FilePicker from "../../../components/FilePicker/FilePicker"
+import GroupEditor, { type EditorMember } from "../../../components/GroupEditor/GroupEditor"
 import { listContainer, listItem } from "../../../shared/motion"
 import type { ClassLayoutContext } from "../../../layouts/ClassLayout/ClassLayout"
+import { getClassMembers } from "../ClassMembersPage/services/classMembers.api"
 import {
   createAssignment,
   deleteAssignment,
   uploadAssignmentMaterial,
   listAssignments,
   updateAssignment,
-  type AssignmentDto
+  type AssignmentDto,
+  type CreateGroupPayload
 } from "./services/assignments.api"
+import type { GradingMode } from "./services/groups.api"
 import SkeletonLoader from "./SkeletonLoader/SkeletonLoader"
 import styles from "./AssignmentsPage.module.css"
 
@@ -48,6 +52,19 @@ const EMPTY_FORM: FormState = {
   material_url: "",
   due_at: "",
   max_grade: "100"
+}
+
+// Локальный черновик группы в модалке создания
+type GroupDraft = {
+  key: string
+  title: string
+  members: EditorMember[]
+}
+
+function newGroupKey(): string {
+  return typeof crypto !== "undefined" && "randomUUID" in crypto
+    ? crypto.randomUUID()
+    : `g-${Date.now()}-${Math.random().toString(16).slice(2)}`
 }
 
 type AssignmentCardProps = {
@@ -132,6 +149,16 @@ export default function AssignmentsPage() {
   const [materialFile, setMaterialFile] = useState<File | null>(null)
   const [materialFileError, setMaterialFileError] = useState("")
 
+  // Групповое задание: тип, режим оценивания, локальные черновики групп и список студентов
+  const [isGroup, setIsGroup] = useState(false)
+  const [gradingMode, setGradingMode] = useState<GradingMode>("even")
+  const [groupDrafts, setGroupDrafts] = useState<GroupDraft[]>([])
+  const [students, setStudents] = useState<EditorMember[]>([])
+
+  // Студенты, ещё не распределённые ни в одну локальную группу
+  const assignedIds = new Set(groupDrafts.flatMap((g) => g.members.map((m) => m.user_id)))
+  const unassignedStudents = students.filter((s) => !assignedIds.has(s.user_id))
+
   async function loadPage(page: number, mode: "all" | "pending" = viewMode) {
     if (!classDetail?.id) return
     setIsLoading(true)
@@ -164,6 +191,35 @@ export default function AssignmentsPage() {
     setInitialForm(EMPTY_FORM)
     setMaterialFile(null)
     setMaterialFileError("")
+    setIsGroup(false)
+    setGradingMode("even")
+    setGroupDrafts([])
+    setStudents([])
+  }
+
+  // Подтягиваем активных студентов класса для распределения по группам
+  async function loadStudents() {
+    if (!classDetail?.id) return
+    try {
+      const data = await getClassMembers(classDetail.id)
+      setStudents(
+        data.items
+          .filter((m) => m.role === "student" && m.is_active)
+          .map((m) => ({
+            user_id: m.user_id,
+            email: m.email,
+            first_name: m.first_name,
+            last_name: m.last_name,
+            is_active: true
+          }))
+      )
+    } catch (error) {
+      if (error instanceof ApiError) {
+        showToast({ type: "error", message: error.message })
+        return
+      }
+      throw error
+    }
   }
 
   function closeFormModal() {
@@ -188,7 +244,50 @@ export default function AssignmentsPage() {
     setEditingId(null)
     setMaterialFile(null)
     setMaterialFileError("")
+    setIsGroup(false)
+    setGradingMode("even")
+    setGroupDrafts([])
+    void loadStudents()
     setIsFormOpen(true)
+  }
+
+  // ── Локальные операции с группами (combined-create) ──
+  function addGroupDraft() {
+    setGroupDrafts((prev) => [...prev, { key: newGroupKey(), title: `Группа ${prev.length + 1}`, members: [] }])
+  }
+
+  function renameGroupDraft(key: string, title: string) {
+    setGroupDrafts((prev) => prev.map((g) => (g.key === key ? { ...g, title } : g)))
+  }
+
+  function deleteGroupDraft(key: string) {
+    setGroupDrafts((prev) => prev.filter((g) => g.key !== key))
+  }
+
+  function addMemberToDraft(key: string, userId: number) {
+    const student = students.find((s) => s.user_id === userId)
+    if (!student) return
+    setGroupDrafts((prev) =>
+      prev.map((g) => (g.key === key ? { ...g, members: [...g.members, student] } : g))
+    )
+  }
+
+  function removeMemberFromDraft(key: string, userId: number) {
+    setGroupDrafts((prev) =>
+      prev.map((g) => (g.key === key ? { ...g, members: g.members.filter((m) => m.user_id !== userId) } : g))
+    )
+  }
+
+  // Раскидать нераспределённых студентов по существующим группам по кругу
+  function autoFillDrafts() {
+    if (groupDrafts.length === 0) return
+    setGroupDrafts((prev) => {
+      const next = prev.map((g) => ({ ...g, members: [...g.members] }))
+      unassignedStudents.forEach((student, index) => {
+        next[index % next.length].members.push(student)
+      })
+      return next
+    })
   }
 
   function openEditModal(item: AssignmentDto) {
@@ -212,13 +311,33 @@ export default function AssignmentsPage() {
   }
 
   function buildBody() {
-    return {
+    const body: {
+      title: string
+      description?: string
+      material_url: string | null
+      due_at: string | null
+      max_grade: number
+      group?: CreateGroupPayload
+    } = {
       title: form.title.trim(),
       description: form.description.trim() || undefined,
       material_url: form.material_url.trim() || null,
       due_at: toApiDateTime(form.due_at),
       max_grade: Number(form.max_grade)
     }
+    if (isGroup) {
+      body.group = {
+        grading_mode: gradingMode,
+        distribution: {
+          mode: "manual",
+          groups: groupDrafts.map((g) => ({
+            title: g.title.trim() || undefined,
+            member_ids: g.members.map((m) => m.user_id)
+          }))
+        }
+      }
+    }
+    return body
   }
 
   function onMaterialFileChange(file: File) {
@@ -359,7 +478,16 @@ export default function AssignmentsPage() {
     form.material_url.trim() !== initialForm.material_url.trim() ||
     form.due_at !== initialForm.due_at ||
     form.max_grade !== initialForm.max_grade
-  const canSubmit = !isSubmitting && !materialFileError && !dueAtError && isFilled && (editingId === null || isChanged || materialFile !== null)
+  // Для группового задания нужна хотя бы одна группа с участниками
+  const hasFilledGroup = groupDrafts.some((g) => g.members.length > 0)
+  const groupValid = !isGroup || hasFilledGroup
+  const canSubmit =
+    !isSubmitting &&
+    !materialFileError &&
+    !dueAtError &&
+    isFilled &&
+    groupValid &&
+    (editingId === null || isChanged || materialFile !== null)
   const canManage = classDetail?.permissions.can_create_assignment ?? false
 
   return (
@@ -426,7 +554,7 @@ export default function AssignmentsPage() {
 
       <AnimatePresence>
         {canManage && isFormOpen && (
-        <Modal title={editingId ? "Редактировать задание" : "Создать задание"} onClose={closeFormModal} disabled={isSubmitting}>
+        <Modal title={editingId ? "Редактировать задание" : "Создать задание"} onClose={closeFormModal} disabled={isSubmitting} size="lg">
           <label className={styles.field}>
             <div className={styles.fieldLabel}>Название</div>
             <input
@@ -438,6 +566,30 @@ export default function AssignmentsPage() {
               disabled={isSubmitting}
             />
           </label>
+
+          {editingId === null && (
+            <div className={styles.field}>
+              <div className={styles.fieldLabel}>Тип задания</div>
+              <div className={styles.typeButtons}>
+                <button
+                  className={`${styles.typeButton} ${!isGroup ? styles.typeButtonActive : ""}`}
+                  type="button"
+                  onClick={() => setIsGroup(false)}
+                  disabled={isSubmitting}
+                >
+                  Индивидуальное
+                </button>
+                <button
+                  className={`${styles.typeButton} ${isGroup ? styles.typeButtonActive : ""}`}
+                  type="button"
+                  onClick={() => setIsGroup(true)}
+                  disabled={isSubmitting}
+                >
+                  Групповое
+                </button>
+              </div>
+            </div>
+          )}
 
           <div className={styles.field}>
             <div className={styles.fieldLabel}>Файл материала <span className={styles.fieldOptional}>(необязательно, до 20 МБ)</span></div>
@@ -503,6 +655,55 @@ export default function AssignmentsPage() {
               />
             </label>
           </div>
+
+          {editingId === null && isGroup && (
+            <>
+              <div className={styles.field}>
+                <div className={styles.fieldLabel}>Оценивание</div>
+                <div className={styles.typeButtons}>
+                  <button
+                    className={`${styles.typeButton} ${gradingMode === "even" ? styles.typeButtonActive : ""}`}
+                    type="button"
+                    onClick={() => setGradingMode("even")}
+                    disabled={isSubmitting}
+                  >
+                    Равномерное
+                  </button>
+                  <button
+                    className={`${styles.typeButton} ${gradingMode === "individual" ? styles.typeButtonActive : ""}`}
+                    type="button"
+                    onClick={() => setGradingMode("individual")}
+                    disabled={isSubmitting}
+                  >
+                    Индивидуальное
+                  </button>
+                </div>
+                <div className={styles.hint}>
+                  {gradingMode === "even"
+                    ? "Оценка за решение — общая для всей команды."
+                    : "После оценивания студенты сами распределяют командный балл между собой."}
+                </div>
+              </div>
+
+              <div className={styles.field}>
+                <div className={styles.fieldLabel}>Команды</div>
+                <GroupEditor
+                  groups={groupDrafts}
+                  unassigned={unassignedStudents}
+                  disabled={isSubmitting}
+                  onAddGroup={addGroupDraft}
+                  onRenameGroup={renameGroupDraft}
+                  onDeleteGroup={deleteGroupDraft}
+                  onAddMember={addMemberToDraft}
+                  onRemoveMember={removeMemberFromDraft}
+                  onAutoFill={autoFillDrafts}
+                />
+                {!hasFilledGroup && (
+                  <div className={styles.hint}>Добавьте хотя бы одну группу с участниками.</div>
+                )}
+              </div>
+            </>
+          )}
 
           <div className={styles.modalActions}>
             <button className={styles.secondaryButton} type="button" onClick={closeFormModal} disabled={isSubmitting}>

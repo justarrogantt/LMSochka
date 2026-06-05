@@ -38,5 +38,7 @@ class SubmissionDTO(BaseModel):
     submitted_at: datetime | None
     is_late: bool
     grade: SubmissionGradeDTO | None = None
+    # Название команды у группового решения. У индивидуального — null.
+    group_title: str | None = None
     created_at: datetime
     updated_at: datetime | None

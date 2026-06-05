@@ -39,6 +39,17 @@ async def get_by_id(
     return result.scalar_one_or_none()
 
 
+async def get_by_file(file_id: str, db: AsyncSession) -> AnnouncementsTable | None:
+    """Активное объявление, к которому прикреплён файл — для проверки доступа на скачивание."""
+    result = await db.execute(
+        select(AnnouncementsTable).where(
+            AnnouncementsTable.material_file_id == file_id,
+            _NOT_DELETED,
+        )
+    )
+    return result.scalar_one_or_none()
+
+
 async def get_with_author(
     aid: int, class_id: int, db: AsyncSession
 ) -> tuple[AnnouncementsTable, UsersTable] | None:

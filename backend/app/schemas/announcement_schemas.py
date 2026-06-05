@@ -2,6 +2,7 @@ from datetime import datetime
 
 from pydantic import BaseModel, Field, model_validator
 
+from app.schemas.file_schemas import FileDTO
 from app.schemas.user_schemas import UserBriefDTO
 
 
@@ -30,6 +31,7 @@ class AnnouncementDTO(BaseModel):
     author: UserBriefDTO
     title: str
     content: str
+    material_file: FileDTO | None = None
     created_at: datetime
     updated_at: datetime | None
     can_edit: bool

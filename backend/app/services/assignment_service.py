@@ -7,8 +7,10 @@ from app.database.models import (
     ClassMembersTable,
     ClassRole,
     GradesTable,
+    GradingMode,
     StoredFilesTable,
     SubmissionsTable,
+    SubmissionStatus,
     UsersTable,
 )
 from app.database.repositories import (
@@ -16,6 +18,8 @@ from app.database.repositories import (
     class_repo,
     file_repo,
     grade_repo,
+    group_repo,
+    member_grade_repo,
     submission_repo,
 )
 from app.schemas.assignment_schemas import (
@@ -27,8 +31,9 @@ from app.schemas.assignment_schemas import (
     UpdateAssignmentRequest,
 )
 from app.schemas.errors import ServiceError
+from app.schemas.group_schemas import AssignmentGroupCreate, AssignmentGroupDTO
 from app.schemas.user_schemas import UserBriefDTO
-from app.services import file_service, notification_service
+from app.services import file_service, group_service, notification_service
 from app.services.submission_service import _is_late
 
 
@@ -53,6 +58,9 @@ def _dto(
     material_file: StoredFilesTable | None = None,
     my_submission: MySubmissionBriefDTO | None = None,
     stats: AssignmentStatsDTO | None = None,
+    is_group: bool = False,
+    grading_mode: GradingMode | None = None,
+    my_group: AssignmentGroupDTO | None = None,
 ) -> AssignmentDTO:
     return AssignmentDTO(
         id=asg.id,
@@ -70,6 +78,44 @@ def _dto(
         can_delete=can_delete,
         my_submission=my_submission,
         stats=stats,
+        is_group=is_group,
+        grading_mode=grading_mode,
+        my_group=my_group,
+    )
+
+
+async def _student_group_brief(
+    asg: AssignmentsTable,
+    grading_mode: GradingMode,
+    user_id: int,
+    db: AsyncSession,
+) -> MySubmissionBriefDTO | None:
+    """Бриф командного решения для студента (эффективная оценка члена команды)."""
+    membership = await group_repo.get_member(asg.id, user_id, db)
+    if membership is None:
+        return None
+    sub = await group_repo.get_group_submission(membership.group_id, db)
+    if sub is None:
+        return None
+
+    grade_value: float | None = None
+    if sub.status == SubmissionStatus.GRADED:
+        if grading_mode == GradingMode.EVEN:
+            team_grade = await grade_repo.get_by_submission(sub.id, db)
+            grade_value = team_grade.value if team_grade is not None else None
+        else:
+            # individual: личный распределённый балл члена команды
+            member_rows = await member_grade_repo.list_for_submission(sub.id, db)
+            grade_value = next(
+                (row.value for row in member_rows if row.user_id == user_id), None
+            )
+
+    return MySubmissionBriefDTO(
+        submission_id=sub.id,
+        status=sub.status,
+        submitted_at=sub.submitted_at,
+        is_late=_is_late(sub, asg),
+        grade=grade_value,
     )
 
 
@@ -83,6 +129,7 @@ async def create_assignment(
     due_at: datetime | None,
     max_grade: float,
     db: AsyncSession,
+    group: AssignmentGroupCreate | None = None,
 ) -> AssignmentDTO:
     asg = await assignment_repo.create(
         class_id=class_id,
@@ -95,13 +142,22 @@ async def create_assignment(
         max_grade=max_grade,
         db=db,
     )
+    # групповое задание: конфиг + группы + участники в той же транзакции
+    if group is not None:
+        await group_service.apply_distribution(asg, group, db)
     await db.commit()
     await db.refresh(asg)
+
+    # для группового шлём уведомление только распределённым студентам
+    recipient_ids: list[int] | None = None
+    if group is not None:
+        recipient_ids = list(await group_repo.list_assigned_user_ids(asg.id, db))
     await notification_service.notify_assignment_created(
         class_id=class_id,
         assignment_id=asg.id,
         class_name=class_name,
         db=db,
+        recipient_ids=recipient_ids,
     )
     # создаёт только teacher/creator — сразу отдаём пустую сводку прогресса,
     # чтобы карточка на фронте была того же формата, что и в списке
@@ -113,7 +169,15 @@ async def create_assignment(
         graded_count=0,
         returned_count=0,
     )
-    return _dto(asg, author, can_edit=True, can_delete=True, stats=stats)
+    return _dto(
+        asg,
+        author,
+        can_edit=True,
+        can_delete=True,
+        stats=stats,
+        is_group=group is not None,
+        grading_mode=group.grading_mode if group is not None else None,
+    )
 
 
 async def list_assignments(
@@ -148,27 +212,37 @@ async def list_assignments(
     files = await file_repo.get_many(
         [a.material_file_id for a, _ in rows if a.material_file_id], db
     )
+    # какие из заданий страницы групповые (assignment_id → режим оценивания)
+    group_modes = await group_repo.map_configs(aids, db)
 
     if member.role == ClassRole.STUDENT:
         # студент видит свой статус по каждому заданию (один запрос на всю страницу)
         my_subs = await submission_repo.map_student_submissions_for_assignments(
             aids, member.user_id, db
         )
-        items = [
-            _dto(
-                a,
-                u,
-                can_edit=False,
-                can_delete=False,
-                material_file=files.get(a.material_file_id),
-                my_submission=(
-                    _my_submission_dto(*my_subs[a.id], a)
-                    if a.id in my_subs
-                    else None
-                ),
+        items = []
+        for a, u in rows:
+            if a.id in group_modes:
+                # групповое: бриф командного решения (эффективная оценка члена)
+                my_submission = await _student_group_brief(
+                    a, group_modes[a.id], member.user_id, db
+                )
+            elif a.id in my_subs:
+                my_submission = _my_submission_dto(*my_subs[a.id], a)
+            else:
+                my_submission = None
+            items.append(
+                _dto(
+                    a,
+                    u,
+                    can_edit=False,
+                    can_delete=False,
+                    material_file=files.get(a.material_file_id),
+                    my_submission=my_submission,
+                    is_group=a.id in group_modes,
+                    grading_mode=group_modes.get(a.id),
+                )
             )
-            for a, u in rows
-        ]
         pending_review_total = 0
     else:
         # teacher/creator видят прогресс сдачи (групповой запрос + один на counts)
@@ -184,6 +258,8 @@ async def list_assignments(
                 can_delete=member.role == ClassRole.CREATOR or a.author_id == member.user_id,
                 material_file=files.get(a.material_file_id),
                 stats=_stats_for(a.id, stats_map, eligible_counts.get(a.id, 0)),
+                is_group=a.id in group_modes,
+                grading_mode=group_modes.get(a.id),
             )
             for a, u in rows
         ]
@@ -224,14 +300,25 @@ async def get_assignment(
         await file_repo.get(asg.material_file_id, db) if asg.material_file_id else None
     )
 
+    config = await group_repo.get_config(asg.id, db)
+    is_group = config is not None
+    grading_mode = config.grading_mode if config is not None else None
+
     if member.role == ClassRole.STUDENT:
-        sub = await submission_repo.get_by_assignment_and_student(
-            asg.id, member.user_id, db
-        )
-        my_submission = None
-        if sub is not None:
-            grade = await grade_repo.get_by_submission(sub.id, db)
-            my_submission = _my_submission_dto(sub, grade, asg)
+        my_group = None
+        if is_group:
+            my_submission = await _student_group_brief(
+                asg, grading_mode, member.user_id, db
+            )
+            my_group = await group_service.get_my_group_dto(asg, member.user_id, db)
+        else:
+            sub = await submission_repo.get_by_assignment_and_student(
+                asg.id, member.user_id, db
+            )
+            my_submission = None
+            if sub is not None:
+                grade = await grade_repo.get_by_submission(sub.id, db)
+                my_submission = _my_submission_dto(sub, grade, asg)
         return _dto(
             asg,
             author,
@@ -239,6 +326,9 @@ async def get_assignment(
             can_delete=False,
             material_file=material_file,
             my_submission=my_submission,
+            is_group=is_group,
+            grading_mode=grading_mode,
+            my_group=my_group,
         )
 
     stats_map = await submission_repo.stats_for_assignments([asg.id], db)
@@ -252,6 +342,8 @@ async def get_assignment(
         can_delete=member.role == ClassRole.CREATOR or asg.author_id == member.user_id,
         material_file=material_file,
         stats=_stats_for(asg.id, stats_map, eligible_counts.get(asg.id, 0)),
+        is_group=is_group,
+        grading_mode=grading_mode,
     )
 
 

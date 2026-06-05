@@ -6,6 +6,7 @@ from app.database.models import UsersTable
 from app.dependencies import get_current_user
 from app.schemas.grade_schemas import GradeDTO, UpsertGradeRequest
 from app.schemas.gradebook_schemas import GradebookDTO
+from app.schemas.group_schemas import MemberGradesRequest, SubmissionMemberGradesDTO
 from app.schemas.submission_schemas import SubmissionDTO
 from app.services import grade_service
 
@@ -45,6 +46,35 @@ async def get_grade(
 ) -> GradeDTO:
     user, _ = context
     return await grade_service.get_grade(sid, user, db)
+
+
+@grades_router.get("/submissions/{sid}/member-grades")
+async def get_member_grades(
+    sid: int,
+    context: tuple[UsersTable, str] = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> SubmissionMemberGradesDTO:
+    """Распределение командной оценки по членам команды (individual).
+
+    Доступно члену команды и teacher/creator.
+    """
+    user, _ = context
+    return await grade_service.get_member_grades(sid, user, db)
+
+
+@grades_router.put("/submissions/{sid}/member-grades")
+async def put_member_grades(
+    sid: int,
+    body: MemberGradesRequest,
+    context: tuple[UsersTable, str] = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> SubmissionMemberGradesDTO:
+    """Сохранить распределение оценки внутри команды. Делают студенты-члены.
+
+    Среднее арифметическое баллов должно равняться командной оценке.
+    """
+    user, _ = context
+    return await grade_service.put_member_grades(sid, body, user, db)
 
 
 @grades_router.get("/classes/{class_id}/gradebook")

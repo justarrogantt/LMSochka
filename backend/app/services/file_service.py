@@ -8,6 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
 from app.database.models import (
+    AnnouncementsTable,
     AssignmentsTable,
     ClassMembersTable,
     ClassRole,
@@ -16,7 +17,13 @@ from app.database.models import (
     SubmissionStatus,
     UsersTable,
 )
-from app.database.repositories import assignment_repo, file_repo, submission_repo
+from app.database.repositories import (
+    announcement_repo,
+    assignment_repo,
+    file_repo,
+    group_repo,
+    submission_repo,
+)
 from app.schemas.errors import ServiceError
 from app.schemas.file_schemas import FileDTO
 from app.services import access
@@ -111,7 +118,7 @@ async def _store(upload: UploadFile, db: AsyncSession) -> StoredFilesTable:
 
 
 async def _replace(
-    owner: AssignmentsTable | SubmissionsTable,
+    owner: AssignmentsTable | SubmissionsTable | AnnouncementsTable,
     field: str,
     upload: UploadFile,
     db: AsyncSession,
@@ -136,7 +143,7 @@ async def _replace(
 
 
 async def _delete(
-    owner: AssignmentsTable | SubmissionsTable,
+    owner: AssignmentsTable | SubmissionsTable | AnnouncementsTable,
     field: str,
     db: AsyncSession,
 ) -> None:
@@ -156,6 +163,22 @@ def _can_manage_assignment(
     assignment: AssignmentsTable, user: UsersTable, member: ClassMembersTable
 ) -> bool:
     return member.role == ClassRole.CREATOR or assignment.author_id == user.id
+
+
+def _can_manage_announcement(
+    announcement: AnnouncementsTable, user: UsersTable, member: ClassMembersTable
+) -> bool:
+    return member.role == ClassRole.CREATOR or announcement.author_id == user.id
+
+
+async def _is_group_member(
+    submission: SubmissionsTable, user_id: int, db: AsyncSession
+) -> bool:
+    """Состоит ли юзер в команде, которой принадлежит групповое решение."""
+    group = await group_repo.get_group_for_submission(submission.id, db)
+    if group is None:
+        return False
+    return await group_repo.get_member(group.assignment_id, user_id, db) is not None
 
 
 async def upload_assignment_material(
@@ -189,14 +212,56 @@ async def delete_assignment_material(
     await _delete(assignment, "material_file_id", db)
 
 
+async def upload_announcement_material(
+    class_id: int,
+    aid: int,
+    user: UsersTable,
+    member: ClassMembersTable,
+    upload: UploadFile,
+    db: AsyncSession,
+) -> FileDTO:
+    announcement = await announcement_repo.get_by_id(aid, class_id, db)
+    if announcement is None:
+        raise ServiceError("Объявление не найдено", 404)
+    if not _can_manage_announcement(announcement, user, member):
+        raise ServiceError("Заменить файл может только автор или создатель класса", 403)
+    return dto(await _replace(announcement, "material_file_id", upload, db))
+
+
+async def delete_announcement_material(
+    class_id: int,
+    aid: int,
+    user: UsersTable,
+    member: ClassMembersTable,
+    db: AsyncSession,
+) -> None:
+    announcement = await announcement_repo.get_by_id(aid, class_id, db)
+    if announcement is None:
+        raise ServiceError("Объявление не найдено", 404)
+    if not _can_manage_announcement(announcement, user, member):
+        raise ServiceError("Удалить файл может только автор или создатель класса", 403)
+    await _delete(announcement, "material_file_id", db)
+
+
+async def purge_announcement_file(
+    announcement: AnnouncementsTable, db: AsyncSession
+) -> None:
+    """Удалить файл объявления при его удалении (вызывается уже после проверки прав)."""
+    if announcement.material_file_id is not None:
+        await _delete(announcement, "material_file_id", db)
+
+
 async def upload_my_submission_attachment(
     aid: int, user: UsersTable, upload: UploadFile, db: AsyncSession
 ) -> FileDTO:
     assignment = await access.get_assignment_or_404(aid, db)
     await access.ensure_student(assignment, user.id, db)
-    submission = await submission_repo.get_by_assignment_and_student(aid, user.id, db)
+    # для группового — командное решение, для индивидуального — личное
+    group_id, submission = await access.resolve_submission_target(assignment, user.id, db)
     if submission is None:
         submission = await submission_repo.create(aid, user.id, "", None, db)
+        if group_id is not None:
+            await group_repo.link_submission(submission.id, group_id, db)
     if submission.status not in {SubmissionStatus.DRAFT, SubmissionStatus.RETURNED}:
         raise ServiceError("Файл можно менять только в черновике или после возврата", 409)
     return dto(await _replace(submission, "attachment_file_id", upload, db))
@@ -207,7 +272,7 @@ async def delete_my_submission_attachment(
 ) -> None:
     assignment = await access.get_assignment_or_404(aid, db)
     await access.ensure_student(assignment, user.id, db)
-    submission = await submission_repo.get_by_assignment_and_student(aid, user.id, db)
+    _, submission = await access.resolve_submission_target(assignment, user.id, db)
     if submission is None:
         raise ServiceError("Решение не найдено", 404)
     if submission.status not in {SubmissionStatus.DRAFT, SubmissionStatus.RETURNED}:
@@ -223,16 +288,25 @@ async def get_download(
         raise ServiceError("Файл не найден", 404)
 
     assignment = await file_repo.get_assignment_for_file(file_id, db)
+    announcement = (
+        await announcement_repo.get_by_file(file_id, db) if assignment is None else None
+    )
     if assignment is not None:
         member = await access.get_class_member_or_403(assignment.class_id, user.id, db)
         if member.role == ClassRole.STUDENT:
             await access.ensure_student(assignment, user.id, db)
+    elif announcement is not None:
+        # файл объявления виден любому участнику класса
+        await access.get_class_member_or_403(announcement.class_id, user.id, db)
     else:
         row = await file_repo.get_submission_for_file(file_id, db)
         if row is None:
             raise ServiceError("Файл не найден", 404)
         submission, assignment = row
         if submission.student_id == user.id:
+            await access.ensure_student(assignment, user.id, db)
+        elif await _is_group_member(submission, user.id, db):
+            # член команды скачивает общий файл своего командного решения
             await access.ensure_student(assignment, user.id, db)
         else:
             await access.ensure_teacher_or_creator(assignment.class_id, user.id, db)

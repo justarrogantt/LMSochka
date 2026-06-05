@@ -7,8 +7,8 @@
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.database.models import AssignmentsTable, ClassMembersTable, ClassRole
-from app.database.repositories import assignment_repo, class_repo
+from app.database.models import AssignmentsTable, ClassMembersTable, ClassRole, SubmissionsTable
+from app.database.repositories import assignment_repo, class_repo, group_repo, submission_repo
 from app.schemas.errors import ServiceError
 
 _TEACHER_ROLES = {ClassRole.TEACHER, ClassRole.CREATOR}
@@ -50,3 +50,26 @@ async def ensure_student(
     if member.role != ClassRole.STUDENT:
         raise ServiceError("Сдавать решения может только студент", 403)
     return member
+
+
+async def resolve_submission_target(
+    assignment: AssignmentsTable, user_id: int, db: AsyncSession
+) -> tuple[int | None, SubmissionsTable | None]:
+    """Вернуть (group_id|None, текущее решение|None) для студента.
+
+    Индивидуальное задание — group_id=None, решение по student_id (как раньше).
+    Групповое — найти группу студента (403, если он не распределён в команду),
+    вернуть командное решение (кто бы из членов его ни создал).
+    """
+    config = await group_repo.get_config(assignment.id, db)
+    if config is None:
+        sub = await submission_repo.get_by_assignment_and_student(
+            assignment.id, user_id, db
+        )
+        return None, sub
+
+    membership = await group_repo.get_member(assignment.id, user_id, db)
+    if membership is None:
+        raise ServiceError("Вы не распределены в команду для этого задания", 403)
+    sub = await group_repo.get_group_submission(membership.group_id, db)
+    return membership.group_id, sub

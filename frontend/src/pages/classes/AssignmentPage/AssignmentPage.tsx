@@ -25,6 +25,7 @@ import {
   toApiDateTime
 } from "../../../services/helpers"
 import FilePicker from "../../../components/FilePicker/FilePicker"
+import GroupEditor, { type EditorGroup } from "../../../components/GroupEditor/GroupEditor"
 import type { ClassLayoutContext } from "../../../layouts/ClassLayout/ClassLayout"
 import {
   deleteAssignmentMaterial,
@@ -34,6 +35,16 @@ import {
   uploadAssignmentMaterial,
   type AssignmentDto
 } from "../AssignmentsPage/services/assignments.api"
+import {
+  addGroupMember,
+  createGroup,
+  deleteGroup,
+  getGroups,
+  removeGroupMember,
+  renameGroup,
+  type AssignmentGroupsDto
+} from "../AssignmentsPage/services/groups.api"
+import RedistributionModal from "./RedistributionModal"
 import {
   deleteSubmissionAttachment,
   getMySubmission,
@@ -83,14 +94,16 @@ const STATUS_LABELS: Record<SubmissionStatus, string> = {
   draft: "Черновик",
   submitted: "Отправлено",
   returned: "Возвращено",
-  graded: "Оценено"
+  graded: "Оценено",
+  pending_redistribution: "Передано на перераспределение"
 }
 
 const STATUS_CLASS: Record<SubmissionStatus, string> = {
   draft: styles.badgeDraft,
   submitted: styles.badgeSubmitted,
   returned: styles.badgeReturned,
-  graded: styles.badgeGraded
+  graded: styles.badgeGraded,
+  pending_redistribution: styles.badgePending
 }
 
 // Фильтры списка решений у преподавателя
@@ -197,6 +210,13 @@ export default function AssignmentPage() {
 
   // Идет ли возврат решения на доработку
   const [isReturning, setIsReturning] = useState(false)
+
+  // Команды группового задания (редактируются преподавателем в окне редактирования)
+  const [groupsData, setGroupsData] = useState<AssignmentGroupsDto | null>(null)
+  const [isGroupsBusy, setIsGroupsBusy] = useState(false)
+
+  // Открыта ли модалка распределения оценки (студент)
+  const [isRedistributeOpen, setIsRedistributeOpen] = useState(false)
 
   const parsedClassId = Number(classId)
   const parsedAssignmentId = Number(assignmentId)
@@ -332,6 +352,11 @@ export default function AssignmentPage() {
     setShouldDeleteMaterialFile(false)
     setMaterialFileError("")
     setActiveModal("edit")
+    // для группового задания подтягиваем команды в окно редактирования
+    if (assignment.is_group) {
+      setGroupsData(null)
+      void loadGroups()
+    }
   }
 
   // Обновление одного поля формы задания
@@ -616,14 +641,22 @@ export default function AssignmentPage() {
         value: Number(reviewForm.gradeValue),
         comment: reviewForm.gradeComment.trim() || null
       })
+      // у группового individual командная оценка уходит на перераспределение студентами
+      const nextStatus: SubmissionStatus =
+        assignment?.is_group && assignment.grading_mode === "individual"
+          ? "pending_redistribution"
+          : "graded"
       const updated: SubmissionDto = {
         ...selected,
-        status: "graded",
+        status: nextStatus,
         return_comment: null,
         grade: { value: grade.value, comment: grade.comment, graded_at: grade.graded_at, updated_at: grade.updated_at }
       }
       updateInList(updated)
-      showToast({ type: "neutral", message: "Оценка сохранена" })
+      showToast({
+        type: "neutral",
+        message: nextStatus === "pending_redistribution" ? "Оценка передана команде на распределение" : "Оценка сохранена"
+      })
       void loadSubmissions(subsPage, statusFilter)
     } catch (error) {
       if (error instanceof ApiError) {
@@ -726,6 +759,59 @@ export default function AssignmentPage() {
     gradeNum >= 0 &&
     gradeNum <= maxGrade &&
     !isReviewBusy
+
+  // ── Группы (преподаватель редактирует команды в окне редактирования) ──
+  const isGroupAssignment = assignment?.is_group ?? false
+  const editorGroups: EditorGroup[] = (groupsData?.groups ?? []).map((group) => ({
+    key: String(group.id),
+    title: group.title,
+    members: group.members,
+    // у команды есть решение ≠ draft → состав закреплён
+    locked: group.submission_status !== null && group.submission_status !== "draft"
+  }))
+  const editorUnassigned = groupsData?.unassigned_students ?? []
+
+  async function loadGroups() {
+    try {
+      setGroupsData(await getGroups(parsedClassId, parsedAssignmentId))
+    } catch (error) {
+      if (error instanceof ApiError) {
+        showToast({ type: "error", message: error.message })
+        return
+      }
+      throw error
+    }
+  }
+
+  async function runGroupMutation(fn: () => Promise<AssignmentGroupsDto>) {
+    setIsGroupsBusy(true)
+    try {
+      setGroupsData(await fn())
+    } catch (error) {
+      if (error instanceof ApiError) {
+        showToast({ type: "error", message: error.message })
+        return
+      }
+      throw error
+    } finally {
+      setIsGroupsBusy(false)
+    }
+  }
+
+  // Студент успешно распределил оценку — перечитываем своё решение
+  async function onRedistributed() {
+    setIsRedistributeOpen(false)
+    try {
+      const updated = await getMySubmission(parsedAssignmentId)
+      setMySubmission(updated)
+    } catch (error) {
+      if (error instanceof ApiError) {
+        showToast({ type: "error", message: error.message })
+        return
+      }
+      throw error
+    }
+  }
 
   return (
     <div className={styles.page}>
