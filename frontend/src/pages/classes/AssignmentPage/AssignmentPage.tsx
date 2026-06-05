@@ -110,6 +110,14 @@ function studentName(student: SubmissionStudent) {
   return `${student.first_name ?? ""} ${student.last_name ?? ""}`.trim() || student.email
 }
 
+function formatGradeValue(value: number) {
+  return Number.isInteger(value) ? String(value) : String(Math.round(value * 100) / 100)
+}
+
+function memberGradeValue(submission: SubmissionDto, userId: number) {
+  return submission.member_grades.find((grade) => grade.user_id === userId)?.value
+}
+
 export default function AssignmentPage() {
   const { classId, assignmentId } = useParams<{ classId: string; assignmentId: string }>()
   const { classDetail } = useOutletContext<ClassLayoutContext>()
@@ -621,16 +629,24 @@ export default function AssignmentPage() {
         value: Number(reviewForm.gradeValue),
         comment: reviewForm.gradeComment.trim() || null
       })
-      // у группового individual командная оценка уходит на перераспределение студентами
+      // Промежуточная командная оценка уходит на перераспределение, 0/максимум сразу финализируются.
+      const shouldRedistribute =
+        assignment?.is_group &&
+        assignment.grading_mode === "individual" &&
+        grade.value > 0 &&
+        grade.value < maxGrade
       const nextStatus: SubmissionStatus =
-        assignment?.is_group && assignment.grading_mode === "individual"
+        shouldRedistribute
           ? "pending_redistribution"
           : "graded"
       const updated: SubmissionDto = {
         ...selected,
         status: nextStatus,
         return_comment: null,
-        grade: { value: grade.value, comment: grade.comment, graded_at: grade.graded_at, updated_at: grade.updated_at }
+        grade: { value: grade.value, comment: grade.comment, graded_at: grade.graded_at, updated_at: grade.updated_at },
+        member_grades: shouldRedistribute
+          ? []
+          : selected.group_members.map((member) => ({ user_id: member.user_id, value: grade.value }))
       }
       updateInList(updated)
       showToast({
@@ -952,6 +968,23 @@ export default function AssignmentPage() {
                       <div className={styles.gradeMeta}>Оценено: {formatDateTime(mySubmission.grade.graded_at)}</div>
                     </div>
                   )}
+
+                  {mySubmission?.member_grades.length > 0 && mySubmission.group_members.length > 0 && (
+                    <div className={styles.memberGradesBox}>
+                      <div className={styles.reviewLabel}>Итоговые баллы участников</div>
+                      <div className={styles.memberGradesList}>
+                        {mySubmission.group_members.map((member) => {
+                          const value = memberGradeValue(mySubmission, member.user_id)
+                          return (
+                            <div key={member.user_id} className={styles.memberGradeItem}>
+                              <span>{formatUserName(member)}</span>
+                              <b>{value === undefined ? "—" : formatGradeValue(value)}</b>
+                            </div>
+                          )
+                        })}
+                      </div>
+                    </div>
+                  )}
                 </>
               )}
             </div>
@@ -1079,6 +1112,17 @@ export default function AssignmentPage() {
             <StatusBadge status={selected.status} />
           </div>
 
+          {selected.group_members.length > 0 && (
+            <div className={styles.reviewBlock}>
+              <div className={styles.reviewLabel}>Участники команды</div>
+              <div className={styles.teamMembers}>
+                {selected.group_members.map((member) => (
+                  <span key={member.user_id} className={styles.teamChip}>{formatUserName(member)}</span>
+                ))}
+              </div>
+            </div>
+          )}
+
           <div className={styles.reviewBlock}>
             <div className={styles.reviewLabel}>Ответ</div>
             {selected.answer_text ? (
@@ -1104,6 +1148,23 @@ export default function AssignmentPage() {
             {selected.submitted_at && <div>Отправлено: {formatDateTime(selected.submitted_at)}</div>}
             {selected.is_late && <span className={styles.lateTag}>С опозданием</span>}
           </div>
+
+          {selected.member_grades.length > 0 && selected.group_members.length > 0 && (
+            <div className={styles.memberGradesBox}>
+              <div className={styles.reviewLabel}>Итоговые баллы участников</div>
+              <div className={styles.memberGradesList}>
+                {selected.group_members.map((member) => {
+                  const value = memberGradeValue(selected, member.user_id)
+                  return (
+                    <div key={member.user_id} className={styles.memberGradeItem}>
+                      <span>{formatUserName(member)}</span>
+                      <b>{value === undefined ? "—" : formatGradeValue(value)}</b>
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+          )}
 
           {/* Оценивать и возвращать можно только отправленное или оценённое решение */}
           {selected.status === "returned" && (

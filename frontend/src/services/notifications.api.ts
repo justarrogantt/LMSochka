@@ -3,12 +3,14 @@ import { Api } from "./api"
 import { parseApiResponse, throwApiResponseError } from "./response"
 import type { Errors } from "../types/api.types"
 
-export type NotificationType = "announcement" | "assignment" | "grade" | "submission_returned" | "submission_submitted"
+export const NOTIFICATIONS_LIMIT = 50
+
+export type NotificationType = "announcement" | "assignment" | "grade" | "submission_returned" | "submission_submitted" | "redistribution"
 
 // Уведомление в том виде, в каком его отдаёт REST и присылает WebSocket.
 const NotificationSchema = z.object({
   id: z.number(),
-  type: z.enum(["announcement", "assignment", "grade", "submission_returned", "submission_submitted"]),
+  type: z.enum(["announcement", "assignment", "grade", "submission_returned", "submission_submitted", "redistribution"]),
   title: z.string(),
   class_id: z.number().nullable(),
   entity_id: z.number().nullable(),
@@ -45,7 +47,7 @@ export function parseNotificationEvent(data: unknown): AppNotification | null {
 }
 
 // История уведомлений (страница 1 хватает для колокольчика).
-export async function getNotifications(page = 1, limit = 20): Promise<NotificationPage> {
+export async function getNotifications(page = 1, limit = NOTIFICATIONS_LIMIT): Promise<NotificationPage> {
   try {
     const response = await Api.fetchGet(`/api/notifications?page=${page}&limit=${limit}`, NOTIFICATIONS_ERRORS)
     return await parseApiResponse(response, NotificationPageSchema)

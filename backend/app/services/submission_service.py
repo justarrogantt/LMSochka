@@ -21,13 +21,14 @@ from app.database.repositories import (
 )
 from app.schemas.errors import ServiceError
 from app.schemas.pagination import PageDTO
+from app.schemas.group_schemas import MemberGradeDTO
 from app.schemas.submission_schemas import (
     SaveSubmissionRequest,
     SubmissionDTO,
     SubmissionGradeDTO,
 )
 from app.schemas.user_schemas import UserBriefDTO
-from app.services import access, file_service, notification_service
+from app.services import access, file_service, group_service, notification_service
 
 # Статусы, в которых решение уже нельзя править/перезаписывать студентом.
 _LOCKED_STATUSES = {
@@ -59,6 +60,24 @@ async def _group_title(submission: SubmissionsTable, db: AsyncSession) -> str | 
     return group.title if group is not None else None
 
 
+async def _group_members(
+    submission: SubmissionsTable, assignment: AssignmentsTable, db: AsyncSession
+):
+    group = await group_repo.get_group_for_submission(submission.id, db)
+    if group is None:
+        return []
+    rows = await group_repo.list_group_member_users(group.id, assignment.class_id, db)
+    return [group_service._member_dto(user, is_active) for user, is_active in rows]
+
+
+async def _member_grades(submission: SubmissionsTable, db: AsyncSession):
+    rows = await member_grade_repo.list_for_submission(submission.id, db)
+    return [
+        MemberGradeDTO(user_id=row.user_id, value=row.value)
+        for row in rows
+    ]
+
+
 def _dto(
     submission: SubmissionsTable,
     student: UsersTable,
@@ -66,6 +85,8 @@ def _dto(
     grade: GradesTable | None,
     attachment_file: StoredFilesTable | None = None,
     group_title: str | None = None,
+    group_members: list | None = None,
+    member_grades: list | None = None,
 ) -> SubmissionDTO:
     return SubmissionDTO(
         id=submission.id,
@@ -91,6 +112,28 @@ def _dto(
         ),
         created_at=submission.created_at,
         updated_at=submission.updated_at,
+        group_members=group_members or [],
+        member_grades=member_grades or [],
+    )
+
+
+async def _dto_with_group(
+    submission: SubmissionsTable,
+    student: UsersTable,
+    assignment: AssignmentsTable,
+    grade: GradesTable | None,
+    attachment_file: StoredFilesTable | None,
+    db: AsyncSession,
+) -> SubmissionDTO:
+    return _dto(
+        submission,
+        student,
+        assignment,
+        grade,
+        attachment_file,
+        await _group_title(submission, db),
+        await _group_members(submission, assignment, db),
+        await _member_grades(submission, db),
     )
 
 
@@ -135,7 +178,7 @@ async def save_my_submission(
     attachment_file = (
         await file_repo.get(sub.attachment_file_id, db) if sub.attachment_file_id else None
     )
-    return _dto(sub, student, asg, grade, attachment_file, await _group_title(sub, db))
+    return await _dto_with_group(sub, student, asg, grade, attachment_file, db)
 
 
 async def submit_my_submission(
@@ -169,7 +212,7 @@ async def submit_my_submission(
     attachment_file = (
         await file_repo.get(sub.attachment_file_id, db) if sub.attachment_file_id else None
     )
-    return _dto(sub, student, asg, grade, attachment_file, await _group_title(sub, db))
+    return await _dto_with_group(sub, student, asg, grade, attachment_file, db)
 
 
 async def get_my_submission(
@@ -186,7 +229,7 @@ async def get_my_submission(
     attachment_file = (
         await file_repo.get(sub.attachment_file_id, db) if sub.attachment_file_id else None
     )
-    return _dto(sub, student, asg, grade, attachment_file, await _group_title(sub, db))
+    return await _dto_with_group(sub, student, asg, grade, attachment_file, db)
 
 
 async def list_assignment_submissions(
@@ -211,6 +254,14 @@ async def list_assignment_submissions(
         [sub.id for sub, _, _ in rows], db
     )
     total = await submission_repo.count_for_assignment(asg.id, status, db)
+    group_members = {
+        sub.id: await _group_members(sub, asg, db)
+        for sub, _, _ in rows
+    }
+    member_grades = {
+        sub.id: await _member_grades(sub, db)
+        for sub, _, _ in rows
+    }
     return PageDTO[SubmissionDTO](
         items=[
             _dto(
@@ -220,6 +271,8 @@ async def list_assignment_submissions(
                 grade,
                 files.get(sub.attachment_file_id),
                 group_titles.get(sub.id),
+                group_members.get(sub.id),
+                member_grades.get(sub.id),
             )
             for sub, student, grade in rows
         ],
@@ -244,7 +297,7 @@ async def get_submission(
     attachment_file = (
         await file_repo.get(sub.attachment_file_id, db) if sub.attachment_file_id else None
     )
-    return _dto(sub, student, asg, grade, attachment_file, await _group_title(sub, db))
+    return await _dto_with_group(sub, student, asg, grade, attachment_file, db)
 
 
 async def return_submission(
@@ -298,4 +351,4 @@ async def return_submission(
     attachment_file = (
         await file_repo.get(sub.attachment_file_id, db) if sub.attachment_file_id else None
     )
-    return _dto(sub, student, asg, grade, attachment_file, await _group_title(sub, db))
+    return await _dto_with_group(sub, student, asg, grade, attachment_file, db)

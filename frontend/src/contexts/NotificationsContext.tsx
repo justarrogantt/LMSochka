@@ -4,6 +4,7 @@ import {
   getNotifications,
   markAllNotificationsRead,
   markNotificationRead,
+  NOTIFICATIONS_LIMIT,
   parseNotificationEvent,
   type AppNotification
 } from "../services/notifications.api"
@@ -47,7 +48,7 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
       setNotifications((prev) => {
         // Защита от дубля, если то же уведомление уже попало в список
         if (prev.some((item) => item.id === notification.id)) return prev
-        return [notification, ...prev]
+        return [notification, ...prev].slice(0, NOTIFICATIONS_LIMIT)
       })
       if (!notification.is_read) {
         setUnreadCount((prev) => prev + 1)

@@ -42,6 +42,17 @@ const SubmissionSchema = z.object({
     updated_at: z.string().nullable()
   }).strip().nullable(),
   group_title: z.string().nullable().default(null),
+  group_members: z.array(z.object({
+    user_id: z.number(),
+    email: z.string().email(),
+    first_name: z.string().nullable(),
+    last_name: z.string().nullable(),
+    is_active: z.boolean()
+  }).strip()).default([]),
+  member_grades: z.array(z.object({
+    user_id: z.number(),
+    value: z.number()
+  }).strip()).default([]),
   created_at: z.string(),
   updated_at: z.string().nullable()
 }).strip()

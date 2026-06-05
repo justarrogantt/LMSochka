@@ -62,6 +62,11 @@ async def _active_member_ids(
     return [user.id for user, is_active in rows if is_active]
 
 
+def _is_edge_team_grade(value: float, max_grade: float) -> bool:
+    """0 и максимум не требуют ручного перераспределения: всем ставим одно и то же."""
+    return abs(value) < _EPSILON or abs(value - max_grade) < _EPSILON
+
+
 async def put_grade(
     sid: int,
     body: UpsertGradeRequest,
@@ -100,10 +105,21 @@ async def put_grade(
         config is not None and config.grading_mode == GradingMode.INDIVIDUAL
     )
 
+    active_member_ids: list[int] = []
+    is_pending_redistribution = False
+
     if is_group_individual:
         # командная оценка выставлена — студенты должны распределить её внутри команды
-        sub.status = SubmissionStatus.PENDING_REDISTRIBUTION
-        await member_grade_repo.delete_for_submission(sub.id, db)
+        active_member_ids = await _active_member_ids(sub, asg, db)
+        if _is_edge_team_grade(grade.value, asg.max_grade):
+            await member_grade_repo.replace_for_submission(
+                sub.id, [(member_id, grade.value) for member_id in active_member_ids], db
+            )
+            sub.status = SubmissionStatus.GRADED
+        else:
+            sub.status = SubmissionStatus.PENDING_REDISTRIBUTION
+            await member_grade_repo.delete_for_submission(sub.id, db)
+            is_pending_redistribution = True
         db.add(sub)
         await db.commit()
     elif sub.status != SubmissionStatus.GRADED:
@@ -114,14 +130,25 @@ async def put_grade(
     await db.refresh(sub)
     cls = await class_repo.get_by_id(asg.class_id, db)
     if cls is not None:
-        if is_group_individual:
+        if is_group_individual and is_pending_redistribution:
             await notification_service.notify_redistribution(
-                user_ids=await _active_member_ids(sub, asg, db),
+                user_ids=active_member_ids,
                 class_id=asg.class_id,
                 assignment_id=asg.id,
                 assignment_title=asg.title,
                 db=db,
             )
+        elif is_group_individual:
+            for member_id in active_member_ids:
+                await notification_service.notify_grade_created(
+                    student_id=member_id,
+                    class_id=asg.class_id,
+                    class_name=cls.name,
+                    assignment_id=asg.id,
+                    value=grade.value,
+                    max_grade=asg.max_grade,
+                    db=db,
+                )
         elif config is not None:
             # групповое even: командная оценка = оценка каждого члена
             for member_id in await _active_member_ids(sub, asg, db):
@@ -203,11 +230,12 @@ async def delete_grade(
     await db.commit()
     await db.refresh(sub)
 
-    group_title = await submission_service._group_title(sub, db)
     attachment_file = (
         await file_repo.get(sub.attachment_file_id, db) if sub.attachment_file_id else None
     )
-    return submission_service._dto(sub, student, asg, None, attachment_file, group_title)
+    return await submission_service._dto_with_group(
+        sub, student, asg, None, attachment_file, db
+    )
 
 
 # ── Перераспределение оценки внутри команды (individual) ──
@@ -317,6 +345,8 @@ async def put_member_grades(
     cls = await class_repo.get_by_id(asg.class_id, db)
     if cls is not None:
         for item in body.grades:
+            if item.user_id == user.id:
+                continue
             await notification_service.notify_grade_created(
                 student_id=item.user_id,
                 class_id=asg.class_id,

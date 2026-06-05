@@ -39,6 +39,19 @@ const SubmissionGradeSchema = z.object({
   updated_at: z.string().nullable()
 }).strip()
 
+const GroupMemberSchema = z.object({
+  user_id: z.number(),
+  email: z.string().email(),
+  first_name: z.string().nullable(),
+  last_name: z.string().nullable(),
+  is_active: z.boolean()
+}).strip()
+
+const MemberGradeSchema = z.object({
+  user_id: z.number(),
+  value: z.number()
+}).strip()
+
 // Полное решение задания.
 const SubmissionSchema = z.object({
   id: z.number(),
@@ -54,6 +67,8 @@ const SubmissionSchema = z.object({
   grade: SubmissionGradeSchema.nullable(),
   // Название команды у группового решения; у индивидуального — null.
   group_title: z.string().nullable().default(null),
+  group_members: z.array(GroupMemberSchema).default([]),
+  member_grades: z.array(MemberGradeSchema).default([]),
   created_at: z.string(),
   updated_at: z.string().nullable()
 }).strip()

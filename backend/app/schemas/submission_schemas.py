@@ -4,6 +4,7 @@ from pydantic import BaseModel, Field, HttpUrl
 
 from app.database.models import SubmissionStatus
 from app.schemas.file_schemas import FileDTO
+from app.schemas.group_schemas import GroupMemberDTO, MemberGradeDTO
 from app.schemas.user_schemas import UserBriefDTO
 
 
@@ -40,5 +41,7 @@ class SubmissionDTO(BaseModel):
     grade: SubmissionGradeDTO | None = None
     # Название команды у группового решения. У индивидуального — null.
     group_title: str | None = None
+    group_members: list[GroupMemberDTO] = Field(default_factory=list)
+    member_grades: list[MemberGradeDTO] = Field(default_factory=list)
     created_at: datetime
     updated_at: datetime | None

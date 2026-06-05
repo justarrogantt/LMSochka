@@ -23,6 +23,7 @@ function notificationLink(notification: AppNotification): string | null {
     case "grade":
     case "submission_returned":
     case "submission_submitted":
+    case "redistribution":
       return `${base}/assignments/${notification.entity_id}`
     default:
       return base

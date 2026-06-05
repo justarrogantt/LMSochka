@@ -5,7 +5,7 @@ from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
-from app.database.database import engine
+from app.database.database import apply_lightweight_migrations, engine
 from app.database.models import Base
 from app.routers.announcements import announcements_router
 from app.routers.assignments import assignments_router
@@ -26,6 +26,7 @@ async def lifespan(app: FastAPI):
     # создаём таблицы если их ещё нет (для dev — на проде лучше Alembic-миграции)
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
+    await apply_lightweight_migrations()
     yield
 
 

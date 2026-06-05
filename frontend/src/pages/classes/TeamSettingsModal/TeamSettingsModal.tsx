@@ -23,6 +23,14 @@ type TeamSettingsModalProps = {
   onClose: () => void
 }
 
+function toEditorMember(member: AssignmentGroupsDto["groups"][number]["members"][number]) {
+  return {
+    ...member,
+    first_name: member.first_name ?? null,
+    last_name: member.last_name ?? null
+  }
+}
+
 // Отдельная модалка управления командами. Изменения применяются сразу на сервере
 // (каждое действие валидируется отдельно), кнопка внизу просто закрывает окно.
 // Переиспользуется и на странице задания, и в списке заданий.
@@ -70,7 +78,7 @@ export default function TeamSettingsModal({ classId, assignmentId, gradingMode, 
   const editorGroups: EditorGroup[] = (groupsData?.groups ?? []).map((group) => ({
     key: String(group.id),
     title: group.title,
-    members: group.members,
+    members: group.members.map(toEditorMember),
     // у команды есть решение ≠ draft → состав закреплён
     locked: group.submission_status !== null && group.submission_status !== "draft"
   }))
@@ -88,7 +96,7 @@ export default function TeamSettingsModal({ classId, assignmentId, gradingMode, 
       ) : (
         <GroupEditor
           groups={editorGroups}
-          unassigned={groupsData.unassigned_students}
+          unassigned={groupsData.unassigned_students.map(toEditorMember)}
           disabled={isBusy}
           maxTeamSize={groupsData.max_team_size}
           onAddGroup={() => void runMutation(() => createGroup(classId, assignmentId))}
