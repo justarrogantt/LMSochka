@@ -208,6 +208,8 @@ export default function ClassLayout() {
   const canManageMembers = classDetail?.permissions.can_manage_members ?? false
   const isEditChanged = editForm.name.trim() !== (classDetail?.name ?? "").trim() || editForm.type !== classDetail?.type
   const canSaveEdit = editForm.name.trim().length > 0 && isEditChanged && !isSubmitting
+  const isOverviewTab = activeTabPath === ""
+  const isClassReady = !isLoading && classDetail?.id === parsedClassId
 
   return (
     <div className={styles.page}>
@@ -217,21 +219,21 @@ export default function ClassLayout() {
             <ArrowIcon className={styles.backIcon} />
             <div>Мои курсы</div>
           </button>
-          {showSkeleton ? (
+          {!isClassReady ? (
             <Skeleton width={240} height={32} radius={999} />
-          ) : !isLoading ? (
-            <div className={styles.title}>{classDetail?.name ?? "Курс"}</div>
-          ) : null}
+          ) : (
+            <div className={styles.title}>{classDetail.name}</div>
+          )}
         </div>
 
-        {showSkeleton ? (
+        {!isClassReady ? (
           <div className={styles.actions}>
             {/* код приглашения и кнопки управления курсом — пока грузятся данные */}
             <Skeleton width={210} height={40} radius={10} />
             <Skeleton width={150} height={40} radius={10} />
             <Skeleton width={120} height={40} radius={10} />
           </div>
-        ) : !isLoading ? (
+        ) : (
           <div className={styles.actions}>
             {canManageMembers && classDetail?.type === "closed" && classDetail?.join_code && (
               <button className={styles.secondaryButton} type="button" onClick={copyJoinCode}>
@@ -260,7 +262,7 @@ export default function ClassLayout() {
               </button>
             )}
           </div>
-        ) : null}
+        )}
       </div>
 
       <div className={styles.tabs}>
@@ -276,9 +278,11 @@ export default function ClassLayout() {
         ))}
       </div>
 
-      {showSkeleton ? (
+      {!isClassReady && isOverviewTab ? (
         classTabSkeleton(activeTabPath)
-      ) : !isLoading ? (
+      ) : !isClassReady && showSkeleton ? (
+        classTabSkeleton(activeTabPath)
+      ) : isClassReady ? (
         <Outlet context={{ classDetail, setClassDetail } satisfies ClassLayoutContext} />
       ) : null}
 
