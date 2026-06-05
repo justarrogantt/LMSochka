@@ -154,10 +154,12 @@ export default function AssignmentPage() {
 
   // Идет ли операция с файлом решения
   const [isAttachmentBusy, setIsAttachmentBusy] = useState(false)
+  const [attachmentFile, setAttachmentFile] = useState<File | null>(null)
   const [attachmentFileError, setAttachmentFileError] = useState("")
 
-  // Идет ли операция с файлом материала задания
-  const [isMaterialBusy, setIsMaterialBusy] = useState(false)
+  // Файл материала задания, выбранный в модалке редактирования
+  const [materialFile, setMaterialFile] = useState<File | null>(null)
+  const [shouldDeleteMaterialFile, setShouldDeleteMaterialFile] = useState(false)
   const [materialFileError, setMaterialFileError] = useState("")
 
   // Текущий список решений студентов
@@ -251,6 +253,8 @@ export default function AssignmentPage() {
           answer_text: data?.answer_text ?? "",
           attachment_url: data?.attachment_url ?? ""
         })
+        setAttachmentFile(null)
+        setAttachmentFileError("")
       } catch (error) {
         if (error instanceof ApiError) {
           showToast({ type: "error", message: error.message })
@@ -306,6 +310,9 @@ export default function AssignmentPage() {
   // Закрытие активной модалки задания
   function closeModal() {
     if (isSubmitting) return
+    setMaterialFile(null)
+    setShouldDeleteMaterialFile(false)
+    setMaterialFileError("")
     setActiveModal(null)
   }
 
@@ -321,6 +328,9 @@ export default function AssignmentPage() {
     }
     setForm(saved)
     setInitialForm(saved)
+    setMaterialFile(null)
+    setShouldDeleteMaterialFile(false)
+    setMaterialFileError("")
     setActiveModal("edit")
   }
 
@@ -340,6 +350,35 @@ export default function AssignmentPage() {
     setIsSubmitting(true)
 
     try {
+      let uploadedMaterial: AssignmentDto["material_file"] = null
+      let isMaterialDeleted = false
+
+      if (materialFile) {
+        try {
+          uploadedMaterial = await uploadAssignmentMaterial(parsedClassId, assignment.id, materialFile)
+          setMaterialFileError("")
+        } catch (error) {
+          if (error instanceof ApiError) {
+            setMaterialFileError(error.message)
+            return
+          }
+          throw error
+        }
+      }
+
+      if (!materialFile && shouldDeleteMaterialFile) {
+        try {
+          await deleteAssignmentMaterial(parsedClassId, assignment.id)
+          isMaterialDeleted = true
+        } catch (error) {
+          if (error instanceof ApiError) {
+            setMaterialFileError(error.message)
+            return
+          }
+          throw error
+        }
+      }
+
       const updated = await updateAssignment(parsedClassId, parsedAssignmentId, {
         title,
         description: form.description.trim() || undefined,
@@ -347,7 +386,15 @@ export default function AssignmentPage() {
         due_at: toApiDateTime(form.due_at),
         max_grade: maxGrade
       })
-      setAssignment(updated)
+      const updatedAssignment = uploadedMaterial
+        ? { ...updated, material_file: uploadedMaterial }
+        : isMaterialDeleted
+          ? { ...updated, material_file: null }
+          : updated
+      setAssignment(updatedAssignment)
+      setMaterialFile(null)
+      setShouldDeleteMaterialFile(false)
+      setMaterialFileError("")
       setActiveModal(null)
       showToast({ type: "neutral", message: "Задание обновлено" })
     } catch (error) {
@@ -391,13 +438,33 @@ export default function AssignmentPage() {
     }
   }
 
+  async function uploadPendingAttachment() {
+    if (!attachmentFile) return true
+
+    try {
+      await uploadSubmissionAttachment(parsedAssignmentId, attachmentFile)
+      setAttachmentFileError("")
+      return true
+    } catch (error) {
+      if (error instanceof ApiError) {
+        setAttachmentFileError(error.message)
+        return false
+      }
+      throw error
+    }
+  }
+
   // Сохранить черновик решения
   async function onSaveDraft() {
     if (isStudentBusy || attachmentFileError) return
     setIsSavingDraft(true)
     try {
+      const isAttachmentUploaded = await uploadPendingAttachment()
+      if (!isAttachmentUploaded) return
+
       const saved = await saveMySubmission(parsedAssignmentId, buildSubmissionBody())
       setMySubmission(saved)
+      setAttachmentFile(null)
       showToast({ type: "neutral", message: "Черновик сохранён" })
     } catch (error) {
       if (error instanceof ApiError) {
@@ -415,9 +482,13 @@ export default function AssignmentPage() {
     if (isStudentBusy || attachmentFileError) return
     setIsSendingWork(true)
     try {
+      const isAttachmentUploaded = await uploadPendingAttachment()
+      if (!isAttachmentUploaded) return
+
       await saveMySubmission(parsedAssignmentId, buildSubmissionBody())
       const sent = await submitMySubmission(parsedAssignmentId)
       setMySubmission(sent)
+      setAttachmentFile(null)
       showToast({ type: "neutral", message: "Решение отправлено на проверку" })
     } catch (error) {
       if (error instanceof ApiError) {
@@ -427,26 +498,6 @@ export default function AssignmentPage() {
       throw error
     } finally {
       setIsSendingWork(false)
-    }
-  }
-
-  async function onUploadAttachment(file: File) {
-    if (isStudentBusy || isAttachmentBusy) return
-    setAttachmentFileError("")
-    setIsAttachmentBusy(true)
-    try {
-      await uploadSubmissionAttachment(parsedAssignmentId, file)
-      const updated = await getMySubmission(parsedAssignmentId)
-      setMySubmission(updated)
-      showToast({ type: "neutral", message: "Файл решения загружен" })
-    } catch (error) {
-      if (error instanceof ApiError) {
-        setAttachmentFileError(error.message)
-        return
-      }
-      throw error
-    } finally {
-      setIsAttachmentBusy(false)
     }
   }
 
@@ -469,44 +520,6 @@ export default function AssignmentPage() {
     }
   }
 
-  async function onUploadMaterial(file: File) {
-    if (!assignment || isMaterialBusy) return
-    setMaterialFileError("")
-    setIsMaterialBusy(true)
-    try {
-      const uploaded = await uploadAssignmentMaterial(parsedClassId, assignment.id, file)
-      setAssignment({ ...assignment, material_file: uploaded })
-      showToast({ type: "neutral", message: "Файл материала загружен" })
-    } catch (error) {
-      if (error instanceof ApiError) {
-        setMaterialFileError(error.message)
-        return
-      }
-      throw error
-    } finally {
-      setIsMaterialBusy(false)
-    }
-  }
-
-  async function onDeleteMaterial() {
-    if (!assignment || isMaterialBusy) return
-    setIsMaterialBusy(true)
-    try {
-      await deleteAssignmentMaterial(parsedClassId, assignment.id)
-      setAssignment({ ...assignment, material_file: null })
-      setMaterialFileError("")
-      showToast({ type: "neutral", message: "Файл материала удалён" })
-    } catch (error) {
-      if (error instanceof ApiError) {
-        showToast({ type: "error", message: error.message })
-        return
-      }
-      throw error
-    } finally {
-      setIsMaterialBusy(false)
-    }
-  }
-
   async function onDownloadFile(file: StoredFileDto) {
     try {
       await downloadStoredFile(file)
@@ -522,6 +535,8 @@ export default function AssignmentPage() {
   // Выбор файла материала задания
   function onMaterialFileChange(file: File) {
     setMaterialFileError("")
+    setMaterialFile(null)
+    setShouldDeleteMaterialFile(false)
 
     const error = validateUploadFile(file)
     if (error) {
@@ -529,7 +544,18 @@ export default function AssignmentPage() {
       return
     }
 
-    void onUploadMaterial(file)
+    setMaterialFile(file)
+  }
+
+  function onRemoveMaterialFile() {
+    if (materialFile) {
+      setMaterialFile(null)
+      setMaterialFileError("")
+      return
+    }
+
+    setShouldDeleteMaterialFile(true)
+    setMaterialFileError("")
   }
 
   // Выбор файла решения студента
@@ -542,7 +568,17 @@ export default function AssignmentPage() {
       return
     }
 
-    void onUploadAttachment(file)
+    setAttachmentFile(file)
+  }
+
+  function onRemoveSubmissionFile() {
+    if (attachmentFile) {
+      setAttachmentFile(null)
+      setAttachmentFileError("")
+      return
+    }
+
+    void onDeleteAttachment()
   }
 
   // ── Действия преподавателя ──
@@ -651,17 +687,35 @@ export default function AssignmentPage() {
     form.max_grade !== initialForm.max_grade
   const dueAtError = isPastDateTimeInputValue(form.due_at) ? "Дедлайн не может быть в прошлом" : ""
   const minDueAt = currentDateTimeInputValue()
-  const canSave = form.title.trim().length > 0 && Number(form.max_grade) > 0 && !dueAtError && isFormChanged && !isSubmitting
+  const displayedMaterialFile = materialFile
+    ? { name: materialFile.name, size: materialFile.size }
+    : assignment?.material_file && !shouldDeleteMaterialFile
+      ? { name: assignment.material_file.name, size: assignment.material_file.size }
+      : null
+  const canSave =
+    form.title.trim().length > 0 &&
+    Number(form.max_grade) > 0 &&
+    !dueAtError &&
+    !materialFileError &&
+    (isFormChanged || Boolean(materialFile) || shouldDeleteMaterialFile) &&
+    !isSubmitting
 
-  const isStudentBusy = isSavingDraft || isSendingWork
+  const isStudentBusy = isSavingDraft || isSendingWork || isAttachmentBusy
   const myStatus = mySubmission?.status ?? null
   // Редактировать можно только черновик, возвращённое или ещё не начатое решение
   const isMyEditable = myStatus === null || myStatus === "draft" || myStatus === "returned"
+  const displayedAttachmentFile = attachmentFile
+    ? { name: attachmentFile.name, size: attachmentFile.size }
+    : mySubmission?.attachment_file
+      ? { name: mySubmission.attachment_file.name, size: mySubmission.attachment_file.size }
+      : null
+  const isUploadingPendingAttachment = Boolean(attachmentFile) && (isSavingDraft || isSendingWork)
   const canSendWork = (
     submissionForm.answer_text.trim().length > 0 ||
     submissionForm.attachment_url.trim().length > 0 ||
+    Boolean(attachmentFile) ||
     Boolean(mySubmission?.attachment_file)
-  ) && !attachmentFileError && !isStudentBusy && !isAttachmentBusy
+  ) && !attachmentFileError && !isStudentBusy
 
   const isReviewBusy = isGrading || isRemovingGrade || isReturning
   const gradeNum = Number(reviewForm.gradeValue)
@@ -725,20 +779,6 @@ export default function AssignmentPage() {
             </button>
           )}
 
-          {canEditAssignment && (
-            <FilePicker
-              label="Загрузить файл материала"
-              busy={isMaterialBusy}
-              accept={ACCEPTED_FILE_INPUT}
-              hint={`Доступные форматы: ${ACCEPTED_FILE_TYPES_LABEL}`}
-              file={assignment.material_file ? { name: assignment.material_file.name, size: assignment.material_file.size } : null}
-              onRemove={() => void onDeleteMaterial()}
-              removeTitle="Удалить файл материала"
-              onSelect={onMaterialFileChange}
-              error={materialFileError}
-            />
-          )}
-
           <div className={styles.meta}>
             {assignment.due_at && <div>Дедлайн: {formatDateTime(assignment.due_at)}</div>}
             <div>Максимальный балл: {assignment.max_grade}</div>
@@ -782,12 +822,12 @@ export default function AssignmentPage() {
 
                   <FilePicker
                     label="Загрузить файл решения"
-                    busy={isAttachmentBusy}
+                    busy={isAttachmentBusy || isUploadingPendingAttachment}
                     accept={ACCEPTED_FILE_INPUT}
                     hint={`Доступные форматы: ${ACCEPTED_FILE_TYPES_LABEL}`}
-                    file={mySubmission?.attachment_file ? { name: mySubmission.attachment_file.name, size: mySubmission.attachment_file.size } : null}
-                    onDownload={() => void onDownloadFile(mySubmission!.attachment_file!)}
-                    onRemove={() => void onDeleteAttachment()}
+                    file={displayedAttachmentFile}
+                    onDownload={attachmentFile || !mySubmission?.attachment_file ? undefined : () => void onDownloadFile(mySubmission.attachment_file!)}
+                    onRemove={onRemoveSubmissionFile}
                     removeTitle="Удалить файл решения"
                     onSelect={onSubmissionFileChange}
                     error={attachmentFileError}
@@ -939,6 +979,20 @@ export default function AssignmentPage() {
               disabled={isSubmitting}
             />
           </label>
+
+          <FilePicker
+            label="Загрузить файл материала"
+            busy={isSubmitting && (Boolean(materialFile) || shouldDeleteMaterialFile)}
+            accept={ACCEPTED_FILE_INPUT}
+            hint={`Доступные форматы: ${ACCEPTED_FILE_TYPES_LABEL}`}
+            file={displayedMaterialFile}
+            onDownload={!materialFile && assignment?.material_file ? () => void onDownloadFile(assignment.material_file!) : undefined}
+            onRemove={displayedMaterialFile ? onRemoveMaterialFile : undefined}
+            removeTitle="Убрать файл материала"
+            onSelect={onMaterialFileChange}
+            error={materialFileError}
+            disabled={isSubmitting}
+          />
 
           <div className={styles.fieldRow}>
             <label className={styles.field}>
