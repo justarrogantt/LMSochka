@@ -27,6 +27,7 @@ import {
 import FilePicker from "../../../components/FilePicker/FilePicker"
 import GroupEditor, { type EditorGroup } from "../../../components/GroupEditor/GroupEditor"
 import type { ClassLayoutContext } from "../../../layouts/ClassLayout/ClassLayout"
+import AssignmentFormModal, { type AssignmentFormState } from "../AssignmentFormModal/AssignmentFormModal"
 import {
   deleteAssignmentMaterial,
   deleteAssignment,
@@ -65,14 +66,6 @@ import {
   StudentSubmissionsSkeletonLoader
 } from "./SkeletonLoader/SkeletonLoader"
 import styles from "./AssignmentPage.module.css"
-
-type FormState = {
-  title: string
-  description: string
-  material_url: string
-  due_at: string
-  max_grade: string
-}
 
 type SubmissionFormState = {
   answer_text: string
@@ -144,10 +137,10 @@ export default function AssignmentPage() {
   const [isSubmitting, setIsSubmitting] = useState(false)
 
   // Текущие поля формы редактирования задания
-  const [form, setForm] = useState<FormState>({ title: "", description: "", material_url: "", due_at: "", max_grade: "" })
+  const [form, setForm] = useState<AssignmentFormState>({ title: "", description: "", material_url: "", due_at: "", max_grade: "" })
 
   // Исходные поля формы редактирования для проверки изменений
-  const [initialForm, setInitialForm] = useState<FormState>({ title: "", description: "", material_url: "", due_at: "", max_grade: "" })
+  const [initialForm, setInitialForm] = useState<AssignmentFormState>({ title: "", description: "", material_url: "", due_at: "", max_grade: "" })
 
   // Мое решение как студента
   const [mySubmission, setMySubmission] = useState<SubmissionDto | null>(null)
@@ -339,7 +332,7 @@ export default function AssignmentPage() {
   // Открытие модалки редактирования с заполнением текущих значений
   function openEditModal() {
     if (!assignment) return
-    const saved: FormState = {
+    const saved: AssignmentFormState = {
       title: assignment.title,
       description: assignment.description,
       material_url: assignment.material_url ?? "",
@@ -360,7 +353,7 @@ export default function AssignmentPage() {
   }
 
   // Обновление одного поля формы задания
-  function setField<K extends keyof FormState>(key: K, value: FormState[K]) {
+  function setField<K extends keyof AssignmentFormState>(key: K, value: AssignmentFormState[K]) {
     setForm((prev) => ({ ...prev, [key]: value }))
   }
 
@@ -720,9 +713,7 @@ export default function AssignmentPage() {
     form.max_grade !== initialForm.max_grade
   const dueAtError = isPastDateTimeInputValue(form.due_at) ? "Дедлайн не может быть в прошлом" : ""
   const minDueAt = currentDateTimeInputValue()
-  const displayedMaterialFile = materialFile
-    ? { name: materialFile.name, size: materialFile.size }
-    : assignment?.material_file && !shouldDeleteMaterialFile
+  const currentMaterialFile = assignment?.material_file && !shouldDeleteMaterialFile
       ? { name: assignment.material_file.name, size: assignment.material_file.size }
       : null
   const canSave =
@@ -1033,89 +1024,23 @@ export default function AssignmentPage() {
 
       <AnimatePresence>
         {canEditAssignment && activeModal === "edit" && (
-        <Modal title="Редактировать задание" onClose={closeModal} disabled={isSubmitting}>
-          <label className={styles.field}>
-            <div className={styles.fieldLabel}>Название</div>
-            <input
-              className={styles.input}
-              type="text"
-              value={form.title}
-              onChange={(e) => setField("title", e.target.value)}
-              disabled={isSubmitting}
-            />
-          </label>
-
-          <label className={styles.field}>
-            <div className={styles.fieldLabel}>Описание <span className={styles.fieldOptional}>(необязательно)</span></div>
-            <textarea
-              className={styles.textarea}
-              value={form.description}
-              onChange={(e) => setField("description", e.target.value)}
-              disabled={isSubmitting}
-            />
-          </label>
-
-          <label className={styles.field}>
-            <div className={styles.fieldLabel}>Ссылка на материал <span className={styles.fieldOptional}>(необязательно)</span></div>
-            <input
-              className={styles.input}
-              type="url"
-              value={form.material_url}
-              onChange={(e) => setField("material_url", e.target.value)}
-              disabled={isSubmitting}
-            />
-          </label>
-
-          <FilePicker
-            label="Загрузить файл материала"
-            busy={isSubmitting && (Boolean(materialFile) || shouldDeleteMaterialFile)}
-            accept={ACCEPTED_FILE_INPUT}
-            hint={`Доступные форматы: ${ACCEPTED_FILE_TYPES_LABEL}`}
-            file={displayedMaterialFile}
-            onDownload={!materialFile && assignment?.material_file ? () => void onDownloadFile(assignment.material_file!) : undefined}
-            onRemove={displayedMaterialFile ? onRemoveMaterialFile : undefined}
-            removeTitle="Убрать файл материала"
-            onSelect={onMaterialFileChange}
-            error={materialFileError}
-            disabled={isSubmitting}
+          <AssignmentFormModal
+            mode="edit"
+            form={form}
+            isSubmitting={isSubmitting}
+            canSubmit={canSave}
+            dueAtError={dueAtError}
+            minDueAt={minDueAt}
+            materialFile={materialFile}
+            isMaterialFileBusy={isSubmitting && (Boolean(materialFile) || shouldDeleteMaterialFile)}
+            currentMaterialFile={currentMaterialFile}
+            materialFileError={materialFileError}
+            onClose={closeModal}
+            onSubmit={() => void submitEdit()}
+            onFieldChange={setField}
+            onMaterialFileChange={onMaterialFileChange}
+            onMaterialFileRemove={onRemoveMaterialFile}
           />
-
-          <div className={styles.fieldRow}>
-            <label className={styles.field}>
-              <div className={styles.fieldLabel}>Дедлайн <span className={styles.fieldOptional}>(необязательно)</span></div>
-                <input
-                  className={styles.input}
-                  type="datetime-local"
-                  min={minDueAt}
-                  value={form.due_at}
-                  onChange={(e) => setField("due_at", e.target.value)}
-                  disabled={isSubmitting}
-                />
-                {dueAtError && <div className={styles.fieldError}>{dueAtError}</div>}
-              </label>
-
-            <label className={styles.field}>
-              <div className={styles.fieldLabel}>Максимальный балл</div>
-              <input
-                className={styles.input}
-                type="number"
-                min="1"
-                value={form.max_grade}
-                onChange={(e) => setField("max_grade", e.target.value)}
-                disabled={isSubmitting}
-              />
-            </label>
-          </div>
-
-          <div className={styles.modalActions}>
-            <button className={styles.secondaryButton} type="button" onClick={closeModal} disabled={isSubmitting}>
-              Отмена
-            </button>
-            <button className={styles.primaryButton} type="button" onClick={() => void submitEdit()} disabled={!canSave}>
-              {isSubmitting ? "Сохраняем..." : "Сохранить"}
-            </button>
-          </div>
-        </Modal>
         )}
       </AnimatePresence>
 
