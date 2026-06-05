@@ -226,6 +226,8 @@ class AssignmentGroupConfigTable(Base):
         ForeignKey("assignments.id", ondelete="CASCADE"), primary_key=True
     )
     grading_mode: Mapped[GradingMode] = mapped_column(Enum(GradingMode))
+    # общий лимит участников на команду (None — без ограничения)
+    max_team_size: Mapped[int | None] = mapped_column(nullable=True)
     created_at: Mapped[datetime] = mapped_column(server_default=func.now())
 
 

@@ -166,6 +166,29 @@
   font-weight: 700;
 }
 
+.fieldOptional {
+  font-weight: 400;
+  color: var(--color-muted);
+}
+
+.materialLink {
+  width: fit-content;
+  padding: 9px 16px;
+  border-radius: var(--radius-md);
+  background: var(--color-accent-soft);
+  color: var(--color-accent-active);
+  font-size: 14px;
+  font-weight: 600;
+  text-decoration: none;
+  border: 0;
+  cursor: pointer;
+  transition: background 0.16s ease;
+}
+
+.materialLink:hover {
+  background: var(--color-accent-soft-hover);
+}
+
 .input,
 .textarea {
   width: 100%;

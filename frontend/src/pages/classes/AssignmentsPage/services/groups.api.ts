@@ -36,6 +36,8 @@ export const AssignmentGroupSchema = z.object({
 // Полный блок «Команды»: режим, группы, нераспределённые студенты.
 export const AssignmentGroupsSchema = z.object({
   grading_mode: GradingModeSchema,
+  // общий лимит участников на команду (null — без ограничения)
+  max_team_size: z.number().nullable().default(null),
   groups: z.array(AssignmentGroupSchema),
   unassigned_students: z.array(GroupMemberSchema)
 }).strip()

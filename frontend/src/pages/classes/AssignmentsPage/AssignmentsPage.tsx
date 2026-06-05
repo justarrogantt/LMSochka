@@ -4,6 +4,7 @@ import { useNavigate, useOutletContext, useParams } from "react-router-dom"
 import AddIcon from "../../../assets/icons/classes/add.svg?react"
 import DeleteIcon from "../../../assets/icons/classes/delete.svg?react"
 import EditIcon from "../../../assets/icons/classes/settings.svg?react"
+import UsersIcon from "../../../assets/icons/classes/users.svg?react"
 import Modal from "../../../components/Modal/Modal"
 import Pagination from "../../../components/Pagination/Pagination"
 import { useToast } from "../../../components/Toast/useToast"
@@ -26,6 +27,7 @@ import AssignmentFormModal, {
   EMPTY_ASSIGNMENT_FORM,
   type AssignmentFormState
 } from "../AssignmentFormModal/AssignmentFormModal"
+import TeamSettingsModal from "../TeamSettingsModal/TeamSettingsModal"
 import {
   createAssignment,
   deleteAssignmentMaterial,
@@ -60,10 +62,11 @@ type AssignmentCardProps = {
   showStats: boolean
   onOpen: () => void
   onEdit: () => void
+  onTeamSettings: () => void
   onDelete: () => void
 }
 
-function AssignmentCard({ item, showStats, onOpen, onEdit, onDelete }: AssignmentCardProps) {
+function AssignmentCard({ item, showStats, onOpen, onEdit, onTeamSettings, onDelete }: AssignmentCardProps) {
   const pendingCount = item.stats?.pending_review_count ?? 0
 
   return (
@@ -72,6 +75,11 @@ function AssignmentCard({ item, showStats, onOpen, onEdit, onDelete }: Assignmen
         <div className={styles.cardTitle}>{truncate(item.title, 80)}</div>
         {(item.can_edit || item.can_delete) && (
           <div className={styles.cardActions} onClick={(e) => e.stopPropagation()}>
+            {item.can_edit && item.is_group && (
+              <button className={styles.iconButton} type="button" aria-label="Настройка команд" onClick={onTeamSettings}>
+                <UsersIcon className={styles.icon} />
+              </button>
+            )}
             {item.can_edit && (
               <button className={styles.iconButton} type="button" aria-label="Редактировать задание" onClick={onEdit}>
                 <EditIcon className={styles.icon} />
@@ -143,6 +151,11 @@ export default function AssignmentsPage() {
   const [gradingMode, setGradingMode] = useState<GradingMode>("even")
   const [groupDrafts, setGroupDrafts] = useState<GroupDraft[]>([])
   const [students, setStudents] = useState<EditorMember[]>([])
+  // Общий лимит участников на команду (текст инпута, пусто — без лимита)
+  const [maxTeamSize, setMaxTeamSize] = useState("")
+
+  // Задание, для которого открыта модалка настройки команд
+  const [teamSettingsFor, setTeamSettingsFor] = useState<AssignmentDto | null>(null)
 
   // Студенты, ещё не распределённые ни в одну локальную группу
   const assignedIds = new Set(groupDrafts.flatMap((g) => g.members.map((m) => m.user_id)))
@@ -185,6 +198,7 @@ export default function AssignmentsPage() {
     setGradingMode("even")
     setGroupDrafts([])
     setStudents([])
+    setMaxTeamSize("")
   }
 
   // Подтягиваем активных студентов класса для распределения по группам
@@ -238,6 +252,7 @@ export default function AssignmentsPage() {
     setIsGroup(false)
     setGradingMode("even")
     setGroupDrafts([])
+    setMaxTeamSize("")
     void loadStudents()
     setIsFormOpen(true)
   }
@@ -269,14 +284,28 @@ export default function AssignmentsPage() {
     )
   }
 
-  // Раскидать нераспределённых студентов по существующим группам по кругу
+  // Раскидать нераспределённых студентов по существующим группам по порядку списка
   function autoFillDrafts() {
     if (groupDrafts.length === 0) return
+    const limit = maxTeamSize.trim() ? Number(maxTeamSize) : null
     setGroupDrafts((prev) => {
       const next = prev.map((g) => ({ ...g, members: [...g.members] }))
-      unassignedStudents.forEach((student, index) => {
-        next[index % next.length].members.push(student)
-      })
+      const pool = [...unassignedStudents] // уже отсортированы по фамилии
+      if (limit != null) {
+        // заполняем команды по очереди до лимита
+        let gi = 0
+        for (const student of pool) {
+          while (gi < next.length && next[gi].members.length >= limit) gi++
+          if (gi >= next.length) break // свободных мест больше нет
+          next[gi].members.push(student)
+        }
+      } else {
+        // без лимита — ровными последовательными блоками по группам
+        const per = Math.ceil(pool.length / next.length)
+        pool.forEach((student, index) => {
+          next[Math.min(next.length - 1, Math.floor(index / per))].members.push(student)
+        })
+      }
       return next
     })
   }
@@ -318,8 +347,10 @@ export default function AssignmentsPage() {
       max_grade: Number(form.max_grade)
     }
     if (isGroup) {
+      const limit = maxTeamSize.trim() ? Number(maxTeamSize) : undefined
       body.group = {
         grading_mode: gradingMode,
+        ...(limit ? { max_team_size: limit } : {}),
         distribution: {
           mode: "manual",
           groups: groupDrafts.map((g) => ({
@@ -559,6 +590,7 @@ export default function AssignmentsPage() {
                   showStats={canManage}
                   onOpen={() => navigate(`/classes/${classId}/assignments/${item.id}`)}
                   onEdit={() => openEditModal(item)}
+                  onTeamSettings={() => setTeamSettingsFor(item)}
                   onDelete={() => setDeletingId(item.id)}
                 />
               </motion.div>
@@ -643,12 +675,28 @@ export default function AssignmentsPage() {
                   </div>
                 </div>
 
+                <label className={styles.field}>
+                  <div className={styles.fieldLabel}>
+                    Лимит участников в команде <span className={styles.fieldOptional}>(необязательно, общий для всех команд)</span>
+                  </div>
+                  <input
+                    className={styles.input}
+                    type="number"
+                    min="1"
+                    value={maxTeamSize}
+                    onChange={(e) => setMaxTeamSize(e.target.value)}
+                    placeholder="Без ограничения"
+                    disabled={isSubmitting}
+                  />
+                </label>
+
                 <div className={styles.field}>
                   <div className={styles.fieldLabel}>Команды</div>
                   <GroupEditor
                     groups={groupDrafts}
                     unassigned={unassignedStudents}
                     disabled={isSubmitting}
+                    maxTeamSize={maxTeamSize.trim() ? Number(maxTeamSize) : null}
                     onAddGroup={addGroupDraft}
                     onRenameGroup={renameGroupDraft}
                     onDeleteGroup={deleteGroupDraft}
@@ -662,7 +710,19 @@ export default function AssignmentsPage() {
                 </div>
               </>
             )}
+
           </AssignmentFormModal>
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {canManage && teamSettingsFor && (
+          <TeamSettingsModal
+            classId={classDetail!.id}
+            assignmentId={teamSettingsFor.id}
+            gradingMode={teamSettingsFor.grading_mode}
+            onClose={() => setTeamSettingsFor(null)}
+          />
         )}
       </AnimatePresence>
 

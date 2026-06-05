@@ -208,6 +208,11 @@
   font-weight: 700;
 }
 
+.fieldOptional {
+  font-weight: 400;
+  color: var(--color-muted);
+}
+
 .input,
 .textarea {
   width: 100%;

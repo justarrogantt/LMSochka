@@ -8,11 +8,22 @@ import Modal from "../../../components/Modal/Modal"
 import { useToast } from "../../../components/Toast/useToast"
 import { useDelayedLoading } from "../../../hooks/useDelayedLoading"
 import { ApiError } from "../../../services/api"
+import {
+  ACCEPTED_FILE_INPUT,
+  ACCEPTED_FILE_TYPES_LABEL,
+  downloadStoredFile,
+  formatFileSize,
+  type StoredFileDto,
+  validateUploadFile
+} from "../../../services/files.api"
 import { formatDateTime } from "../../../services/helpers"
+import FilePicker from "../../../components/FilePicker/FilePicker"
 import {
   getAnnouncement,
   updateAnnouncement,
   deleteAnnouncement,
+  deleteAnnouncementMaterial,
+  uploadAnnouncementMaterial,
   type AnnouncementDto
 } from "../ClassAnnouncementsPage/services/announcement.api"
 import SkeletonLoader from "./SkeletonLoader/SkeletonLoader"
@@ -44,6 +55,11 @@ export default function AnnouncementPage() {
   // Поля формы редактирования и начальное состояние для сравнения
   const [form, setForm] = useState<FormState>({ title: "", content: "" })
   const [initialForm, setInitialForm] = useState<FormState>({ title: "", content: "" })
+
+  // Файл объявления в окне редактирования
+  const [materialFile, setMaterialFile] = useState<File | null>(null)
+  const [shouldDeleteMaterialFile, setShouldDeleteMaterialFile] = useState(false)
+  const [materialFileError, setMaterialFileError] = useState("")
 
   const parsedClassId = Number(classId)
   const parsedAnnouncementId = Number(announcementId)
@@ -85,6 +101,9 @@ export default function AnnouncementPage() {
   // Закрытие активной модалки
   function closeModal() {
     if (isSubmitting) return
+    setMaterialFile(null)
+    setShouldDeleteMaterialFile(false)
+    setMaterialFileError("")
     setActiveModal(null)
   }
 
@@ -94,28 +113,97 @@ export default function AnnouncementPage() {
     const saved = { title: announcement.title, content: announcement.content }
     setForm(saved)
     setInitialForm(saved)
+    setMaterialFile(null)
+    setShouldDeleteMaterialFile(false)
+    setMaterialFileError("")
     setActiveModal("edit")
   }
 
-  // Оптимистичное редактирование с роллбэком при ошибке
+  function onMaterialFileChange(file: File) {
+    setMaterialFileError("")
+    setMaterialFile(null)
+    setShouldDeleteMaterialFile(false)
+
+    const error = validateUploadFile(file)
+    if (error) {
+      setMaterialFileError(error)
+      return
+    }
+
+    setMaterialFile(file)
+  }
+
+  function onRemoveMaterialFile() {
+    if (materialFile) {
+      setMaterialFile(null)
+      setMaterialFileError("")
+      return
+    }
+
+    setShouldDeleteMaterialFile(true)
+    setMaterialFileError("")
+  }
+
+  async function onDownloadFile(file: StoredFileDto) {
+    try {
+      await downloadStoredFile(file)
+    } catch (error) {
+      if (error instanceof ApiError) {
+        showToast({ type: "error", message: error.message })
+        return
+      }
+      throw error
+    }
+  }
+
+  // Редактирование: дожидаемся ответа сервера (нужно для операций с файлом)
   async function submitEdit() {
-    if (!announcement || isSubmitting) return
+    if (!announcement || isSubmitting || materialFileError) return
 
     const nextTitle = form.title.trim()
     const nextContent = form.content.trim()
     if (!nextTitle || !nextContent) return
 
-    const prev = announcement
-    setAnnouncement({ ...announcement, title: nextTitle, content: nextContent })
-    setActiveModal(null)
     setIsSubmitting(true)
 
     try {
-      const updated = await updateAnnouncement(parsedClassId, parsedAnnouncementId, { title: nextTitle, content: nextContent })
+      let uploadedMaterial: AnnouncementDto["material_file"] = null
+      let isMaterialDeleted = false
+
+      if (materialFile) {
+        try {
+          uploadedMaterial = await uploadAnnouncementMaterial(parsedClassId, parsedAnnouncementId, materialFile)
+        } catch (error) {
+          if (error instanceof ApiError) {
+            setMaterialFileError(error.message)
+            return
+          }
+          throw error
+        }
+      }
+
+      if (!materialFile && shouldDeleteMaterialFile) {
+        try {
+          await deleteAnnouncementMaterial(parsedClassId, parsedAnnouncementId)
+          isMaterialDeleted = true
+        } catch (error) {
+          if (error instanceof ApiError) {
+            setMaterialFileError(error.message)
+            return
+          }
+          throw error
+        }
+      }
+
+      let updated = await updateAnnouncement(parsedClassId, parsedAnnouncementId, { title: nextTitle, content: nextContent })
+      if (uploadedMaterial) updated = { ...updated, material_file: uploadedMaterial }
+      if (isMaterialDeleted) updated = { ...updated, material_file: null }
       setAnnouncement(updated)
+      setMaterialFile(null)
+      setShouldDeleteMaterialFile(false)
+      setActiveModal(null)
       showToast({ type: "neutral", message: "Объявление обновлено" })
     } catch (error) {
-      setAnnouncement(prev)
       if (error instanceof ApiError) {
         showToast({ type: "error", message: error.message })
         return
@@ -149,7 +237,17 @@ export default function AnnouncementPage() {
   const canEdit = announcement?.can_edit ?? false
   const canDelete = announcement?.can_delete ?? false
   const isFormChanged = form.title.trim() !== initialForm.title.trim() || form.content.trim() !== initialForm.content.trim()
-  const canSave = form.title.trim().length > 0 && form.content.trim().length > 0 && isFormChanged && !isSubmitting
+  const displayedMaterialFile = materialFile
+    ? { name: materialFile.name, size: materialFile.size }
+    : announcement?.material_file && !shouldDeleteMaterialFile
+      ? { name: announcement.material_file.name, size: announcement.material_file.size }
+      : null
+  const canSave =
+    form.title.trim().length > 0 &&
+    form.content.trim().length > 0 &&
+    !materialFileError &&
+    (isFormChanged || Boolean(materialFile) || shouldDeleteMaterialFile) &&
+    !isSubmitting
 
   return (
     <div className={styles.page}>
@@ -185,6 +283,16 @@ export default function AnnouncementPage() {
 
           <div className={styles.content}>{announcement.content}</div>
 
+          {announcement.material_file && (
+            <button
+              className={styles.materialLink}
+              type="button"
+              onClick={() => void onDownloadFile(announcement.material_file!)}
+            >
+              Скачать {announcement.material_file.name} ({formatFileSize(announcement.material_file.size)})
+            </button>
+          )}
+
           <div className={styles.meta}>
             <div>{announcement.author.email}</div>
             <div>{formatDateTime(announcement.created_at)}</div>
@@ -218,6 +326,23 @@ export default function AnnouncementPage() {
               disabled={isSubmitting}
             />
           </label>
+
+          <div className={styles.field}>
+            <div className={styles.fieldLabel}>Файл <span className={styles.fieldOptional}>(необязательно, до 20 МБ)</span></div>
+            <FilePicker
+              label="Загрузить файл объявления"
+              busy={isSubmitting && (Boolean(materialFile) || shouldDeleteMaterialFile)}
+              accept={ACCEPTED_FILE_INPUT}
+              hint={`Доступные форматы: ${ACCEPTED_FILE_TYPES_LABEL}`}
+              file={displayedMaterialFile}
+              onDownload={!materialFile && announcement?.material_file ? () => void onDownloadFile(announcement.material_file!) : undefined}
+              onRemove={displayedMaterialFile ? onRemoveMaterialFile : undefined}
+              removeTitle="Убрать файл объявления"
+              onSelect={onMaterialFileChange}
+              error={materialFileError}
+              disabled={isSubmitting}
+            />
+          </div>
 
           <div className={styles.modalActions}>
             <button className={styles.secondaryButton} type="button" onClick={closeModal} disabled={isSubmitting}>

@@ -78,6 +78,8 @@ export type AssignmentDto = z.infer<typeof AssignmentSchema>
 // Блок group в запросе создания группового задания (combined-create).
 export type CreateGroupPayload = {
   grading_mode: GradingMode
+  // общий лимит участников на команду (необязательно)
+  max_team_size?: number
   distribution:
     | { mode: "manual"; groups: Array<{ title?: string; member_ids: number[] }> }
     | { mode: "auto"; group_count: number }

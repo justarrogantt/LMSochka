@@ -24,6 +24,8 @@ class GroupDistributionAuto(BaseModel):
 
 class AssignmentGroupCreate(BaseModel):
     grading_mode: GradingMode
+    # общий лимит участников на одну команду (None — без ограничения)
+    max_team_size: int | None = Field(default=None, ge=1, le=1000)
     distribution: GroupDistributionManual | GroupDistributionAuto
 
 
@@ -67,6 +69,8 @@ class AssignmentGroupDTO(BaseModel):
 
 class AssignmentGroupsDTO(BaseModel):
     grading_mode: GradingMode
+    # общий лимит участников на команду (None — без ограничения)
+    max_team_size: int | None = None
     groups: list[AssignmentGroupDTO]
     # активные студенты класса без группы — для редактора (добавить поиском)
     unassigned_students: list[GroupMemberDTO]

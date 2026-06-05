@@ -1,4 +1,4 @@
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database.models import (
@@ -23,10 +23,15 @@ _MEMBER_ACTIVE = ClassMembersTable.deleted_at.is_(None)
 
 
 async def create_config(
-    assignment_id: int, grading_mode: GradingMode, db: AsyncSession
+    assignment_id: int,
+    grading_mode: GradingMode,
+    max_team_size: int | None,
+    db: AsyncSession,
 ) -> AssignmentGroupConfigTable:
     config = AssignmentGroupConfigTable(
-        assignment_id=assignment_id, grading_mode=grading_mode
+        assignment_id=assignment_id,
+        grading_mode=grading_mode,
+        max_team_size=max_team_size,
     )
     db.add(config)
     await db.flush()
@@ -114,6 +119,16 @@ async def add_member(
     return member
 
 
+async def group_member_count(group_id: int, db: AsyncSession) -> int:
+    """Сколько студентов сейчас в группе — для проверки лимита команды."""
+    result = await db.execute(
+        select(func.count())
+        .select_from(AssignmentGroupMembersTable)
+        .where(AssignmentGroupMembersTable.group_id == group_id)
+    )
+    return result.scalar_one()
+
+
 async def get_member(
     assignment_id: int, user_id: int, db: AsyncSession
 ) -> AssignmentGroupMembersTable | None:
@@ -159,7 +174,12 @@ async def list_members_with_users(
             & (ClassMembersTable.class_id == AssignmentsTable.class_id),
         )
         .where(AssignmentGroupMembersTable.assignment_id == assignment_id)
-        .order_by(AssignmentGroupMembersTable.group_id, AssignmentGroupMembersTable.id)
+        .order_by(
+            AssignmentGroupMembersTable.group_id,
+            UsersTable.last_name,
+            UsersTable.first_name,
+            UsersTable.id,
+        )
     )
     return [(m, u, deleted_at is None) for m, u, deleted_at in result.all()]
 
@@ -180,7 +200,7 @@ async def list_group_member_users(
             & (ClassMembersTable.class_id == class_id),
         )
         .where(AssignmentGroupMembersTable.group_id == group_id)
-        .order_by(UsersTable.id)
+        .order_by(UsersTable.last_name, UsersTable.first_name, UsersTable.id)
     )
     return [(u, deleted_at is None) for u, deleted_at in result.all()]
 
@@ -197,7 +217,7 @@ async def list_active_students(
             ClassMembersTable.role == ClassRole.STUDENT,
             _MEMBER_ACTIVE,
         )
-        .order_by(UsersTable.id)
+        .order_by(UsersTable.last_name, UsersTable.first_name, UsersTable.id)
     )
     return list(result.scalars().all())
 

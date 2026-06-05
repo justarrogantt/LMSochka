@@ -4,8 +4,6 @@
 «Команды» атомарно, без лишних GET. Управляет только teacher/creator-автор.
 """
 
-import secrets
-
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database.models import (
@@ -72,17 +70,22 @@ async def apply_distribution(
 
     Коммит делает вызывающий сервис, здесь только flush.
     """
-    await group_repo.create_config(assignment.id, group.grading_mode, db)
+    await group_repo.create_config(
+        assignment.id, group.grading_mode, group.max_team_size, db
+    )
 
     if isinstance(group.distribution, GroupDistributionManual):
-        await _create_manual(assignment, group.distribution, db)
+        await _create_manual(assignment, group.distribution, group.max_team_size, db)
     elif isinstance(group.distribution, GroupDistributionAuto):
-        await _create_auto(assignment, group.distribution.group_count, db)
+        await _create_auto(
+            assignment, group.distribution.group_count, group.max_team_size, db
+        )
 
 
 async def _create_manual(
     assignment: AssignmentsTable,
     distribution: GroupDistributionManual,
+    max_team_size: int | None,
     db: AsyncSession,
 ) -> None:
     student_ids = {
@@ -90,6 +93,10 @@ async def _create_manual(
     }
     seen: set[int] = set()
     for index, draft in enumerate(distribution.groups, start=1):
+        if max_team_size is not None and len(draft.member_ids) > max_team_size:
+            raise ServiceError(
+                f"В команде не может быть больше {max_team_size} участников", 422
+            )
         for user_id in draft.member_ids:
             if user_id not in student_ids:
                 raise ServiceError(
@@ -106,20 +113,28 @@ async def _create_manual(
 
 
 async def _create_auto(
-    assignment: AssignmentsTable, group_count: int, db: AsyncSession
+    assignment: AssignmentsTable,
+    group_count: int,
+    max_team_size: int | None,
+    db: AsyncSession,
 ) -> None:
+    # распределяем студентов по порядку (список уже отсортирован по фамилии):
+    # ровными последовательными блоками, по одному на группу, до заполнения
     students = await group_repo.list_active_students(assignment.class_id, db)
-    # криптослучайно перемешиваем, чтобы распределение было непредсказуемым
-    secrets.SystemRandom().shuffle(students)
-
     groups = [
         await group_repo.create_group(assignment.id, f"Группа {i + 1}", db)
         for i in range(group_count)
     ]
-    for index, student in enumerate(students):
-        await group_repo.add_member(
-            assignment.id, groups[index % group_count].id, student.id, db
-        )
+
+    base, extra = divmod(len(students), group_count)
+    cursor = 0
+    for index, grp in enumerate(groups):
+        size = base + (1 if index < extra else 0)
+        if max_team_size is not None:
+            size = min(size, max_team_size)
+        for student in students[cursor : cursor + size]:
+            await group_repo.add_member(assignment.id, grp.id, student.id, db)
+        cursor += size
 
 
 # ── Сборка DTO ──
@@ -128,7 +143,9 @@ async def _create_auto(
 async def build_groups_dto(
     assignment: AssignmentsTable, db: AsyncSession
 ) -> AssignmentGroupsDTO:
-    grading_mode = await require_config(assignment, db)
+    config = await group_repo.get_config(assignment.id, db)
+    if config is None:
+        raise ServiceError("Это задание не групповое", 404)
 
     groups = await group_repo.list_groups(assignment.id, db)
     members_rows = await group_repo.list_members_with_users(assignment.id, db)
@@ -160,7 +177,8 @@ async def build_groups_dto(
     ]
 
     return AssignmentGroupsDTO(
-        grading_mode=grading_mode,
+        grading_mode=config.grading_mode,
+        max_team_size=config.max_team_size,
         groups=group_dtos,
         unassigned_students=unassigned,
     )
@@ -229,10 +247,19 @@ async def delete_group(
 async def add_member(
     assignment: AssignmentsTable, group_id: int, user_id: int, db: AsyncSession
 ) -> AssignmentGroupsDTO:
-    await require_config(assignment, db)
+    config = await group_repo.get_config(assignment.id, db)
+    if config is None:
+        raise ServiceError("Это задание не групповое", 404)
     group = await group_repo.get_group(assignment.id, group_id, db)
     if group is None:
         raise ServiceError("Группа не найдена", 404)
+
+    if config.max_team_size is not None:
+        count = await group_repo.group_member_count(group_id, db)
+        if count >= config.max_team_size:
+            raise ServiceError(
+                f"В команде не может быть больше {config.max_team_size} участников", 409
+            )
 
     students = {
         u.id for u in await group_repo.list_active_students(assignment.class_id, db)
@@ -268,7 +295,9 @@ async def remove_member(
 async def auto_distribute(
     assignment: AssignmentsTable, group_count: int, db: AsyncSession
 ) -> AssignmentGroupsDTO:
-    await require_config(assignment, db)
+    config = await group_repo.get_config(assignment.id, db)
+    if config is None:
+        raise ServiceError("Это задание не групповое", 404)
 
     groups = await group_repo.list_groups(assignment.id, db)
     for group in groups:
@@ -279,6 +308,6 @@ async def auto_distribute(
     # сносим текущие группы (каскад снимает членов) и раскладываем заново
     for group in groups:
         await group_repo.delete_group(group, db)
-    await _create_auto(assignment, group_count, db)
+    await _create_auto(assignment, group_count, config.max_team_size, db)
     await db.commit()
     return await build_groups_dto(assignment, db)

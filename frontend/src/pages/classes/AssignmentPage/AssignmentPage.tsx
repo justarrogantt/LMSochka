@@ -4,6 +4,7 @@ import { useNavigate, useOutletContext, useParams } from "react-router-dom"
 import ArrowIcon from "../../../assets/icons/classes/arrow.svg?react"
 import DeleteIcon from "../../../assets/icons/classes/delete.svg?react"
 import EditIcon from "../../../assets/icons/classes/settings.svg?react"
+import UsersIcon from "../../../assets/icons/classes/users.svg?react"
 import Modal from "../../../components/Modal/Modal"
 import Pagination from "../../../components/Pagination/Pagination"
 import { useToast } from "../../../components/Toast/useToast"
@@ -21,11 +22,11 @@ import {
   currentDateTimeInputValue,
   formatDateTime,
   formatDateTimeInputValue,
+  formatUserName,
   isPastDateTimeInputValue,
   toApiDateTime
 } from "../../../services/helpers"
 import FilePicker from "../../../components/FilePicker/FilePicker"
-import GroupEditor, { type EditorGroup } from "../../../components/GroupEditor/GroupEditor"
 import type { ClassLayoutContext } from "../../../layouts/ClassLayout/ClassLayout"
 import AssignmentFormModal, { type AssignmentFormState } from "../AssignmentFormModal/AssignmentFormModal"
 import {
@@ -36,15 +37,7 @@ import {
   uploadAssignmentMaterial,
   type AssignmentDto
 } from "../AssignmentsPage/services/assignments.api"
-import {
-  addGroupMember,
-  createGroup,
-  deleteGroup,
-  getGroups,
-  removeGroupMember,
-  renameGroup,
-  type AssignmentGroupsDto
-} from "../AssignmentsPage/services/groups.api"
+import TeamSettingsModal from "../TeamSettingsModal/TeamSettingsModal"
 import RedistributionModal from "./RedistributionModal"
 import {
   deleteSubmissionAttachment,
@@ -204,9 +197,8 @@ export default function AssignmentPage() {
   // Идет ли возврат решения на доработку
   const [isReturning, setIsReturning] = useState(false)
 
-  // Команды группового задания (редактируются преподавателем в окне редактирования)
-  const [groupsData, setGroupsData] = useState<AssignmentGroupsDto | null>(null)
-  const [isGroupsBusy, setIsGroupsBusy] = useState(false)
+  // Открыта ли модалка настройки команд (преподаватель)
+  const [isTeamSettingsOpen, setIsTeamSettingsOpen] = useState(false)
 
   // Открыта ли модалка распределения оценки (студент)
   const [isRedistributeOpen, setIsRedistributeOpen] = useState(false)
@@ -345,11 +337,6 @@ export default function AssignmentPage() {
     setShouldDeleteMaterialFile(false)
     setMaterialFileError("")
     setActiveModal("edit")
-    // для группового задания подтягиваем команды в окно редактирования
-    if (assignment.is_group) {
-      setGroupsData(null)
-      void loadGroups()
-    }
   }
 
   // Обновление одного поля формы задания
@@ -751,44 +738,6 @@ export default function AssignmentPage() {
     gradeNum <= maxGrade &&
     !isReviewBusy
 
-  // ── Группы (преподаватель редактирует команды в окне редактирования) ──
-  const isGroupAssignment = assignment?.is_group ?? false
-  const editorGroups: EditorGroup[] = (groupsData?.groups ?? []).map((group) => ({
-    key: String(group.id),
-    title: group.title,
-    members: group.members,
-    // у команды есть решение ≠ draft → состав закреплён
-    locked: group.submission_status !== null && group.submission_status !== "draft"
-  }))
-  const editorUnassigned = groupsData?.unassigned_students ?? []
-
-  async function loadGroups() {
-    try {
-      setGroupsData(await getGroups(parsedClassId, parsedAssignmentId))
-    } catch (error) {
-      if (error instanceof ApiError) {
-        showToast({ type: "error", message: error.message })
-        return
-      }
-      throw error
-    }
-  }
-
-  async function runGroupMutation(fn: () => Promise<AssignmentGroupsDto>) {
-    setIsGroupsBusy(true)
-    try {
-      setGroupsData(await fn())
-    } catch (error) {
-      if (error instanceof ApiError) {
-        showToast({ type: "error", message: error.message })
-        return
-      }
-      throw error
-    } finally {
-      setIsGroupsBusy(false)
-    }
-  }
-
   // Студент успешно распределил оценку — перечитываем своё решение
   async function onRedistributed() {
     setIsRedistributeOpen(false)
@@ -814,6 +763,12 @@ export default function AssignmentPage() {
 
         {!isLoading && assignment && (canEditAssignment || canDeleteAssignment) && (
           <div className={styles.pageActions}>
+            {canEditAssignment && assignment.is_group && (
+              <button className={styles.secondaryButton} type="button" onClick={() => setIsTeamSettingsOpen(true)}>
+                <UsersIcon className={styles.buttonIcon} />
+                Настройка команд
+              </button>
+            )}
             {canEditAssignment && (
               <button className={styles.secondaryButton} type="button" onClick={openEditModal}>
                 <EditIcon className={styles.buttonIcon} />
@@ -864,11 +819,42 @@ export default function AssignmentPage() {
         </div>
       )}
 
-      {/* ── Блок студента: моё решение ── */}
-      {!isLoading && assignment && canSubmit && (
+      {/* ── Блок студента: моя команда (групповое задание) ── */}
+      {!isLoading && assignment && canSubmit && assignment.is_group && (
         <div className={styles.section}>
           <div className={styles.sectionHead}>
-            <div className={styles.sectionTitle}>Моё решение</div>
+            <div className={styles.sectionTitle}>Моя команда</div>
+          </div>
+          {assignment.my_group ? (
+            <div className={styles.submissionBox}>
+              <div className={styles.teamTitle}>{assignment.my_group.title}</div>
+              <div className={styles.teamMembers}>
+                {assignment.my_group.members.map((member) => (
+                  <span key={member.user_id} className={styles.teamChip}>{formatUserName(member)}</span>
+                ))}
+              </div>
+              {myStatus === "pending_redistribution" && assignment.grading_mode === "individual" && (
+                <div className={styles.redistributeNote}>
+                  <div>Команде выставлена оценка. Распределите её между участниками так, чтобы среднее было равно командной.</div>
+                  <button className={styles.primaryButton} type="button" onClick={() => setIsRedistributeOpen(true)}>
+                    Распределить оценку
+                  </button>
+                </div>
+              )}
+            </div>
+          ) : (
+            <div className={styles.submissionBox}>
+              <div className={styles.sectionHint}>Вы пока не распределены в команду по этому заданию.</div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ── Блок студента: моё решение ── */}
+      {!isLoading && assignment && canSubmit && (!assignment.is_group || assignment.my_group) && (
+        <div className={styles.section}>
+          <div className={styles.sectionHead}>
+            <div className={styles.sectionTitle}>{assignment.is_group ? "Решение команды" : "Моё решение"}</div>
             {mySubmission && <StatusBadge status={mySubmission.status} />}
           </div>
 
@@ -999,10 +985,12 @@ export default function AssignmentPage() {
             <div className={styles.subList}>
               {submissions.map((submission) => (
                 <button key={submission.id} type="button" className={styles.subCard} onClick={() => openReview(submission)}>
-                  <div className={styles.subAvatar}>{studentName(submission.student)[0]}</div>
+                  <div className={styles.subAvatar}>{(submission.group_title ?? studentName(submission.student))[0]}</div>
                   <div className={styles.subInfo}>
-                    <div className={styles.subName}>{studentName(submission.student)}</div>
-                    <div className={styles.subEmail}>{submission.student.email}</div>
+                    <div className={styles.subName}>{submission.group_title ?? studentName(submission.student)}</div>
+                    <div className={styles.subEmail}>
+                      {submission.group_title ? `Решение отправил: ${studentName(submission.student)}` : submission.student.email}
+                    </div>
                   </div>
                   <div className={styles.subMetaRow}>
                     {submission.is_late && <span className={styles.lateTag}>Опоздание</span>}
@@ -1026,6 +1014,7 @@ export default function AssignmentPage() {
         {canEditAssignment && activeModal === "edit" && (
           <AssignmentFormModal
             mode="edit"
+            size="md"
             form={form}
             isSubmitting={isSubmitting}
             canSubmit={canSave}
@@ -1040,6 +1029,27 @@ export default function AssignmentPage() {
             onFieldChange={setField}
             onMaterialFileChange={onMaterialFileChange}
             onMaterialFileRemove={onRemoveMaterialFile}
+          />
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {canEditAssignment && isTeamSettingsOpen && assignment && (
+          <TeamSettingsModal
+            classId={parsedClassId}
+            assignmentId={parsedAssignmentId}
+            gradingMode={assignment.grading_mode}
+            onClose={() => setIsTeamSettingsOpen(false)}
+          />
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {isRedistributeOpen && mySubmission && (
+          <RedistributionModal
+            submissionId={mySubmission.id}
+            onClose={() => setIsRedistributeOpen(false)}
+            onSaved={() => void onRedistributed()}
           />
         )}
       </AnimatePresence>
@@ -1065,7 +1075,7 @@ export default function AssignmentPage() {
         {canGrade && selected && (
         <Modal title="Решение студента" onClose={closeReview} disabled={isReviewBusy}>
           <div className={styles.reviewHead}>
-            <div className={styles.subName}>{studentName(selected.student)}</div>
+            <div className={styles.subName}>{selected.group_title ?? studentName(selected.student)}</div>
             <StatusBadge status={selected.status} />
           </div>
 
@@ -1102,6 +1112,9 @@ export default function AssignmentPage() {
           {selected.status === "draft" && (
             <div className={styles.reviewNote}>Студент ещё не отправил решение — это черновик.</div>
           )}
+          {selected.status === "pending_redistribution" && (
+            <div className={styles.reviewNote}>Командная оценка выставлена. Студенты распределяют её внутри команды. Можно изменить оценку или вернуть на доработку.</div>
+          )}
 
           {reviewForm.returnMode ? (
             <>
@@ -1129,10 +1142,10 @@ export default function AssignmentPage() {
                 </button>
               </div>
             </>
-          ) : (selected.status === "submitted" || selected.status === "graded") && (
+          ) : (selected.status === "submitted" || selected.status === "graded" || selected.status === "pending_redistribution") && (
             <>
               <label className={styles.field}>
-                <div className={styles.fieldLabel}>Оценка <span className={styles.fieldOptional}>(макс. {assignment?.max_grade})</span></div>
+                <div className={styles.fieldLabel}>{selected.group_title ? "Командная оценка" : "Оценка"} <span className={styles.fieldOptional}>(макс. {assignment?.max_grade})</span></div>
                 <input
                   className={styles.input}
                   type="number"
@@ -1165,7 +1178,7 @@ export default function AssignmentPage() {
                   Вернуть на доработку
                 </button>
                 <div className={styles.reviewActionsRight}>
-                  {selected.status === "graded" && (
+                  {(selected.status === "graded" || selected.status === "pending_redistribution") && (
                     <button className={styles.dangerButton} type="button" onClick={() => void onRemoveGrade()} disabled={isReviewBusy}>
                       {isRemovingGrade ? "Снимаем..." : "Снять оценку"}
                     </button>
