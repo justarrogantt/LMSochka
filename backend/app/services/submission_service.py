@@ -20,8 +20,8 @@ from app.database.repositories import (
     user_repo,
 )
 from app.schemas.errors import ServiceError
-from app.schemas.pagination import PageDTO
 from app.schemas.group_schemas import MemberGradeDTO
+from app.schemas.pagination import PageDTO
 from app.schemas.submission_schemas import (
     SaveSubmissionRequest,
     SubmissionDTO,
@@ -293,6 +293,8 @@ async def get_submission(
     asg = await access.get_assignment_or_404(sub.assignment_id, db)
     if user.id != sub.student_id:
         await access.ensure_teacher_or_creator(asg.class_id, user.id, db)
+    else:
+        await access.ensure_student(asg, user.id, db)
 
     attachment_file = (
         await file_repo.get(sub.attachment_file_id, db) if sub.attachment_file_id else None
