@@ -13,7 +13,7 @@ import { getPublicClasses, joinOpenClass, type PublicClassDto } from "./services
 import SkeletonLoader from "./SkeletonLoader/SkeletonLoader"
 import styles from "./PublicClassesPage.module.css"
 
-const LIMIT = 3
+const LIMIT = 10
 
 type PublicClassCardProps = {
   item: PublicClassDto
