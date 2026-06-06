@@ -4,6 +4,9 @@ from datetime import UTC, datetime, timedelta
 
 import pytest
 
+from app.database.database import AsyncSessionLocal
+from app.database.models import AssignmentsTable
+
 
 async def _register(client, email: str) -> tuple[str, int]:
     r = await client.post(
@@ -148,8 +151,15 @@ async def test_submit_sets_submitted_and_is_late(client):
     creator_token, _, student_token, _, class_id = await _setup_class_with_student_and_teacher(
         client
     )
-    due_at = (datetime.now(UTC) - timedelta(hours=1)).isoformat()
+    due_at = (datetime.now(UTC) + timedelta(hours=1)).isoformat()
     aid = await _make_assignment(client, creator_token, class_id, due_at=due_at)
+
+    async with AsyncSessionLocal() as db:
+        assignment = await db.get(AssignmentsTable, aid)
+        assert assignment is not None
+        assignment.due_at = datetime.now(UTC) - timedelta(hours=1)
+        db.add(assignment)
+        await db.commit()
 
     await client.put(
         f"/api/assignments/{aid}/my-submission",
@@ -289,6 +299,30 @@ async def test_get_submission_permissions(client):
 
     outsider_token, _ = await _register(client, "outsider@example.com")
     r = await client.get(f"/api/submissions/{sid}", headers=_auth(outsider_token))
+    assert r.status_code == 403
+
+
+@pytest.mark.asyncio
+async def test_removed_student_cannot_get_submission_directly(client):
+    creator_token, _, student_token, student_id, class_id = (
+        await _setup_class_with_student_and_teacher(client)
+    )
+    aid = await _make_assignment(client, creator_token, class_id)
+    r = await client.put(
+        f"/api/assignments/{aid}/my-submission",
+        json={"answer_text": "answer"},
+        headers=_auth(student_token),
+    )
+    assert r.status_code == 200, r.text
+    sid = r.json()["id"]
+
+    r = await client.delete(
+        f"/api/classes/{class_id}/members/{student_id}",
+        headers=_auth(creator_token),
+    )
+    assert r.status_code == 200, r.text
+
+    r = await client.get(f"/api/submissions/{sid}", headers=_auth(student_token))
     assert r.status_code == 403
 
 

@@ -46,6 +46,50 @@ async def _setup(client):
     return creator_token, student_token, class_id, assignment_id
 
 
+async def _setup_group_assignment(client):
+    creator_token, _ = await _register(client, "creator@example.com")
+    response = await client.post(
+        "/api/classes",
+        json={"name": "Командные файлы", "type": "open"},
+        headers=_auth(creator_token),
+    )
+    assert response.status_code == 201, response.text
+    class_id = response.json()["id"]
+
+    student_tokens: list[str] = []
+    student_ids: list[int] = []
+    for index in range(3):
+        token, user_id = await _register(client, f"group-student-{index}@example.com")
+        response = await client.post(
+            f"/api/classes/{class_id}/join-open",
+            headers=_auth(token),
+        )
+        assert response.status_code == 201, response.text
+        student_tokens.append(token)
+        student_ids.append(user_id)
+
+    response = await client.post(
+        f"/api/classes/{class_id}/assignments",
+        json={
+            "title": "Групповое",
+            "max_grade": 10,
+            "group": {
+                "grading_mode": "even",
+                "distribution": {
+                    "mode": "manual",
+                    "groups": [
+                        {"title": "Команда A", "member_ids": student_ids[:2]},
+                        {"title": "Команда B", "member_ids": [student_ids[2]]},
+                    ],
+                },
+            },
+        },
+        headers=_auth(creator_token),
+    )
+    assert response.status_code == 201, response.text
+    return creator_token, student_tokens, response.json()["id"]
+
+
 async def _upload_material(client, token: str, class_id: int, assignment_id: int, name: str, content: bytes):
     return await client.post(
         f"/api/classes/{class_id}/assignments/{assignment_id}/material-file",
@@ -164,6 +208,29 @@ async def test_submission_attachment_access_status_and_cleanup(client):
     assert list(Path(settings.UPLOAD_DIR).iterdir()) == []
     response = await client.get(uploaded["download_url"], headers=_auth(creator_token))
     assert response.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_group_submission_attachment_visible_only_to_own_team(client):
+    creator_token, student_tokens, assignment_id = await _setup_group_assignment(client)
+
+    response = await client.post(
+        f"/api/assignments/{assignment_id}/my-submission/attachment-file",
+        files={"upload": ("team-a.txt", b"team-a", "text/plain")},
+        headers=_auth(student_tokens[0]),
+    )
+    assert response.status_code == 200, response.text
+    uploaded = response.json()
+
+    response = await client.get(uploaded["download_url"], headers=_auth(student_tokens[1]))
+    assert response.status_code == 200
+    assert response.content == b"team-a"
+
+    response = await client.get(uploaded["download_url"], headers=_auth(student_tokens[2]))
+    assert response.status_code == 403
+
+    response = await client.get(uploaded["download_url"], headers=_auth(creator_token))
+    assert response.status_code == 200
 
 
 @pytest.mark.asyncio

@@ -178,7 +178,8 @@ async def _is_group_member(
     group = await group_repo.get_group_for_submission(submission.id, db)
     if group is None:
         return False
-    return await group_repo.get_member(group.assignment_id, user_id, db) is not None
+    membership = await group_repo.get_member(group.assignment_id, user_id, db)
+    return membership is not None and membership.group_id == group.id
 
 
 async def upload_assignment_material(
