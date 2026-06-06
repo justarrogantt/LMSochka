@@ -359,7 +359,7 @@ export default function ClassesPage() {
         {hasFilteredClasses && (
           <motion.div className={styles.cards} variants={listContainer} initial="hidden" animate="visible">
             {filteredClasses.map((item) => (
-              <motion.div key={item.id} variants={listItem}>
+              <motion.div key={item.id} variants={listItem} className={styles.cardWrap}>
                 <ClassCard item={item} onOpen={(classId) => navigate(`/classes/${classId}`)} />
               </motion.div>
             ))}

@@ -145,10 +145,18 @@
   gap: 16px;
 }
 
+/* Обёртка-ячейка грида тянется по высоте ряда; делаем её flex-колонкой,
+   чтобы карточка заполняла ячейку и соседи в ряду были одной высоты. */
+.cardWrap {
+  display: flex;
+  flex-direction: column;
+}
+
 .card {
   width: 100%;
   min-width: 0;
   min-height: 196px;
+  flex: 1;
   padding: 20px;
   border: 1px solid var(--color-line);
   border-radius: var(--radius-lg);
@@ -183,6 +191,7 @@
 
 .badges {
   width: 100%;
+  margin-top: auto;
   display: flex;
   gap: 10px;
 }
@@ -247,7 +256,6 @@
 }
 
 .cardStats {
-  margin-top: auto;
   display: flex;
   gap: 10px;
 }
