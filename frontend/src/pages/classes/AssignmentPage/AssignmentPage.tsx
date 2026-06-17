@@ -231,6 +231,10 @@ export default function AssignmentPage() {
       setAssignmentSkeletonLoading(true)
       try {
         const data = await getAssignment(parsedClassId, parsedAssignmentId)
+        if (data.type === "quiz") {
+          navigate(`/classes/${classId}/assignments/${parsedAssignmentId}/quiz`, { replace: true })
+          return
+        }
         setAssignment(data)
       } catch (error) {
         if (error instanceof ApiError) {

@@ -32,6 +32,8 @@ type AssignmentFormModalProps = {
   isMaterialFileBusy?: boolean
   currentMaterialFile: DisplayedFile | null
   materialFileError: string
+  isMaxGradeDerived?: boolean
+  maxGradeHint?: string
   onClose: () => void
   onSubmit: () => void
   onFieldChange: <K extends keyof AssignmentFormState>(key: K, value: AssignmentFormState[K]) => void
@@ -60,6 +62,8 @@ export default function AssignmentFormModal({
   isMaterialFileBusy = false,
   currentMaterialFile,
   materialFileError,
+  isMaxGradeDerived = false,
+  maxGradeHint,
   onClose,
   onSubmit,
   onFieldChange,
@@ -140,15 +144,20 @@ export default function AssignmentFormModal({
 
         <label className={styles.field}>
           <div className={styles.fieldLabel}>Максимальный балл</div>
-          <input
-            className={styles.input}
-            type="number"
-            min="1"
-            value={form.max_grade}
-            onChange={(e) => onFieldChange("max_grade", e.target.value)}
-            placeholder="100"
-            disabled={isSubmitting}
-          />
+          {isMaxGradeDerived ? (
+            <div className={styles.derivedValue}>Считается автоматически по сумме баллов вопросов</div>
+          ) : (
+            <input
+              className={styles.input}
+              type="number"
+              min="1"
+              value={form.max_grade}
+              onChange={(e) => onFieldChange("max_grade", e.target.value)}
+              placeholder="100"
+              disabled={isSubmitting}
+            />
+          )}
+          {maxGradeHint && <div className={styles.fieldHint}>{maxGradeHint}</div>}
         </label>
       </div>
 

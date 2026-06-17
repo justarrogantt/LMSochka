@@ -123,6 +123,11 @@ class GradingMode(enum.Enum):
     INDIVIDUAL = "individual" # индивидуальное: студенты сами распределяют оценку
 
 
+class AssignmentType(enum.Enum):
+    REGULAR = "regular"
+    QUIZ = "quiz"
+
+
 class AssignmentsTable(Base):
     __tablename__ = "assignments"
 
@@ -146,6 +151,9 @@ class AssignmentsTable(Base):
     # максимальный балл, обязательно > 0; шкала фиксируется при создании.
     # Менять можно только пока нет ни одной оценки по заданию (см. сервис)
     max_grade: Mapped[float] = mapped_column(Float)
+    type: Mapped[AssignmentType] = mapped_column(
+        Enum(AssignmentType), default=AssignmentType.REGULAR
+    )
     created_at: Mapped[datetime] = mapped_column(default=lambda: datetime.now(UTC))
     updated_at: Mapped[datetime | None] = mapped_column(onupdate=func.now())
     # soft delete: задание уходит из выдачи, но связанные решения и оценки
@@ -291,6 +299,145 @@ class SubmissionMemberGradesTable(Base):
     )
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"))
     value: Mapped[float] = mapped_column(Float)  # 0 ≤ value ≤ max_grade
+    updated_at: Mapped[datetime | None] = mapped_column(onupdate=func.now())
+
+
+class QuestionType(enum.Enum):
+    SINGLE_CHOICE = "single_choice"
+    MULTIPLE_CHOICE = "multiple_choice"
+    TEXT_INPUT = "text_input"
+
+
+class QuestionStatus(enum.Enum):
+    DRAFT = "draft"
+    READY = "ready"
+
+
+class QuestionBankQuestionTable(Base):
+    __tablename__ = "question_bank_questions"
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    class_id: Mapped[int] = mapped_column(ForeignKey("classes.id", ondelete="CASCADE"))
+    created_by_user_id: Mapped[int] = mapped_column(
+        ForeignKey("users.id", ondelete="RESTRICT")
+    )
+    title: Mapped[str] = mapped_column(String(200))
+    question_text: Mapped[str] = mapped_column(Text)
+    type: Mapped[QuestionType] = mapped_column(Enum(QuestionType))
+    default_points: Mapped[float] = mapped_column(Float)
+    explanation: Mapped[str | None] = mapped_column(Text, default=None)
+    status: Mapped[QuestionStatus] = mapped_column(
+        Enum(QuestionStatus), default=QuestionStatus.DRAFT
+    )
+    created_at: Mapped[datetime] = mapped_column(server_default=func.now())
+    updated_at: Mapped[datetime | None] = mapped_column(onupdate=func.now())
+    deleted_at: Mapped[datetime | None] = mapped_column(default=None)
+
+
+class QuestionOptionTable(Base):
+    __tablename__ = "question_options"
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    question_id: Mapped[int] = mapped_column(
+        ForeignKey("question_bank_questions.id", ondelete="CASCADE")
+    )
+    text: Mapped[str] = mapped_column(Text)
+    is_correct: Mapped[bool] = mapped_column(default=False)
+    position: Mapped[int] = mapped_column(default=1)
+    created_at: Mapped[datetime] = mapped_column(server_default=func.now())
+    updated_at: Mapped[datetime | None] = mapped_column(onupdate=func.now())
+
+
+class QuestionTextAnswerTable(Base):
+    __tablename__ = "question_text_answers"
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    question_id: Mapped[int] = mapped_column(
+        ForeignKey("question_bank_questions.id", ondelete="CASCADE")
+    )
+    answer: Mapped[str] = mapped_column(Text)
+    is_case_sensitive: Mapped[bool] = mapped_column(default=False)
+    created_at: Mapped[datetime] = mapped_column(server_default=func.now())
+    updated_at: Mapped[datetime | None] = mapped_column(onupdate=func.now())
+
+
+class QuizAssignmentSettingsTable(Base):
+    __tablename__ = "quiz_assignment_settings"
+
+    assignment_id: Mapped[int] = mapped_column(
+        ForeignKey("assignments.id", ondelete="CASCADE"), primary_key=True
+    )
+    shuffle_questions: Mapped[bool] = mapped_column(default=False)
+    shuffle_options: Mapped[bool] = mapped_column(default=True)
+    show_result_after_submit: Mapped[bool] = mapped_column(default=True)
+    show_correct_answers_after_submit: Mapped[bool] = mapped_column(default=False)
+    time_limit_minutes: Mapped[int | None] = mapped_column(default=None)
+    attempts_limit: Mapped[int] = mapped_column(default=1)
+    created_at: Mapped[datetime] = mapped_column(server_default=func.now())
+    updated_at: Mapped[datetime | None] = mapped_column(onupdate=func.now())
+
+
+class QuizAssignmentQuestionTable(Base):
+    __tablename__ = "quiz_assignment_questions"
+    __table_args__ = (
+        UniqueConstraint("assignment_id", "question_id", name="uq_quiz_assignment_question"),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    assignment_id: Mapped[int] = mapped_column(
+        ForeignKey("assignments.id", ondelete="CASCADE")
+    )
+    question_id: Mapped[int] = mapped_column(
+        ForeignKey("question_bank_questions.id", ondelete="RESTRICT")
+    )
+    points: Mapped[float] = mapped_column(Float)
+    position: Mapped[int] = mapped_column(default=1)
+    created_at: Mapped[datetime] = mapped_column(server_default=func.now())
+    updated_at: Mapped[datetime | None] = mapped_column(onupdate=func.now())
+
+
+class QuizAttemptStatus(enum.Enum):
+    IN_PROGRESS = "in_progress"
+    SUBMITTED = "submitted"
+
+
+class QuizAttemptTable(Base):
+    __tablename__ = "quiz_attempts"
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    assignment_id: Mapped[int] = mapped_column(
+        ForeignKey("assignments.id", ondelete="CASCADE")
+    )
+    student_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="RESTRICT"))
+    status: Mapped[QuizAttemptStatus] = mapped_column(
+        Enum(QuizAttemptStatus), default=QuizAttemptStatus.IN_PROGRESS
+    )
+    started_at: Mapped[datetime] = mapped_column(default=lambda: datetime.now(UTC))
+    submitted_at: Mapped[datetime | None] = mapped_column(default=None)
+    score: Mapped[float | None] = mapped_column(Float, default=None)
+    max_score: Mapped[float | None] = mapped_column(Float, default=None)
+    created_at: Mapped[datetime] = mapped_column(server_default=func.now())
+    updated_at: Mapped[datetime | None] = mapped_column(onupdate=func.now())
+
+
+class QuizAttemptAnswerTable(Base):
+    __tablename__ = "quiz_attempt_answers"
+    __table_args__ = (
+        UniqueConstraint("attempt_id", "question_id", name="uq_quiz_attempt_answer"),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    attempt_id: Mapped[int] = mapped_column(
+        ForeignKey("quiz_attempts.id", ondelete="CASCADE")
+    )
+    question_id: Mapped[int] = mapped_column(
+        ForeignKey("question_bank_questions.id", ondelete="RESTRICT")
+    )
+    selected_option_ids: Mapped[str | None] = mapped_column(Text, default=None)
+    text_answer: Mapped[str | None] = mapped_column(Text, default=None)
+    is_correct: Mapped[bool | None] = mapped_column(default=None)
+    score: Mapped[float | None] = mapped_column(Float, default=None)
+    created_at: Mapped[datetime] = mapped_column(server_default=func.now())
     updated_at: Mapped[datetime | None] = mapped_column(onupdate=func.now())
 
 

@@ -25,6 +25,27 @@ export class ApiError extends Error {
 }
 
 export class Api {
+  private static async getErrorDetail(response: Response): Promise<string | null> {
+    const contentType = response.headers.get("content-type") ?? ""
+    if (!contentType.includes("application/json")) {
+      return null
+    }
+
+    try {
+      const data = (await response.json()) as { detail?: unknown; message?: unknown }
+      if (typeof data.detail === "string" && data.detail.trim()) {
+        return data.detail
+      }
+      if (typeof data.message === "string" && data.message.trim()) {
+        return data.message
+      }
+    } catch {
+      return null
+    }
+
+    return null
+  }
+
   private static notifyUnauthorized() {
     window.dispatchEvent(new CustomEvent(API_UNAUTHORIZED_EVENT))
   }
@@ -242,7 +263,9 @@ export class Api {
         if (withAuth && response.status === 401) {
           Api.notifyUnauthorized()
         }
-        throw new ApiError(Api.getErrorMessage(response.status, errors, errorsReplace), response.status)
+        const fallbackMessage = Api.getErrorMessage(response.status, errors, errorsReplace)
+        const detailedMessage = await Api.getErrorDetail(response)
+        throw new ApiError(detailedMessage ?? fallbackMessage, response.status)
       }
 
       return response

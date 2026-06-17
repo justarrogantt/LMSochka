@@ -32,6 +32,26 @@ const SubmissionStatusSchema = z.enum([
   "pending_redistribution"
 ])
 
+const AssignmentTypeSchema = z.enum(["regular", "quiz"])
+
+const QuizSettingsSchema = z.object({
+  shuffle_questions: z.boolean(),
+  shuffle_options: z.boolean(),
+  show_result_after_submit: z.boolean(),
+  show_correct_answers_after_submit: z.boolean(),
+  time_limit_minutes: z.number().nullable(),
+  attempts_limit: z.number()
+}).strip()
+
+const QuizAttemptBriefSchema = z.object({
+  attempt_id: z.number(),
+  status: z.enum(["in_progress", "submitted"]),
+  started_at: z.string(),
+  submitted_at: z.string().nullable(),
+  score: z.number().nullable(),
+  max_score: z.number().nullable()
+}).strip()
+
 // Краткая сводка решения текущего студента в карточке задания.
 const AssignmentMySubmissionSchema = z.object({
   submission_id: z.number(),
@@ -61,6 +81,7 @@ const AssignmentSchema = z.object({
   material_file: StoredFileSchema.nullable(),
   due_at: z.string().nullable(),
   max_grade: z.number(),
+  type: AssignmentTypeSchema.default("regular"),
   created_at: z.string(),
   updated_at: z.string().nullable(),
   can_edit: z.boolean(),
@@ -70,10 +91,15 @@ const AssignmentSchema = z.object({
   // Групповые поля. У индивидуальных заданий: is_group=false, остальное null.
   is_group: z.boolean().default(false),
   grading_mode: GradingModeSchema.nullable().default(null),
-  my_group: AssignmentGroupSchema.nullable().default(null)
+  my_group: AssignmentGroupSchema.nullable().default(null),
+  quiz_settings: QuizSettingsSchema.nullable().default(null),
+  quiz_question_count: z.number().nullable().default(null),
+  my_quiz_attempt: QuizAttemptBriefSchema.nullable().default(null)
 }).strip()
 
 export type AssignmentDto = z.infer<typeof AssignmentSchema>
+export type AssignmentType = z.infer<typeof AssignmentTypeSchema>
+export type QuizSettingsDto = z.infer<typeof QuizSettingsSchema>
 
 // Блок group в запросе создания группового задания (combined-create).
 export type CreateGroupPayload = {
@@ -168,7 +194,16 @@ export async function createAssignment(
     material_url?: string | null
     due_at?: string | null
     max_grade: number
+    type?: AssignmentType
     group?: CreateGroupPayload
+    quiz_settings?: {
+      shuffle_questions: boolean
+      shuffle_options: boolean
+      show_result_after_submit: boolean
+      show_correct_answers_after_submit: boolean
+      time_limit_minutes?: number | null
+      attempts_limit: number
+    }
   }
 ): Promise<AssignmentDto> {
   try {

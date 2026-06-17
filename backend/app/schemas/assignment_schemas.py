@@ -3,10 +3,11 @@ from enum import StrEnum
 
 from pydantic import BaseModel, Field, HttpUrl, model_validator
 
-from app.database.models import GradingMode, SubmissionStatus
+from app.database.models import AssignmentType, GradingMode, SubmissionStatus
 from app.schemas.file_schemas import FileDTO
 from app.schemas.group_schemas import AssignmentGroupCreate, AssignmentGroupDTO
 from app.schemas.pagination import PageDTO
+from app.schemas.quiz_schemas import QuizAttemptBriefDTO, QuizSettingsDTO, QuizSettingsRequest
 from app.schemas.user_schemas import UserBriefDTO
 
 
@@ -29,14 +30,23 @@ class CreateAssignmentRequest(BaseModel):
     material_url: HttpUrl | None = None
     # дедлайн опциональный — у длинных задач может не быть жёсткого срока
     due_at: datetime | None = None
-    # шкала жёсткая: > 0. После выставления первой оценки менять max_grade нельзя
-    max_grade: float = Field(gt=0)
+    # Для тестов max_grade считается автоматически как сумма баллов вопросов,
+    # поэтому при создании допускаем 0. Для обычных заданий оставляем > 0.
+    max_grade: float = Field(ge=0)
+    type: AssignmentType = AssignmentType.REGULAR
     # отсутствует → индивидуальное задание; присутствует → групповое
     group: AssignmentGroupCreate | None = None
+    quiz_settings: QuizSettingsRequest | None = None
 
     @model_validator(mode="after")
     def _validate_due_at_not_past(self) -> "CreateAssignmentRequest":
         _validate_due_at(self.due_at)
+        if self.type == AssignmentType.QUIZ and self.quiz_settings is None:
+            self.quiz_settings = QuizSettingsRequest()
+        if self.type != AssignmentType.QUIZ and self.quiz_settings is not None:
+            raise ValueError("quiz_settings доступны только для заданий типа quiz")
+        if self.type != AssignmentType.QUIZ and self.max_grade <= 0:
+            raise ValueError("max_grade должен быть больше 0")
         return self
 
 
@@ -107,6 +117,7 @@ class AssignmentDTO(BaseModel):
     material_file: FileDTO | None
     due_at: datetime | None
     max_grade: float
+    type: AssignmentType = AssignmentType.REGULAR
     created_at: datetime
     updated_at: datetime | None
     can_edit: bool
@@ -121,6 +132,9 @@ class AssignmentDTO(BaseModel):
     grading_mode: GradingMode | None = None
     # Команда текущего студента (только когда задание смотрит студент группового).
     my_group: AssignmentGroupDTO | None = None
+    quiz_settings: QuizSettingsDTO | None = None
+    quiz_question_count: int | None = None
+    my_quiz_attempt: QuizAttemptBriefDTO | None = None
 
 
 class AssignmentPageDTO(PageDTO[AssignmentDTO]):

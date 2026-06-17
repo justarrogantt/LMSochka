@@ -333,8 +333,63 @@
   opacity: 0.6;
 }
 
+.checkboxGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.checkboxCard {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 48px;
+  padding: 12px 14px;
+  border: 1px solid var(--color-line-strong);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+  color: var(--color-text);
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.16s ease, border-color 0.16s ease, color 0.16s ease;
+}
+
+.checkboxCard:hover {
+  background: var(--color-soft);
+}
+
+.checkboxCardActive,
+.checkboxCardActive:hover {
+  border-color: var(--color-accent);
+  background: var(--color-accent-soft);
+  color: var(--color-accent-active);
+}
+
+.checkboxCard input {
+  width: 16px;
+  height: 16px;
+  margin: 0;
+  accent-color: var(--color-accent);
+  flex: 0 0 auto;
+}
+
+.checkboxCard span {
+  line-height: 1.35;
+}
+
+.checkboxCard input:disabled {
+  cursor: not-allowed;
+}
+
 .hint {
   color: var(--color-muted);
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+.validationHint {
+  color: var(--color-danger);
   font-size: 13px;
   line-height: 1.4;
 }
@@ -384,5 +439,9 @@
 
   .headActions {
     flex-wrap: wrap;
+  }
+
+  .checkboxGrid {
+    grid-template-columns: 1fr;
   }
 }

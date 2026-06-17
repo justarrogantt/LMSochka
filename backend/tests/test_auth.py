@@ -56,6 +56,16 @@ async def test_register_duplicate_email(client):
 
 
 @pytest.mark.asyncio
+async def test_register_rejects_easy_password(client):
+    r = await client.post(
+        "/api/auth/register",
+        json={"email": "weak@example.com", "password": "12345678"},
+    )
+    assert r.status_code == 400
+    assert "Слишком легкий пароль" in r.json()["detail"]
+
+
+@pytest.mark.asyncio
 async def test_login_wrong_password(client):
     await client.post(
         "/api/auth/register",
@@ -272,3 +282,43 @@ async def test_change_password_with_wrong_current_password(client):
         headers={"Authorization": f"Bearer {access}"},
     )
     assert r.status_code == 400
+
+
+@pytest.mark.asyncio
+async def test_change_password_rejects_same_password(client):
+    r = await client.post(
+        "/api/auth/register",
+        json={"email": "samepass@example.com", "password": "password123"},
+    )
+    access = r.json()["access_token"]
+
+    r = await client.post(
+        "/api/auth/change-password",
+        json={
+            "current_password": "password123",
+            "new_password": "password123",
+        },
+        headers={"Authorization": f"Bearer {access}"},
+    )
+    assert r.status_code == 409
+    assert "Новый пароль должен отличаться от текущего" in r.json()["detail"]
+
+
+@pytest.mark.asyncio
+async def test_change_password_rejects_easy_password(client):
+    r = await client.post(
+        "/api/auth/register",
+        json={"email": "weakchange@example.com", "password": "Abcdef12"},
+    )
+    access = r.json()["access_token"]
+
+    r = await client.post(
+        "/api/auth/change-password",
+        json={
+            "current_password": "Abcdef12",
+            "new_password": "12345678",
+        },
+        headers={"Authorization": f"Bearer {access}"},
+    )
+    assert r.status_code == 400
+    assert "Слишком легкий пароль" in r.json()["detail"]

@@ -8,6 +8,7 @@ import { useTheme } from "../../contexts/useTheme"
 import { ApiError } from "../../services/api"
 import type { AuthUser } from "../../services/auth.api"
 import { formatDateTime, formatUserName } from "../../services/helpers"
+import { getPasswordStrength } from "../../services/passwordStrength"
 import { changePassword, updateProfile } from "./services/profile.api"
 import styles from "./ProfilePage.module.css"
 
@@ -135,6 +136,7 @@ function EditProfileModal({ user, onSaved, onClose }: EditProfileModalProps) {
 
   // Пароль меняем, только если пользователь тронул хоть одно из полей пароля
   const wantsPasswordChange = Boolean(form.currentPassword || form.newPassword || form.repeatPassword)
+  const newPasswordStrength = getPasswordStrength(form.newPassword)
 
   // Обновление одного поля формы и очистка старых ошибок
   function setField<K extends keyof EditFormState>(field: K, value: EditFormState[K]) {
@@ -183,8 +185,11 @@ function EditProfileModal({ user, onSaved, onClose }: EditProfileModalProps) {
       }
       if (!form.newPassword) {
         nextErrors.newPassword = "Введите новый пароль."
-      } else if (form.newPassword.length < passwordMinLength) {
+      } else if (Array.from(form.newPassword).length < passwordMinLength) {
         nextErrors.newPassword = "Пароль должен быть не короче 8 символов."
+      } else if (getPasswordStrength(form.newPassword).level === "easy") {
+        nextErrors.newPassword =
+          "Слишком легкий пароль. Добавьте заглавные и строчные буквы, цифры или спецсимволы, и лучше увеличьте длину до 12+ символов."
       }
       if (!form.repeatPassword) {
         nextErrors.repeatPassword = "Повторите новый пароль."
@@ -303,6 +308,50 @@ function EditProfileModal({ user, onSaved, onClose }: EditProfileModalProps) {
           autoComplete="new-password"
           disabled={isSubmitting}
         />
+        {form.newPassword && (
+          <div className={styles.passwordStrength}>
+            <div className={styles.passwordStrengthHeader}>
+              <span>Сложность пароля</span>
+              <span
+                className={`${styles.passwordStrengthLabel} ${
+                  newPasswordStrength.level === "easy"
+                    ? styles.passwordStrengthEasy
+                    : newPasswordStrength.level === "medium"
+                      ? styles.passwordStrengthMedium
+                      : styles.passwordStrengthHard
+                }`}
+              >
+                {newPasswordStrength.label}
+              </span>
+            </div>
+
+            <div className={styles.passwordStrengthMeter} aria-hidden="true">
+              {[0, 1, 2].map((segment) => {
+                const isActive =
+                  (newPasswordStrength.level === "easy" && segment === 0) ||
+                  (newPasswordStrength.level === "medium" && segment <= 1) ||
+                  (newPasswordStrength.level === "hard" && segment <= 2)
+
+                return (
+                  <span
+                    key={segment}
+                    className={`${styles.passwordStrengthSegment} ${
+                      isActive
+                        ? newPasswordStrength.level === "easy"
+                          ? styles.passwordStrengthSegmentActiveEasy
+                          : newPasswordStrength.level === "medium"
+                            ? styles.passwordStrengthSegmentActiveMedium
+                            : styles.passwordStrengthSegmentActiveHard
+                        : ""
+                    }`}
+                  />
+                )
+              })}
+            </div>
+
+            <div className={styles.passwordStrengthHint}>{newPasswordStrength.hint}</div>
+          </div>
+        )}
         {errors.newPassword && <div className={styles.fieldErrorText}>{errors.newPassword}</div>}
       </label>
 
@@ -325,7 +374,12 @@ function EditProfileModal({ user, onSaved, onClose }: EditProfileModalProps) {
         <button className={styles.secondaryButton} type="button" onClick={onClose} disabled={isSubmitting}>
           Отмена
         </button>
-        <button className={styles.primaryButton} type="button" onClick={submit} disabled={isSubmitting}>
+        <button
+          className={styles.primaryButton}
+          type="button"
+          onClick={submit}
+          disabled={isSubmitting}
+        >
           Сохранить
         </button>
       </div>

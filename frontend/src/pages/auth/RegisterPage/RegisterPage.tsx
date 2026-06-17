@@ -3,8 +3,10 @@ import { useNavigate } from "react-router-dom"
 import { useState, type ChangeEvent, type FormEvent, type MouseEvent } from "react"
 import AuthLayout from "../../../layouts/AuthLayout/AuthLayout"
 import styles from "../../../layouts/AuthLayout/AuthLayout.module.css"
+import registerStyles from "./RegisterPage.module.css"
 import { useAuth } from "../../../contexts/useAuth"
 import { ApiError } from "../../../services/api"
+import { getPasswordStrength } from "../../../services/passwordStrength"
 import { register as registerRequest } from "./services/register.api"
 
 type RegisterForm = {
@@ -60,6 +62,7 @@ export default function RegisterPage() {
   const [isSubmitting, setIsSubmitting] = useState(false)
   const { setUser } = useAuth()
   const navigate = useNavigate()
+  const passwordStrength = getPasswordStrength(userData.password)
 
   // Обновляет поле и сразу очищает старые ошибки.
   function updateForm(event: ChangeEvent<HTMLInputElement>) {
@@ -107,8 +110,11 @@ export default function RegisterPage() {
 
     if (!formData.password) {
       newErrors.password = validationErrors.passwordRequired
-    } else if (formData.password.length < passwordMinLength) {
+    } else if (Array.from(formData.password).length < passwordMinLength) {
       newErrors.password = validationErrors.passwordInvalid
+    } else if (getPasswordStrength(formData.password).level === "easy") {
+      newErrors.password =
+        "Слишком легкий пароль. Добавьте заглавные и строчные буквы, цифры или спецсимволы, и лучше увеличьте длину до 12+ символов."
     }
 
     if (!formData.repeatPassword) {
@@ -224,6 +230,50 @@ export default function RegisterPage() {
             value={userData.password}
             onChange={updateForm}
           />
+          {userData.password && (
+            <div className={registerStyles.passwordStrength}>
+              <div className={registerStyles.passwordStrengthHeader}>
+                <span>Сложность пароля</span>
+                <span
+                  className={`${registerStyles.passwordStrengthLabel} ${
+                    passwordStrength.level === "easy"
+                      ? registerStyles.passwordStrengthEasy
+                      : passwordStrength.level === "medium"
+                        ? registerStyles.passwordStrengthMedium
+                        : registerStyles.passwordStrengthHard
+                  }`}
+                >
+                  {passwordStrength.label}
+                </span>
+              </div>
+
+              <div className={registerStyles.passwordStrengthMeter} aria-hidden="true">
+                {[0, 1, 2].map((segment) => {
+                  const isActive =
+                    (passwordStrength.level === "easy" && segment === 0) ||
+                    (passwordStrength.level === "medium" && segment <= 1) ||
+                    (passwordStrength.level === "hard" && segment <= 2)
+
+                  return (
+                    <span
+                      key={segment}
+                      className={`${registerStyles.passwordStrengthSegment} ${
+                        isActive
+                          ? passwordStrength.level === "easy"
+                            ? registerStyles.passwordStrengthSegmentActiveEasy
+                            : passwordStrength.level === "medium"
+                              ? registerStyles.passwordStrengthSegmentActiveMedium
+                              : registerStyles.passwordStrengthSegmentActiveHard
+                          : ""
+                      }`}
+                    />
+                  )
+                })}
+              </div>
+
+              <div className={registerStyles.passwordStrengthHint}>{passwordStrength.hint}</div>
+            </div>
+          )}
         </label>
 
         <label
@@ -271,5 +321,3 @@ export default function RegisterPage() {
     </AuthLayout>
   )
 }
-
-

@@ -11,6 +11,7 @@ import ClassAnnouncementsPage from "./pages/classes/ClassAnnouncementsPage/Class
 import ClassMembersPage from "./pages/classes/ClassMembersPage/ClassMembersPage"
 import AssignmentsPage from "./pages/classes/AssignmentsPage/AssignmentsPage"
 import AssignmentPage from "./pages/classes/AssignmentPage/AssignmentPage"
+import QuizAssignmentPage from "./pages/classes/QuizAssignmentPage/QuizAssignmentPage"
 import AnnouncementPage from "./pages/classes/AnnouncementPage/AnnouncementPage"
 import GradesPage from "./pages/classes/GradesPage/GradesPage"
 import GradesOverviewPage from "./pages/GradesOverviewPage/GradesOverviewPage"
@@ -39,6 +40,7 @@ export default function RootRouter() {
             <Route path="announcements/:announcementId" element={<AnnouncementPage />} />
             <Route path="assignments" element={<AssignmentsPage />} />
             <Route path="assignments/:assignmentId" element={<AssignmentPage />} />
+            <Route path="assignments/:assignmentId/quiz" element={<QuizAssignmentPage />} />
             <Route path="members" element={<ClassMembersPage />} />
             <Route path="grades" element={<GradesPage />} />
           </Route>

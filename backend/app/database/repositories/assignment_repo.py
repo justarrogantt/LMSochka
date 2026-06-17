@@ -4,6 +4,7 @@ from sqlalchemy import exists, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database.models import (
+    AssignmentType,
     AssignmentsTable,
     SubmissionsTable,
     SubmissionStatus,
@@ -31,6 +32,7 @@ async def create(
     material_url: str | None,
     due_at: datetime | None,
     max_grade: float,
+    assignment_type: AssignmentType,
     db: AsyncSession,
 ) -> AssignmentsTable:
     asg = AssignmentsTable(
@@ -41,6 +43,7 @@ async def create(
         material_url=material_url,
         due_at=due_at,
         max_grade=max_grade,
+        type=assignment_type,
     )
     db.add(asg)
     await db.flush()

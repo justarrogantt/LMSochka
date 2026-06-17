@@ -8,7 +8,11 @@ from app.database.models import SessionsTable, UsersTable
 from app.database.repositories import session_repo, user_repo
 from app.schemas.auth_schemas import AuthSuccessDTO, UserDTO
 from app.schemas.errors import ServiceError
-from app.services.password_service import hash_password, verify_password
+from app.services.password_service import (
+    get_password_strength,
+    hash_password,
+    verify_password,
+)
 from app.services.token_service import (
     decode_token,
     generate_access_token,
@@ -58,10 +62,17 @@ async def register(
 ) -> AuthSuccessDTO:
     # нормализуем email чтобы Foo@X.com и foo@x.com считались одним юзером
     email = email.lower().strip()
+    password_strength = get_password_strength(password)
 
     existing = await user_repo.get_by_email(email, db)
     if existing:
         raise ServiceError("Пользователь с таким email уже существует", 409)
+
+    if password_strength.level == "easy":
+        raise ServiceError(
+            "Слишком легкий пароль. Используйте минимум 8 символов и добавьте буквы в разных регистрах, цифры или спецсимволы.",
+            400,
+        )
 
     user = await user_repo.create_user(
         email=email,
@@ -182,6 +193,13 @@ async def change_password(
 
     if verify_password(new_password, user.password_hash):
         raise ServiceError("Новый пароль должен отличаться от текущего", 409)
+
+    password_strength = get_password_strength(new_password)
+    if password_strength.level == "easy":
+        raise ServiceError(
+            "Слишком легкий пароль. Используйте минимум 8 символов и добавьте буквы в разных регистрах, цифры или спецсимволы.",
+            400,
+        )
 
     user.password_hash = hash_password(new_password)
     db.add(user)

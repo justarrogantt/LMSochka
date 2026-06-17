@@ -39,6 +39,8 @@ async def create_assignment(
         material_url=str(body.material_url) if body.material_url else None,
         due_at=body.due_at,
         max_grade=body.max_grade,
+        assignment_type=body.type,
+        quiz_settings=body.quiz_settings,
         db=db,
         group=body.group,
     )

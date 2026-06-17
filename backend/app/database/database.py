@@ -28,3 +28,24 @@ async def apply_lightweight_migrations() -> None:
             await conn.execute(
                 text("ALTER TABLE announcements ADD COLUMN material_file_id VARCHAR(36)")
             )
+
+        result = await conn.execute(text("PRAGMA table_info(assignments)"))
+        columns = {row[1] for row in result.fetchall()}
+        if "type" not in columns:
+            await conn.execute(
+                text(
+                    "ALTER TABLE assignments "
+                    "ADD COLUMN type VARCHAR(16) NOT NULL DEFAULT 'REGULAR'"
+                )
+            )
+
+        await conn.execute(
+            text(
+                "UPDATE assignments "
+                "SET type = CASE "
+                "WHEN type = 'regular' THEN 'REGULAR' "
+                "WHEN type = 'quiz' THEN 'QUIZ' "
+                "ELSE type END "
+                "WHERE type IN ('regular', 'quiz')"
+            )
+        )

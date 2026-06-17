@@ -3,6 +3,7 @@ from datetime import UTC, datetime
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database.models import (
+    AssignmentType,
     AssignmentsTable,
     GradesTable,
     StoredFilesTable,
@@ -144,6 +145,11 @@ async def save_my_submission(
     db: AsyncSession,
 ) -> SubmissionDTO:
     asg = await access.get_assignment_or_404(aid, db)
+    if asg.type == AssignmentType.QUIZ:
+        raise ServiceError(
+            "Для тестов используйте попытки quiz, а не обычные решения",
+            409,
+        )
     await access.ensure_student(asg, user.id, db)
 
     # для группового — командное решение (group_id), для индивидуального — None
@@ -185,6 +191,11 @@ async def submit_my_submission(
     aid: int, user: UsersTable, db: AsyncSession
 ) -> SubmissionDTO:
     asg = await access.get_assignment_or_404(aid, db)
+    if asg.type == AssignmentType.QUIZ:
+        raise ServiceError(
+            "Для тестов используйте попытки quiz, а не обычные решения",
+            409,
+        )
     await access.ensure_student(asg, user.id, db)
 
     _, sub = await access.resolve_submission_target(asg, user.id, db)
@@ -219,6 +230,8 @@ async def get_my_submission(
     aid: int, user: UsersTable, db: AsyncSession
 ) -> SubmissionDTO | None:
     asg = await access.get_assignment_or_404(aid, db)
+    if asg.type == AssignmentType.QUIZ:
+        return None
     await access.ensure_student(asg, user.id, db)
 
     _, sub = await access.resolve_submission_target(asg, user.id, db)

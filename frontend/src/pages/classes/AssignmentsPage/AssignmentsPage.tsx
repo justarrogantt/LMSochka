@@ -36,6 +36,7 @@ import {
   listAssignments,
   updateAssignment,
   type AssignmentDto,
+  type AssignmentType,
   type CreateGroupPayload
 } from "./services/assignments.api"
 import type { GradingMode } from "./services/groups.api"
@@ -43,6 +44,13 @@ import SkeletonLoader from "./SkeletonLoader/SkeletonLoader"
 import styles from "./AssignmentsPage.module.css"
 
 const LIMIT = 10
+
+const QUIZ_SETTING_LABELS = {
+  shuffle_questions: "Перемешивать вопросы",
+  shuffle_options: "Перемешивать варианты ответов",
+  show_result_after_submit: "Показывать результат после отправки",
+  show_correct_answers_after_submit: "Показывать правильные ответы после отправки"
+} as const
 
 // Локальный черновик группы в модалке создания
 type GroupDraft = {
@@ -148,7 +156,15 @@ export default function AssignmentsPage() {
 
   // Групповое задание: тип, режим оценивания, локальные черновики групп и список студентов
   const [isGroup, setIsGroup] = useState(false)
+  const [assignmentType, setAssignmentType] = useState<AssignmentType>("regular")
   const [gradingMode, setGradingMode] = useState<GradingMode>("even")
+  const [quizSettings, setQuizSettings] = useState({
+    shuffle_questions: false,
+    shuffle_options: false,
+    show_result_after_submit: false,
+    show_correct_answers_after_submit: false,
+    attempts_limit: 1
+  })
   const [groupDrafts, setGroupDrafts] = useState<GroupDraft[]>([])
   const [students, setStudents] = useState<EditorMember[]>([])
   // Общий лимит участников на команду (текст инпута, пусто — без лимита)
@@ -194,8 +210,16 @@ export default function AssignmentsPage() {
     setMaterialFile(null)
     setShouldDeleteMaterialFile(false)
     setMaterialFileError("")
+    setAssignmentType("regular")
     setIsGroup(false)
     setGradingMode("even")
+    setQuizSettings({
+      shuffle_questions: false,
+      shuffle_options: false,
+      show_result_after_submit: false,
+      show_correct_answers_after_submit: false,
+      attempts_limit: 1
+    })
     setGroupDrafts([])
     setStudents([])
     setMaxTeamSize("")
@@ -249,8 +273,16 @@ export default function AssignmentsPage() {
     setMaterialFile(null)
     setShouldDeleteMaterialFile(false)
     setMaterialFileError("")
+    setAssignmentType("regular")
     setIsGroup(false)
     setGradingMode("even")
+    setQuizSettings({
+      shuffle_questions: false,
+      shuffle_options: false,
+      show_result_after_submit: false,
+      show_correct_answers_after_submit: false,
+      attempts_limit: 1
+    })
     setGroupDrafts([])
     setMaxTeamSize("")
     void loadStudents()
@@ -324,6 +356,14 @@ export default function AssignmentsPage() {
     setMaterialFile(null)
     setShouldDeleteMaterialFile(false)
     setMaterialFileError("")
+    setAssignmentType(item.type)
+    setQuizSettings({
+      shuffle_questions: item.quiz_settings?.shuffle_questions ?? false,
+      shuffle_options: item.quiz_settings?.shuffle_options ?? true,
+      show_result_after_submit: item.quiz_settings?.show_result_after_submit ?? true,
+      show_correct_answers_after_submit: item.quiz_settings?.show_correct_answers_after_submit ?? false,
+      attempts_limit: item.quiz_settings?.attempts_limit ?? 1
+    })
     setIsFormOpen(true)
   }
 
@@ -338,15 +378,27 @@ export default function AssignmentsPage() {
       material_url: string | null
       due_at: string | null
       max_grade: number
+      type: AssignmentType
       group?: CreateGroupPayload
+      quiz_settings?: {
+        shuffle_questions: boolean
+        shuffle_options: boolean
+        show_result_after_submit: boolean
+        show_correct_answers_after_submit: boolean
+        attempts_limit: number
+      }
     } = {
       title: form.title.trim(),
       description: form.description.trim() || undefined,
       material_url: form.material_url.trim() || null,
       due_at: toApiDateTime(form.due_at),
-      max_grade: Number(form.max_grade)
+      max_grade: assignmentType === "quiz" ? 0 : Number(form.max_grade),
+      type: assignmentType
     }
-    if (isGroup) {
+    if (assignmentType === "quiz") {
+      body.quiz_settings = quizSettings
+    }
+    if (assignmentType === "regular" && isGroup) {
       const limit = maxTeamSize.trim() ? Number(maxTeamSize) : undefined
       body.group = {
         grading_mode: gradingMode,
@@ -424,6 +476,11 @@ export default function AssignmentsPage() {
         }
       }
       showToast({ type: "neutral", message: "Задание создано" })
+      if (created.type === "quiz") {
+        finishFormModal()
+        navigate(`/classes/${classId}/assignments/${created.id}/quiz`)
+        return
+      }
       finishFormModal()
       if (viewMode === "all") {
         void loadPage(1, "all")
@@ -514,7 +571,8 @@ export default function AssignmentsPage() {
     }
   }
 
-  const isFilled = form.title.trim().length > 0 && Number(form.max_grade) > 0
+  const isQuizAssignment = assignmentType === "quiz"
+  const isFilled = form.title.trim().length > 0 && (isQuizAssignment || Number(form.max_grade) > 0)
   const dueAtError = isPastDateTimeInputValue(form.due_at) ? "Дедлайн не может быть в прошлом" : ""
   const minDueAt = currentDateTimeInputValue()
   const isChanged =
@@ -525,7 +583,10 @@ export default function AssignmentsPage() {
     form.max_grade !== initialForm.max_grade
   // Для группового задания нужна хотя бы одна группа с участниками
   const hasFilledGroup = groupDrafts.some((g) => g.members.length > 0)
-  const groupValid = !isGroup || hasFilledGroup
+  const groupValid = assignmentType !== "regular" || !isGroup || hasFilledGroup
+  const quizBehaviorSelected = quizSettings.shuffle_questions || quizSettings.shuffle_options
+  const quizPostSubmitSelected = quizSettings.show_result_after_submit || quizSettings.show_correct_answers_after_submit
+  const quizValid = assignmentType !== "quiz" || (quizBehaviorSelected && quizPostSubmitSelected)
   const editingItem = editingId === null ? null : items.find((item) => item.id === editingId) ?? null
   const currentMaterialFile = editingItem?.material_file && !shouldDeleteMaterialFile
     ? { name: editingItem.material_file.name, size: editingItem.material_file.size }
@@ -536,6 +597,7 @@ export default function AssignmentsPage() {
     !dueAtError &&
     isFilled &&
     groupValid &&
+    quizValid &&
     (editingId === null || isChanged || materialFile !== null || shouldDeleteMaterialFile)
   const canManage = classDetail?.permissions.can_create_assignment ?? false
 
@@ -588,7 +650,7 @@ export default function AssignmentsPage() {
                 <AssignmentCard
                   item={item}
                   showStats={canManage}
-                  onOpen={() => navigate(`/classes/${classId}/assignments/${item.id}`)}
+                  onOpen={() => navigate(`/classes/${classId}/assignments/${item.id}${item.type === "quiz" ? "/quiz" : ""}`)}
                   onEdit={() => openEditModal(item)}
                   onTeamSettings={() => setTeamSettingsFor(item)}
                   onDelete={() => setDeletingId(item.id)}
@@ -621,32 +683,98 @@ export default function AssignmentsPage() {
             onFieldChange={setField}
             onMaterialFileChange={onMaterialFileChange}
             onMaterialFileRemove={onMaterialFileClear}
+            isMaxGradeDerived={assignmentType === "quiz"}
+            maxGradeHint={assignmentType === "quiz" ? "После добавления вопросов сумма баллов пересчитается автоматически." : undefined}
           >
             {editingId === null && (
               <div className={styles.field}>
-                <div className={styles.fieldLabel}>Тип задания</div>
+                <div className={styles.fieldLabel}>Формат задания</div>
                 <div className={styles.typeButtons}>
                   <button
-                    className={`${styles.typeButton} ${!isGroup ? styles.typeButtonActive : ""}`}
+                    className={`${styles.typeButton} ${assignmentType === "regular" ? styles.typeButtonActive : ""}`}
                     type="button"
-                    onClick={() => setIsGroup(false)}
+                    onClick={() => setAssignmentType("regular")}
                     disabled={isSubmitting}
                   >
-                    Индивидуальное
+                    Обычное
                   </button>
                   <button
-                    className={`${styles.typeButton} ${isGroup ? styles.typeButtonActive : ""}`}
+                    className={`${styles.typeButton} ${assignmentType === "quiz" ? styles.typeButtonActive : ""}`}
                     type="button"
-                    onClick={() => setIsGroup(true)}
+                    onClick={() => {
+                      setAssignmentType("quiz")
+                      setIsGroup(false)
+                    }}
                     disabled={isSubmitting}
                   >
-                    Групповое
+                    Тест
                   </button>
                 </div>
               </div>
             )}
 
-            {editingId === null && isGroup && (
+            {editingId === null && assignmentType === "quiz" && (
+              <>
+                <div className={styles.field}>
+                  <div className={styles.fieldLabel}>Настройки теста</div>
+                  <div className={styles.checkboxGrid}>
+                    <label className={`${styles.checkboxCard} ${quizSettings.shuffle_questions ? styles.checkboxCardActive : ""}`}>
+                      <input
+                        type="checkbox"
+                        checked={quizSettings.shuffle_questions}
+                        onChange={() => setQuizSettings((prev) => ({ ...prev, shuffle_questions: !prev.shuffle_questions }))}
+                        disabled={isSubmitting}
+                      />
+                      <span>{QUIZ_SETTING_LABELS.shuffle_questions}</span>
+                    </label>
+                    <label className={`${styles.checkboxCard} ${quizSettings.shuffle_options ? styles.checkboxCardActive : ""}`}>
+                      <input
+                        type="checkbox"
+                        checked={quizSettings.shuffle_options}
+                        onChange={() => setQuizSettings((prev) => ({ ...prev, shuffle_options: !prev.shuffle_options }))}
+                        disabled={isSubmitting}
+                      />
+                      <span>{QUIZ_SETTING_LABELS.shuffle_options}</span>
+                    </label>
+                    <label className={`${styles.checkboxCard} ${quizSettings.show_result_after_submit ? styles.checkboxCardActive : ""}`}>
+                      <input
+                        type="checkbox"
+                        checked={quizSettings.show_result_after_submit}
+                        onChange={() => setQuizSettings((prev) => ({ ...prev, show_result_after_submit: !prev.show_result_after_submit }))}
+                        disabled={isSubmitting}
+                      />
+                      <span>{QUIZ_SETTING_LABELS.show_result_after_submit}</span>
+                    </label>
+                    <label className={`${styles.checkboxCard} ${quizSettings.show_correct_answers_after_submit ? styles.checkboxCardActive : ""}`}>
+                      <input
+                        type="checkbox"
+                        checked={quizSettings.show_correct_answers_after_submit}
+                        onChange={() => setQuizSettings((prev) => ({ ...prev, show_correct_answers_after_submit: !prev.show_correct_answers_after_submit }))}
+                        disabled={isSubmitting}
+                      />
+                      <span>{QUIZ_SETTING_LABELS.show_correct_answers_after_submit}</span>
+                    </label>
+                  </div>
+                  <div className={styles.hint}>Можно включить сразу все нужные опции.</div>
+                  {!quizBehaviorSelected && <div className={styles.validationHint}>Выберите хотя бы одну настройку теста.</div>}
+                  {!quizPostSubmitSelected && <div className={styles.validationHint}>Выберите хотя бы одно действие после отправки.</div>}
+                </div>
+
+                <label className={styles.field}>
+                  <div className={styles.fieldLabel}>Лимит попыток</div>
+                  <input
+                    className={styles.input}
+                    type="number"
+                    min="1"
+                    value={quizSettings.attempts_limit}
+                    onChange={(e) => setQuizSettings((prev) => ({ ...prev, attempts_limit: Number(e.target.value) || 1 }))}
+                    disabled={isSubmitting}
+                  />
+                </label>
+              </>
+            )}
+
+            {editingId === null && assignmentType === "regular" && isGroup && (
               <>
                 <div className={styles.field}>
                   <div className={styles.fieldLabel}>Оценивание</div>
@@ -709,6 +837,30 @@ export default function AssignmentsPage() {
                   )}
                 </div>
               </>
+            )}
+
+            {editingId === null && assignmentType === "regular" && (
+              <div className={styles.field}>
+                <div className={styles.fieldLabel}>Режим обычного задания</div>
+                <div className={styles.typeButtons}>
+                  <button
+                    className={`${styles.typeButton} ${!isGroup ? styles.typeButtonActive : ""}`}
+                    type="button"
+                    onClick={() => setIsGroup(false)}
+                    disabled={isSubmitting}
+                  >
+                    Индивидуальное
+                  </button>
+                  <button
+                    className={`${styles.typeButton} ${isGroup ? styles.typeButtonActive : ""}`}
+                    type="button"
+                    onClick={() => setIsGroup(true)}
+                    disabled={isSubmitting}
+                  >
+                    Групповое
+                  </button>
+                </div>
+              </div>
             )}
 
           </AssignmentFormModal>

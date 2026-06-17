@@ -3,6 +3,7 @@ from datetime import datetime
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database.models import (
+    AssignmentType,
     AssignmentsTable,
     ClassMembersTable,
     ClassRole,
@@ -20,6 +21,7 @@ from app.database.repositories import (
     grade_repo,
     group_repo,
     member_grade_repo,
+    quiz_repo,
     submission_repo,
 )
 from app.schemas.assignment_schemas import (
@@ -32,8 +34,9 @@ from app.schemas.assignment_schemas import (
 )
 from app.schemas.errors import ServiceError
 from app.schemas.group_schemas import AssignmentGroupCreate, AssignmentGroupDTO
+from app.schemas.quiz_schemas import QuizAttemptBriefDTO, QuizSettingsDTO, QuizSettingsRequest
 from app.schemas.user_schemas import UserBriefDTO
-from app.services import file_service, group_service, notification_service
+from app.services import file_service, group_service, notification_service, quiz_service
 from app.services.submission_service import _is_late
 
 
@@ -61,6 +64,9 @@ def _dto(
     is_group: bool = False,
     grading_mode: GradingMode | None = None,
     my_group: AssignmentGroupDTO | None = None,
+    quiz_settings: QuizSettingsDTO | None = None,
+    quiz_question_count: int | None = None,
+    my_quiz_attempt: QuizAttemptBriefDTO | None = None,
 ) -> AssignmentDTO:
     return AssignmentDTO(
         id=asg.id,
@@ -72,6 +78,7 @@ def _dto(
         material_file=file_service.dto(material_file),
         due_at=asg.due_at,
         max_grade=asg.max_grade,
+        type=asg.type,
         created_at=asg.created_at,
         updated_at=asg.updated_at,
         can_edit=can_edit,
@@ -81,6 +88,9 @@ def _dto(
         is_group=is_group,
         grading_mode=grading_mode,
         my_group=my_group,
+        quiz_settings=quiz_settings,
+        quiz_question_count=quiz_question_count,
+        my_quiz_attempt=my_quiz_attempt,
     )
 
 
@@ -128,8 +138,10 @@ async def create_assignment(
     material_url: str | None,
     due_at: datetime | None,
     max_grade: float,
+    assignment_type: AssignmentType,
     db: AsyncSession,
     group: AssignmentGroupCreate | None = None,
+    quiz_settings: QuizSettingsRequest | None = None,
 ) -> AssignmentDTO:
     asg = await assignment_repo.create(
         class_id=class_id,
@@ -140,8 +152,15 @@ async def create_assignment(
         material_url=material_url,
         due_at=due_at,
         max_grade=max_grade,
+        assignment_type=assignment_type,
         db=db,
     )
+    if assignment_type == AssignmentType.QUIZ:
+        await quiz_service.create_quiz_settings_for_assignment(
+            asg.id,
+            quiz_settings or QuizSettingsRequest(),
+            db,
+        )
     # групповое задание: конфиг + группы + участники в той же транзакции
     if group is not None:
         await group_service.apply_distribution(asg, group, db)
@@ -177,6 +196,12 @@ async def create_assignment(
         stats=stats,
         is_group=group is not None,
         grading_mode=group.grading_mode if group is not None else None,
+        quiz_settings=QuizSettingsDTO.model_validate(
+            (quiz_settings or QuizSettingsRequest()).model_dump()
+        )
+        if assignment_type == AssignmentType.QUIZ
+        else None,
+        quiz_question_count=0 if assignment_type == AssignmentType.QUIZ else None,
     )
 
 
@@ -222,6 +247,11 @@ async def list_assignments(
         )
         items = []
         for a, u in rows:
+            quiz_settings, quiz_question_count, my_quiz_attempt = (
+                await quiz_service.get_assignment_quiz_meta(
+                    a, member.user_id, member.role, db
+                )
+            )
             if a.id in group_modes:
                 # групповое: бриф командного решения (эффективная оценка члена)
                 my_submission = await _student_group_brief(
@@ -241,6 +271,9 @@ async def list_assignments(
                     my_submission=my_submission,
                     is_group=a.id in group_modes,
                     grading_mode=group_modes.get(a.id),
+                    quiz_settings=quiz_settings,
+                    quiz_question_count=quiz_question_count,
+                    my_quiz_attempt=my_quiz_attempt,
                 )
             )
         pending_review_total = 0
@@ -260,8 +293,11 @@ async def list_assignments(
                 stats=_stats_for(a.id, stats_map, eligible_counts.get(a.id, 0)),
                 is_group=a.id in group_modes,
                 grading_mode=group_modes.get(a.id),
+                quiz_settings=quiz_meta[0],
+                quiz_question_count=quiz_meta[1],
             )
             for a, u in rows
+            for quiz_meta in [await quiz_service.get_assignment_quiz_meta(a, None, None, db)]
         ]
         pending_review_total = await assignment_repo.count_pending_review_for_class(
             class_id, db
@@ -305,6 +341,11 @@ async def get_assignment(
     grading_mode = config.grading_mode if config is not None else None
 
     if member.role == ClassRole.STUDENT:
+        quiz_settings, quiz_question_count, my_quiz_attempt = (
+            await quiz_service.get_assignment_quiz_meta(
+                asg, member.user_id, member.role, db
+            )
+        )
         my_group = None
         if is_group:
             my_submission = await _student_group_brief(
@@ -329,11 +370,17 @@ async def get_assignment(
             is_group=is_group,
             grading_mode=grading_mode,
             my_group=my_group,
+            quiz_settings=quiz_settings,
+            quiz_question_count=quiz_question_count,
+            my_quiz_attempt=my_quiz_attempt,
         )
 
     stats_map = await submission_repo.stats_for_assignments([asg.id], db)
     eligible_counts = await class_repo.count_eligible_students_for_assignments(
         [asg.id], db
+    )
+    quiz_settings, quiz_question_count, _ = await quiz_service.get_assignment_quiz_meta(
+        asg, None, None, db
     )
     return _dto(
         asg,
@@ -344,6 +391,8 @@ async def get_assignment(
         stats=_stats_for(asg.id, stats_map, eligible_counts.get(asg.id, 0)),
         is_group=is_group,
         grading_mode=grading_mode,
+        quiz_settings=quiz_settings,
+        quiz_question_count=quiz_question_count,
     )
 
 
@@ -391,12 +440,23 @@ async def update_assignment(
     material_file = (
         await file_repo.get(asg.material_file_id, db) if asg.material_file_id else None
     )
+    quiz_settings, quiz_question_count, my_quiz_attempt = (
+        await quiz_service.get_assignment_quiz_meta(
+            asg,
+            user.id if member.role == ClassRole.STUDENT else None,
+            member.role,
+            db,
+        )
+    )
     return _dto(
         asg,
         author,
         can_edit=True,
         can_delete=True,
         material_file=material_file,
+        quiz_settings=quiz_settings,
+        quiz_question_count=quiz_question_count,
+        my_quiz_attempt=my_quiz_attempt,
     )
 
 

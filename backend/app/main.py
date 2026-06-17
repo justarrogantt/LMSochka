@@ -16,6 +16,8 @@ from app.routers.grades import grades_router
 from app.routers.groups import groups_router
 from app.routers.me import me_router
 from app.routers.notifications import notifications_router, ws_notifications_router
+from app.routers.questions import questions_router
+from app.routers.quizzes import quizzes_router
 from app.routers.submissions import submissions_router
 from app.schemas.errors import ServiceError
 
@@ -54,6 +56,8 @@ app.include_router(auth_router, prefix="/api")
 app.include_router(classes_router, prefix="/api")
 app.include_router(announcements_router, prefix="/api")
 app.include_router(assignments_router, prefix="/api")
+app.include_router(questions_router, prefix="/api")
+app.include_router(quizzes_router, prefix="/api")
 app.include_router(submissions_router, prefix="/api")
 app.include_router(groups_router, prefix="/api")
 app.include_router(grades_router, prefix="/api")
