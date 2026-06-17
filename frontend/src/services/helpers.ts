@@ -48,6 +48,12 @@ export function isPastDateTimeInputValue(value: string): boolean {
   return date.getTime() < Date.now()
 }
 
+// Аккуратное число баллов без лишних нулей: 1, 2.5, 10 (а не 1.0 / 2.50).
+export function formatPoints(value: number | null | undefined): string {
+  if (value == null) return "0"
+  return Number.isInteger(value) ? String(value) : String(Number(value.toFixed(2)))
+}
+
 export function truncate(text: string, maxChars: number): string {
   if (text.length <= maxChars) return text
   return text.slice(0, maxChars).trimEnd() + "..."

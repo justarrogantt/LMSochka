@@ -31,6 +31,8 @@ class QuizAttemptBriefDTO(BaseModel):
     submitted_at: datetime | None
     score: float | None
     max_score: float | None
+    # Сколько попыток студент уже израсходовал (включая текущую/завершённые).
+    attempts_used: int = 0
 
 
 class AddQuestionToQuizRequest(BaseModel):

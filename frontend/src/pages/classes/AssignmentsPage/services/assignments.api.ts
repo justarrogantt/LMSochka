@@ -49,7 +49,8 @@ const QuizAttemptBriefSchema = z.object({
   started_at: z.string(),
   submitted_at: z.string().nullable(),
   score: z.number().nullable(),
-  max_score: z.number().nullable()
+  max_score: z.number().nullable(),
+  attempts_used: z.number().default(0)
 }).strip()
 
 // Краткая сводка решения текущего студента в карточке задания.

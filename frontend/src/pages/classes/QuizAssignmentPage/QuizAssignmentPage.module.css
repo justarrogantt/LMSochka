@@ -1,25 +1,86 @@
 .page {
+  flex: 1;
   display: flex;
   flex-direction: column;
-  gap: 24px;
+  gap: 22px;
 }
 
-.backButton,
+/* ───────────── Шапка страницы: «Все задания» + удалить ───────────── */
+.pageHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.backButton {
+  width: fit-content;
+  min-height: 38px;
+  padding: 0 14px 0 12px;
+  border: 1px solid var(--color-line-strong);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+  color: var(--color-text);
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+  box-shadow: var(--shadow-xs);
+}
+
+.backButton:hover {
+  background: var(--color-accent-soft);
+  border-color: var(--color-accent-soft);
+  color: var(--color-accent-active);
+}
+
+.backIcon {
+  width: 16px;
+  height: 16px;
+  color: currentColor;
+  transform: rotate(180deg);
+}
+
+.buttonIcon {
+  width: 17px;
+  height: 17px;
+  flex: 0 0 17px;
+  color: currentColor;
+}
+
+/* ───────────── Кнопки ───────────── */
 .primaryButton,
 .secondaryButton,
 .dangerButton {
+  min-height: 40px;
+  padding: 0 18px;
   border: 1px solid transparent;
   border-radius: var(--radius-md);
-  padding: 12px 18px;
   cursor: pointer;
   font: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  white-space: nowrap;
 }
 
-.backButton,
 .secondaryButton {
-  background: var(--color-soft);
+  background: var(--color-surface);
   border-color: var(--color-line-strong);
   color: var(--color-text);
+  box-shadow: var(--shadow-xs);
+}
+
+.secondaryButton:hover {
+  background: var(--color-accent-soft);
+  border-color: var(--color-accent-soft);
+  color: var(--color-accent-active);
 }
 
 .primaryButton {
@@ -29,45 +90,102 @@
   box-shadow: var(--shadow-accent);
 }
 
+.primaryButton:hover {
+  background: var(--color-accent-hover);
+  border-color: var(--color-accent-hover);
+}
+
 .dangerButton {
   background: var(--color-danger-soft);
   border-color: var(--color-danger-soft);
   color: var(--color-danger);
 }
 
+.dangerButton:hover {
+  background: var(--color-danger);
+  border-color: var(--color-danger);
+  color: #fff;
+}
+
+/* Иконочная кнопка удаления вопроса (компактная, в углу карточки) */
+.iconDangerButton {
+  flex: 0 0 auto;
+  width: 38px;
+  height: 38px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--color-line-strong);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+  color: var(--color-muted);
+  cursor: pointer;
+  box-shadow: var(--shadow-xs);
+}
+
+.iconDangerButton:hover {
+  background: var(--color-danger);
+  border-color: var(--color-danger);
+  color: #fff;
+}
+
+/* ───────────── Карточки-секции ───────────── */
 .hero,
 .panel,
 .quizCard {
   background: var(--color-surface);
   border: 1px solid var(--color-line);
-  border-radius: var(--radius-xl);
+  border-radius: var(--radius-lg);
   padding: 24px;
   box-shadow: var(--shadow-soft);
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
 }
 
 .hero {
-  display: grid;
-  gap: 20px;
+  gap: 22px;
 }
 
-.heroText h1,
-.panelHead h2,
-.questionCard h3 {
+.heroText {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.heroText h1 {
   margin: 0;
+  font-family: var(--font-heading);
+  font-size: 28px;
+  line-height: 1.2;
+  font-weight: 700;
+  overflow-wrap: anywhere;
 }
 
 .heroText p,
-.panelHead p,
+.panelHeadText p,
 .questionCard p,
 .resultRow p {
   margin: 0;
   color: var(--color-muted);
+  line-height: 1.55;
 }
 
-.eyebrow,
-.questionMeta {
+.panelHeadText h2,
+.questionCard h3 {
+  margin: 0;
+}
+
+.panelHeadText h2 {
+  font-family: var(--font-heading);
+  font-size: 20px;
+  font-weight: 700;
+}
+
+.eyebrow {
   color: var(--color-accent-active);
   font-size: 12px;
+  font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.08em;
 }
@@ -76,6 +194,7 @@
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
+  align-items: center;
 }
 
 .metaBadge {
@@ -83,11 +202,27 @@
   align-items: center;
   min-height: 24px;
   padding: 0 10px;
+  font-size: 12px;
+  font-weight: 600;
   border: 1px solid var(--color-line-strong);
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   background: var(--color-soft);
+  color: var(--color-muted);
 }
 
+.numberBadge {
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
+  padding: 0 10px;
+  font-size: 12px;
+  font-weight: 700;
+  border-radius: var(--radius-pill);
+  background: var(--color-accent-soft);
+  color: var(--color-accent-active);
+}
+
+/* ───────────── Hero-метрики ───────────── */
 .metaGrid {
   display: grid;
   gap: 12px;
@@ -97,11 +232,11 @@
 .metaCard {
   background: linear-gradient(180deg, var(--color-accent-soft), var(--color-surface-2));
   border: 1px solid var(--color-line);
-  border-radius: var(--radius-lg);
+  border-radius: var(--radius-md);
   padding: 16px;
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 6px;
 }
 
 .metaCard span {
@@ -109,35 +244,31 @@
   font-size: 13px;
 }
 
-.metaCard strong,
-.score,
-.points {
+.metaCard strong {
   color: var(--color-text);
-  font-size: 24px;
+  font-size: 22px;
+  font-weight: 700;
 }
 
-.panelHead,
-.quizHead,
-.questionCardHead,
-.actions {
+/* ───────────── Заголовок секции ───────────── */
+.panelHead {
   display: flex;
-  gap: 12px;
-  align-items: center;
+  gap: 16px;
+  align-items: flex-start;
   justify-content: space-between;
 }
 
-.optionRow {
-  display: grid;
-  grid-template-columns: 22px minmax(0, 1fr);
-  gap: 12px;
-  align-items: center;
+.panelHeadText {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
 }
 
-.answerRow {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  gap: 12px;
-  align-items: center;
+.panelActions {
+  display: flex;
+  gap: 8px;
+  flex-shrink: 0;
 }
 
 .stack {
@@ -146,19 +277,87 @@
   gap: 12px;
 }
 
-.questionCard,
-.optionCard,
-.resultRow {
+/* ───────────── Карточка вопроса (учитель/банк) ───────────── */
+.questionCard {
   border: 1px solid var(--color-line);
-  border-radius: var(--radius-lg);
+  border-radius: var(--radius-md);
   padding: 16px;
   background: var(--color-surface-2);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.questionCardHead {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  justify-content: space-between;
+}
+
+.questionCardInfo {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+}
+
+.questionCard h3 {
+  font-size: 16px;
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+
+/* ───────────── Прохождение теста ───────────── */
+.quizHead {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  justify-content: space-between;
+}
+
+.quizHeadText {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  flex: 1;
+  min-width: 0;
+}
+
+.progressTrack {
+  height: 8px;
+  border-radius: var(--radius-pill);
+  background: var(--color-soft);
+  overflow: hidden;
+}
+
+.progressFill {
+  height: 100%;
+  border-radius: var(--radius-pill);
+  background: var(--color-accent);
+  transition: width 0.25s ease;
+}
+
+.pointsBadge {
+  display: inline-flex;
+  align-items: center;
+  min-height: 32px;
+  padding: 0 14px;
+  border-radius: var(--radius-pill);
+  background: var(--color-accent-soft);
+  color: var(--color-accent-active);
+  font-size: 14px;
+  font-weight: 700;
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 
 .questionText {
-  font-size: 22px;
-  line-height: 1.4;
+  font-size: 20px;
+  line-height: 1.45;
+  font-weight: 600;
   color: var(--color-text);
+  overflow-wrap: anywhere;
 }
 
 .optionCard {
@@ -166,6 +365,170 @@
   grid-template-columns: 22px minmax(0, 1fr);
   gap: 12px;
   align-items: center;
+  border: 1px solid var(--color-line-strong);
+  border-radius: var(--radius-md);
+  padding: 14px 16px;
+  background: var(--color-surface);
+  cursor: pointer;
+}
+
+.optionCard:hover {
+  border-color: var(--color-accent);
+  background: var(--color-accent-soft);
+}
+
+.optionCardActive {
+  border-color: var(--color-accent);
+  background: var(--color-accent-soft);
+}
+
+.optionCard span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.answerInput {
+  width: 100%;
+  min-height: 120px;
+  resize: vertical;
+  border: 1px solid var(--color-line-strong);
+  border-radius: var(--radius-md);
+  padding: 12px 14px;
+  font: inherit;
+  background: var(--color-surface);
+  color: var(--color-text);
+}
+
+.attemptActions {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  padding-top: 6px;
+  border-top: 1px solid var(--color-line);
+}
+
+.attemptNav {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+/* ───────────── Результат ───────────── */
+.scoreCard {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  align-items: flex-end;
+  padding: 12px 18px;
+  border-radius: var(--radius-md);
+  background: var(--color-accent-soft);
+  flex-shrink: 0;
+}
+
+.scoreCard span {
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--color-accent-active);
+}
+
+.scoreCard strong {
+  font-size: 24px;
+  font-weight: 700;
+  color: var(--color-text);
+  white-space: nowrap;
+}
+
+.resultRow {
+  border: 1px solid var(--color-line);
+  border-left: 4px solid var(--color-line-strong);
+  border-radius: var(--radius-md);
+  padding: 14px 16px;
+  background: var(--color-surface-2);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.result_correct {
+  border-left-color: var(--color-success);
+  background: var(--color-success-soft);
+}
+
+.result_wrong {
+  border-left-color: var(--color-danger);
+  background: var(--color-danger-soft);
+}
+
+.resultRowHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.resultScore {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--color-text);
+  white-space: nowrap;
+}
+
+.resultAnswer,
+.resultCorrect {
+  font-size: 14px;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
+.resultAnswer {
+  color: var(--color-text);
+}
+
+.resultCorrect {
+  color: var(--color-success);
+  font-weight: 600;
+}
+
+.resultFooter {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  padding-top: 16px;
+  border-top: 1px solid var(--color-line);
+}
+
+.resultHint {
+  color: var(--color-muted);
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.emptyState {
+  padding: 18px;
+  border: 1px dashed var(--color-line-strong);
+  border-radius: var(--radius-md);
+  background: var(--color-soft);
+  color: var(--color-muted);
+  text-align: center;
+}
+
+/* ───────────── Формы (создание вопроса) ───────────── */
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.field > span {
+  color: var(--color-muted);
+  font-size: 14px;
+  font-weight: 600;
 }
 
 .answerInput,
@@ -183,6 +546,17 @@
   color: var(--color-text);
 }
 
+.field input:focus,
+.field select:focus,
+.field textarea:focus,
+.answerInput:focus,
+.optionRow input[type="text"]:focus,
+.answerRow input:focus {
+  outline: none;
+  border-color: var(--color-accent);
+  box-shadow: 0 0 0 3px var(--color-accent-ring);
+}
+
 .field select {
   appearance: none;
   -webkit-appearance: none;
@@ -194,27 +568,10 @@
   background-size: 14px 14px;
 }
 
-.field select:focus {
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 14 14' fill='none'%3E%3Cpath d='M3.5 5.25L7 8.75L10.5 5.25' stroke='%232fb0c9' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
-}
-
-.field textarea,
-.answerInput {
+.field textarea {
   min-height: 120px;
   resize: vertical;
 }
-
-.field {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.field span {
-  color: var(--color-muted);
-  font-size: 14px;
-}
-
 
 .formGrid {
   display: grid;
@@ -226,11 +583,26 @@
   grid-column: 1 / -1;
 }
 
+.optionRow {
+  display: grid;
+  grid-template-columns: 22px minmax(0, 1fr);
+  gap: 12px;
+  align-items: center;
+}
+
+.answerRow {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: center;
+}
+
 .checkboxInline {
   display: flex;
   gap: 8px;
   align-items: center;
   color: var(--color-muted);
+  white-space: nowrap;
 }
 
 .optionRow input[type="radio"],
@@ -238,29 +610,34 @@
 .optionCard input[type="radio"],
 .optionCard input[type="checkbox"],
 .answerRow input[type="checkbox"] {
-  width: 16px;
-  height: 16px;
+  width: 18px;
+  height: 18px;
   margin: 0;
   accent-color: var(--color-accent);
   justify-self: center;
 }
 
-.optionCard span {
-  min-width: 0;
+.modalActions {
+  display: flex;
+  gap: 12px;
+  justify-content: flex-end;
+  margin-top: 20px;
 }
 
-.answerRow .checkboxInline {
-  white-space: nowrap;
+.confirmText {
+  font-size: 16px;
+  line-height: 1.5;
+  color: var(--color-text);
 }
 
-.emptyState {
-  padding: 18px;
-  border: 1px solid var(--color-line);
-  border-radius: var(--radius-lg);
-  background: var(--color-soft);
+.confirmHint {
+  margin-top: 8px;
   color: var(--color-muted);
+  font-size: 14px;
+  line-height: 1.5;
 }
 
+/* ───────────── Адаптив ───────────── */
 @media (max-width: 768px) {
   .formGrid {
     grid-template-columns: 1fr;
@@ -268,26 +645,32 @@
 
   .panelHead,
   .quizHead,
-  .questionCardHead,
-  .actions,
-  .optionRow,
+  .questionCardHead {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .panelActions,
+  .attemptActions,
+  .attemptNav,
+  .resultFooter {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .pointsBadge {
+    align-self: flex-start;
+  }
+
+  .scoreCard {
+    align-items: flex-start;
+  }
+
   .answerRow {
     grid-template-columns: 1fr;
   }
 
-  .answerRow .checkboxInline {
+  .checkboxInline {
     white-space: normal;
   }
-}
-
-.confirmText {
-  font-size: 18px;
-  line-height: 1.4;
-  color: var(--color-text);
-}
-
-.confirmHint {
-  color: var(--color-muted);
-  font-size: 14px;
-  line-height: 1.5;
 }

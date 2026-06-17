@@ -1,11 +1,14 @@
 import { useEffect, useState } from "react"
+import { AnimatePresence } from "framer-motion"
 import { useNavigate, useOutletContext, useParams } from "react-router-dom"
+import ArrowIcon from "../../../assets/icons/classes/arrow.svg?react"
+import DeleteIcon from "../../../assets/icons/classes/delete.svg?react"
 import Modal from "../../../components/Modal/Modal"
 import { useToast } from "../../../components/Toast/useToast"
 import type { ClassLayoutContext } from "../../../layouts/ClassLayout/ClassLayout"
 import { ApiError } from "../../../services/api"
-import { formatDateTime, truncate } from "../../../services/helpers"
-import { getAssignment, type AssignmentDto } from "../AssignmentsPage/services/assignments.api"
+import { formatDateTime, formatPoints, truncate } from "../../../services/helpers"
+import { deleteAssignment, getAssignment, type AssignmentDto } from "../AssignmentsPage/services/assignments.api"
 import {
   createQuestion,
   getQuestions,
@@ -41,6 +44,15 @@ const QUESTION_TYPE_LABELS: Record<QuestionType, string> = {
   single_choice: "Один вариант",
   multiple_choice: "Несколько вариантов",
   text_input: "Короткий ответ"
+}
+
+// Русский плюрал для слова «попытка».
+function attemptsWord(count: number): string {
+  const mod10 = count % 10
+  const mod100 = count % 100
+  if (mod10 === 1 && mod100 !== 11) return "попытка"
+  if (mod10 >= 2 && mod10 <= 4 && (mod100 < 10 || mod100 >= 20)) return "попытки"
+  return "попыток"
 }
 
 function createEmptyQuestionForm(): QuestionFormState {
@@ -82,8 +94,13 @@ export default function QuizAssignmentPage() {
   const [addModalOpen, setAddModalOpen] = useState(false)
   const [createModalOpen, setCreateModalOpen] = useState(false)
   const [submitConfirmOpen, setSubmitConfirmOpen] = useState(false)
+  const [deleteModalOpen, setDeleteModalOpen] = useState(false)
   const [search, setSearch] = useState("")
   const [questionForm, setQuestionForm] = useState<QuestionFormState>(createEmptyQuestionForm)
+
+  const attemptsLimit = assignment?.quiz_settings?.attempts_limit ?? 1
+  const attemptsUsed = assignment?.my_quiz_attempt?.attempts_used ?? 0
+  const attemptsLeft = Math.max(attemptsLimit - attemptsUsed, 0)
 
   async function loadAssignment() {
     const data = await getAssignment(parsedClassId, parsedAssignmentId)
@@ -116,8 +133,18 @@ export default function QuizAssignmentPage() {
         }
         const latestAttempt = data.my_quiz_attempt
         if (latestAttempt?.status === "submitted") {
-          const loadedResult = await getQuizAttemptResult(latestAttempt.attempt_id)
-          setResult(loadedResult)
+          // Просмотр результата не должен ломать страницу: ошибку показываем тостом,
+          // но со страницы не выкидываем — иначе нельзя повторно зайти за результатами.
+          try {
+            const loadedResult = await getQuizAttemptResult(latestAttempt.attempt_id)
+            setResult(loadedResult)
+          } catch (resultError) {
+            if (resultError instanceof ApiError) {
+              showToast({ type: "error", message: resultError.message })
+            } else {
+              throw resultError
+            }
+          }
         }
       } catch (error) {
         if (error instanceof ApiError) {
@@ -260,6 +287,22 @@ export default function QuizAssignmentPage() {
       throw error
     } finally {
       setIsBusy(false)
+    }
+  }
+
+  async function onDeleteAssignment() {
+    setIsBusy(true)
+    try {
+      await deleteAssignment(parsedClassId, parsedAssignmentId)
+      showToast({ type: "neutral", message: "Тест удалён" })
+      navigate(`/classes/${classId}/assignments`, { replace: true })
+    } catch (error) {
+      if (error instanceof ApiError) {
+        showToast({ type: "error", message: error.message })
+        setIsBusy(false)
+        return
+      }
+      throw error
     }
   }
 
@@ -425,18 +468,24 @@ export default function QuizAssignmentPage() {
 
   function renderAttempt() {
     if (!attempt) return null
+    const total = attempt.questions.length
     const current = attempt.questions[currentQuestionIndex]
     const currentAnswer = answers[current.question_id] ?? {}
+    const progress = total > 0 ? ((currentQuestionIndex + 1) / total) * 100 : 0
+    const isLast = currentQuestionIndex >= total - 1
 
     return (
       <section className={styles.quizCard}>
         <div className={styles.quizHead}>
-          <div>
-            <div className={styles.eyebrow}>Попытка</div>
-            <h2>{currentQuestionIndex + 1} / {attempt.questions.length}</h2>
+          <div className={styles.quizHeadText}>
+            <div className={styles.eyebrow}>Вопрос {currentQuestionIndex + 1} из {total}</div>
+            <div className={styles.progressTrack}>
+              <div className={styles.progressFill} style={{ width: `${progress}%` }} />
+            </div>
           </div>
-          <div className={styles.points}>{current.points} балл.</div>
+          <span className={styles.pointsBadge}>Баллов: {formatPoints(current.points)}</span>
         </div>
+
         <div className={styles.questionText}>{current.question_text}</div>
 
         {current.type !== "text_input" && (
@@ -445,7 +494,7 @@ export default function QuizAssignmentPage() {
               const selected = currentAnswer.selected_option_ids ?? []
               const isChecked = selected.includes(option.id)
               return (
-                <label key={option.id} className={styles.optionCard}>
+                <label key={option.id} className={`${styles.optionCard} ${isChecked ? styles.optionCardActive : ""}`}>
                   <input
                     type={current.type === "single_choice" ? "radio" : "checkbox"}
                     checked={isChecked}
@@ -491,19 +540,23 @@ export default function QuizAssignmentPage() {
           />
         )}
 
-        <div className={styles.actions}>
-          <button className={styles.secondaryButton} type="button" disabled={currentQuestionIndex === 0 || isBusy} onClick={() => setCurrentQuestionIndex((prev) => prev - 1)}>
-            Назад
-          </button>
-          <button className={styles.secondaryButton} type="button" disabled={isBusy} onClick={() => void onSaveCurrentAnswer()}>
-            Сохранить
-          </button>
-          <button className={styles.secondaryButton} type="button" disabled={currentQuestionIndex >= attempt.questions.length - 1 || isBusy} onClick={() => setCurrentQuestionIndex((prev) => prev + 1)}>
-            Следующий
-          </button>
-          <button className={styles.primaryButton} type="button" disabled={isBusy} onClick={() => setSubmitConfirmOpen(true)}>
-            Завершить тест
-          </button>
+        <div className={styles.attemptActions}>
+          <div className={styles.attemptNav}>
+            <button className={styles.secondaryButton} type="button" disabled={currentQuestionIndex === 0 || isBusy} onClick={() => setCurrentQuestionIndex((prev) => prev - 1)}>
+              Назад
+            </button>
+            <button className={styles.secondaryButton} type="button" disabled={isLast || isBusy} onClick={() => setCurrentQuestionIndex((prev) => prev + 1)}>
+              Следующий
+            </button>
+          </div>
+          <div className={styles.attemptNav}>
+            <button className={styles.secondaryButton} type="button" disabled={isBusy} onClick={() => void onSaveCurrentAnswer()}>
+              Сохранить ответ
+            </button>
+            <button className={styles.primaryButton} type="button" disabled={isBusy} onClick={() => setSubmitConfirmOpen(true)}>
+              Завершить тест
+            </button>
+          </div>
         </div>
       </section>
     )
@@ -513,11 +566,24 @@ export default function QuizAssignmentPage() {
     return <div className={styles.page}>Загрузка...</div>
   }
 
+  const showStartPanel = canSubmit && !attempt && !result
+  const inProgress = assignment.my_quiz_attempt?.status === "in_progress"
+
   return (
     <div className={styles.page}>
-      <button className={styles.backButton} type="button" onClick={() => navigate(`/classes/${classId}/assignments`)}>
-        К списку заданий
-      </button>
+      <div className={styles.pageHead}>
+        <button className={styles.backButton} type="button" onClick={() => navigate(`/classes/${classId}/assignments`)}>
+          <ArrowIcon className={styles.backIcon} />
+          Все задания
+        </button>
+
+        {canManage && (
+          <button className={styles.dangerButton} type="button" disabled={isBusy} onClick={() => setDeleteModalOpen(true)}>
+            <DeleteIcon className={styles.buttonIcon} />
+            Удалить
+          </button>
+        )}
+      </div>
 
       <section className={styles.hero}>
         <div className={styles.heroText}>
@@ -532,7 +598,7 @@ export default function QuizAssignmentPage() {
           </div>
           <div className={styles.metaCard}>
             <span>Макс. балл</span>
-            <strong>{assignment.max_grade}</strong>
+            <strong>{formatPoints(assignment.max_grade)}</strong>
           </div>
           <div className={styles.metaCard}>
             <span>Вопросов</span>
@@ -540,7 +606,7 @@ export default function QuizAssignmentPage() {
           </div>
           <div className={styles.metaCard}>
             <span>Попыток</span>
-            <strong>{assignment.quiz_settings?.attempts_limit ?? 1}</strong>
+            <strong>{attemptsLimit}</strong>
           </div>
         </div>
       </section>
@@ -548,11 +614,11 @@ export default function QuizAssignmentPage() {
       {canManage && (
         <section className={styles.panel}>
           <div className={styles.panelHead}>
-            <div>
+            <div className={styles.panelHeadText}>
               <h2>Вопросы теста</h2>
               <p>Готовые вопросы можно переиспользовать из банка этого курса.</p>
             </div>
-            <div className={styles.actions}>
+            <div className={styles.panelActions}>
               <button className={styles.secondaryButton} type="button" onClick={() => setAddModalOpen(true)}>
                 Добавить из банка
               </button>
@@ -563,15 +629,19 @@ export default function QuizAssignmentPage() {
           </div>
 
           <div className={styles.stack}>
-            {quizDetails?.questions.length ? quizDetails.questions.map((question) => (
+            {quizDetails?.questions.length ? quizDetails.questions.map((question, index) => (
               <article key={question.id} className={styles.questionCard}>
                 <div className={styles.questionCardHead}>
-                  <div>
-                    <div className={styles.questionMeta}><span className={styles.metaBadge}>{QUESTION_TYPE_LABELS[question.type]}</span><span className={styles.metaBadge}>{question.points} балл.</span></div>
+                  <div className={styles.questionCardInfo}>
+                    <div className={styles.questionMeta}>
+                      <span className={styles.numberBadge}>№{index + 1}</span>
+                      <span className={styles.metaBadge}>{QUESTION_TYPE_LABELS[question.type]}</span>
+                      <span className={styles.metaBadge}>Баллов: {formatPoints(question.points)}</span>
+                    </div>
                     <h3>{question.title}</h3>
                   </div>
-                  <button className={styles.dangerButton} type="button" disabled={isBusy} onClick={() => void onDeleteQuizQuestion(question.id)}>
-                    Удалить
+                  <button className={styles.iconDangerButton} type="button" disabled={isBusy} aria-label="Удалить вопрос" onClick={() => void onDeleteQuizQuestion(question.id)}>
+                    <DeleteIcon className={styles.buttonIcon} />
                   </button>
                 </div>
                 <p>{truncate(question.question_text, 200)}</p>
@@ -581,15 +651,23 @@ export default function QuizAssignmentPage() {
         </section>
       )}
 
-      {canSubmit && !attempt && !result && (
+      {showStartPanel && (
         <section className={styles.panel}>
           <div className={styles.panelHead}>
-            <div>
+            <div className={styles.panelHeadText}>
               <h2>Прохождение теста</h2>
-              <p>Система проверит ответы автоматически после завершения попытки.</p>
+              <p>
+                Система проверит ответы автоматически после завершения попытки.
+                {!inProgress && attemptsLimit > 1 && ` Доступно ${attemptsLeft} ${attemptsWord(attemptsLeft)} из ${attemptsLimit}.`}
+              </p>
             </div>
-            <button className={styles.primaryButton} type="button" disabled={isBusy} onClick={() => void onStartAttempt()}>
-              {assignment.my_quiz_attempt?.status === "in_progress" ? "Продолжить тест" : "Начать тест"}
+            <button
+              className={styles.primaryButton}
+              type="button"
+              disabled={isBusy || (!inProgress && attemptsLeft <= 0)}
+              onClick={() => void onStartAttempt()}
+            >
+              {inProgress ? "Продолжить тест" : "Начать тест"}
             </button>
           </div>
         </section>
@@ -597,91 +675,146 @@ export default function QuizAssignmentPage() {
 
       {attempt && renderAttempt()}
 
-      {submitConfirmOpen && attempt && (
-        <Modal title="Завершить тест" onClose={() => !isBusy && setSubmitConfirmOpen(false)} disabled={isBusy}>
-          <div className={styles.confirmText}>Вы уверены, что хотите завершить попытку?</div>
-          <div className={styles.confirmHint}>После отправки ответы будут проверены, а незавершённые изменения уже нельзя будет продолжить в этой попытке.</div>
-          <div className={styles.actions}>
-            <button className={styles.secondaryButton} type="button" disabled={isBusy} onClick={() => setSubmitConfirmOpen(false)}>
-              Отмена
-            </button>
-            <button
-              className={styles.primaryButton}
-              type="button"
-              disabled={isBusy}
-              onClick={() => void (async () => {
-                await onSubmitAttempt()
-                setSubmitConfirmOpen(false)
-              })()}
-            >
-              {isBusy ? "Завершаем..." : "Завершить тест"}
-            </button>
-          </div>
-        </Modal>
-      )}
-
       {result && (
         <section className={styles.panel}>
           <div className={styles.panelHead}>
-            <div>
-              <h2>Результат</h2>
+            <div className={styles.panelHeadText}>
+              <div className={styles.eyebrow}>Результат</div>
+              <h2>Тест пройден</h2>
               <p>Попытка завершена {result.submitted_at ? formatDateTime(result.submitted_at) : ""}</p>
             </div>
             {result.score != null && result.max_score != null && (
-              <div className={styles.score}>{result.score} / {result.max_score}</div>
+              <div className={styles.scoreCard}>
+                <span>Баллов</span>
+                <strong>{formatPoints(result.score)} / {formatPoints(result.max_score)}</strong>
+              </div>
             )}
           </div>
 
           <div className={styles.stack}>
-            {result.answers.map((answer) => (
-              <div key={answer.question_id} className={styles.resultRow}>
-                <div>Вопрос #{answer.question_id}</div>
-                <strong>{answer.score ?? "—"} балл.</strong>
-                {answer.explanation && <p>{answer.explanation}</p>}
-              </div>
-            ))}
+            {result.answers.map((answer, index) => {
+              const status = answer.is_correct == null ? "neutral" : answer.is_correct ? "correct" : "wrong"
+              return (
+                <div key={answer.question_id} className={`${styles.resultRow} ${styles[`result_${status}`]}`}>
+                  <div className={styles.resultRowHead}>
+                    <span className={styles.numberBadge}>Вопрос {index + 1}</span>
+                    <span className={styles.resultScore}>Баллов: {formatPoints(answer.score)}</span>
+                  </div>
+                  {answer.text_answer && (
+                    <div className={styles.resultAnswer}>Ваш ответ: {answer.text_answer}</div>
+                  )}
+                  {answer.correct_text_answers && answer.correct_text_answers.length > 0 && (
+                    <div className={styles.resultCorrect}>Верные ответы: {answer.correct_text_answers.join(", ")}</div>
+                  )}
+                  {answer.explanation && <p>{answer.explanation}</p>}
+                </div>
+              )
+            })}
           </div>
+
+          {canSubmit && (
+            <div className={styles.resultFooter}>
+              {attemptsLeft > 0 ? (
+                <>
+                  <span className={styles.resultHint}>Осталось {attemptsLeft} {attemptsWord(attemptsLeft)} из {attemptsLimit}. Новая попытка перезапишет баллы за тест.</span>
+                  <button className={styles.primaryButton} type="button" disabled={isBusy} onClick={() => void onStartAttempt()}>
+                    Пройти заново
+                  </button>
+                </>
+              ) : (
+                <span className={styles.resultHint}>Попытки исчерпаны ({attemptsLimit} из {attemptsLimit}).</span>
+              )}
+            </div>
+          )}
         </section>
       )}
 
-      {addModalOpen && (
-        <Modal title="Добавить вопрос из банка" onClose={() => setAddModalOpen(false)} size="lg">
-          <div className={styles.field}>
-            <span>Поиск</span>
-            <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Найти вопрос" />
-          </div>
-          <div className={styles.stack}>
-            {questionBank.map((question) => (
-              <article key={question.id} className={styles.questionCard}>
-                <div className={styles.questionCardHead}>
-                  <div>
-                    <div className={styles.questionMeta}><span className={styles.metaBadge}>{QUESTION_TYPE_LABELS[question.type]}</span><span className={styles.metaBadge}>{question.default_points} балл. по умолчанию</span></div>
-                    <h3>{question.title}</h3>
-                  </div>
-                  <button className={styles.primaryButton} type="button" disabled={isBusy} onClick={() => void onAddQuestion(question)}>
-                    Добавить
-                  </button>
-                </div>
-                <p>{truncate(question.question_text, 180)}</p>
-              </article>
-            ))}
-          </div>
-        </Modal>
-      )}
+      <AnimatePresence>
+        {submitConfirmOpen && attempt && (
+          <Modal title="Завершить тест" onClose={() => !isBusy && setSubmitConfirmOpen(false)} disabled={isBusy}>
+            <div className={styles.confirmText}>Вы уверены, что хотите завершить попытку?</div>
+            <div className={styles.confirmHint}>После отправки ответы будут проверены, а незавершённые изменения уже нельзя будет продолжить в этой попытке.</div>
+            <div className={styles.modalActions}>
+              <button className={styles.secondaryButton} type="button" disabled={isBusy} onClick={() => setSubmitConfirmOpen(false)}>
+                Отмена
+              </button>
+              <button
+                className={styles.primaryButton}
+                type="button"
+                disabled={isBusy}
+                onClick={() => void (async () => {
+                  await onSubmitAttempt()
+                  setSubmitConfirmOpen(false)
+                })()}
+              >
+                {isBusy ? "Завершаем..." : "Завершить тест"}
+              </button>
+            </div>
+          </Modal>
+        )}
+      </AnimatePresence>
 
-      {createModalOpen && (
-        <Modal title="Создать вопрос" onClose={() => setCreateModalOpen(false)} size="lg">
-          {renderQuestionForm()}
-          <div className={styles.actions}>
-            <button className={styles.secondaryButton} type="button" onClick={() => setCreateModalOpen(false)}>
-              Отмена
-            </button>
-            <button className={styles.primaryButton} type="button" disabled={isBusy} onClick={() => void onCreateQuestion()}>
-              Создать вопрос
-            </button>
-          </div>
-        </Modal>
-      )}
+      <AnimatePresence>
+        {deleteModalOpen && canManage && (
+          <Modal title="Удалить тест" onClose={() => !isBusy && setDeleteModalOpen(false)} disabled={isBusy}>
+            <div className={styles.confirmText}>Вы точно хотите удалить этот тест? Это действие нельзя отменить.</div>
+            <div className={styles.modalActions}>
+              <button className={styles.secondaryButton} type="button" disabled={isBusy} onClick={() => setDeleteModalOpen(false)}>
+                Отмена
+              </button>
+              <button className={styles.dangerButton} type="button" disabled={isBusy} onClick={() => void onDeleteAssignment()}>
+                {isBusy ? "Удаляем..." : "Удалить"}
+              </button>
+            </div>
+          </Modal>
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {addModalOpen && (
+          <Modal title="Добавить вопрос из банка" onClose={() => setAddModalOpen(false)} size="lg">
+            <label className={styles.field}>
+              <span>Поиск</span>
+              <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Найти вопрос" />
+            </label>
+            <div className={styles.stack}>
+              {questionBank.length ? questionBank.map((question) => (
+                <article key={question.id} className={styles.questionCard}>
+                  <div className={styles.questionCardHead}>
+                    <div className={styles.questionCardInfo}>
+                      <div className={styles.questionMeta}>
+                        <span className={styles.metaBadge}>{QUESTION_TYPE_LABELS[question.type]}</span>
+                        <span className={styles.metaBadge}>Баллов: {formatPoints(question.default_points)}</span>
+                      </div>
+                      <h3>{question.title}</h3>
+                    </div>
+                    <button className={styles.primaryButton} type="button" disabled={isBusy} onClick={() => void onAddQuestion(question)}>
+                      Добавить
+                    </button>
+                  </div>
+                  <p>{truncate(question.question_text, 180)}</p>
+                </article>
+              )) : <div className={styles.emptyState}>Подходящих вопросов не найдено.</div>}
+            </div>
+          </Modal>
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {createModalOpen && (
+          <Modal title="Создать вопрос" onClose={() => setCreateModalOpen(false)} size="lg">
+            {renderQuestionForm()}
+            <div className={styles.modalActions}>
+              <button className={styles.secondaryButton} type="button" onClick={() => setCreateModalOpen(false)}>
+                Отмена
+              </button>
+              <button className={styles.primaryButton} type="button" disabled={isBusy} onClick={() => void onCreateQuestion()}>
+                Создать вопрос
+              </button>
+            </div>
+          </Modal>
+        )}
+      </AnimatePresence>
     </div>
   )
 }

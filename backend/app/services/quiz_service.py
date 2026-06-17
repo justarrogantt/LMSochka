@@ -59,7 +59,9 @@ def _settings_dto(settings) -> QuizSettingsDTO:
     )
 
 
-def _attempt_brief(attempt: QuizAttemptTable | None) -> QuizAttemptBriefDTO | None:
+def _attempt_brief(
+    attempt: QuizAttemptTable | None, attempts_used: int = 0
+) -> QuizAttemptBriefDTO | None:
     if attempt is None:
         return None
     return QuizAttemptBriefDTO(
@@ -69,6 +71,7 @@ def _attempt_brief(attempt: QuizAttemptTable | None) -> QuizAttemptBriefDTO | No
         submitted_at=attempt.submitted_at,
         score=attempt.score,
         max_score=attempt.max_score,
+        attempts_used=attempts_used,
     )
 
 
@@ -84,12 +87,14 @@ async def get_assignment_quiz_meta(
     settings = await quiz_repo.get_settings(assignment.id, db)
     question_count = await quiz_repo.count_questions_for_assignment(assignment.id, db)
     attempt = None
+    attempts_used = 0
     if user_id is not None and member_role == ClassRole.STUDENT:
         attempt = await quiz_repo.get_latest_attempt_for_student(assignment.id, user_id, db)
+        attempts_used = await quiz_repo.count_attempts(assignment.id, user_id, db)
     return (
         _settings_dto(settings) if settings is not None else None,
         question_count,
-        _attempt_brief(attempt),
+        _attempt_brief(attempt, attempts_used),
     )
 
 
