@@ -8,7 +8,7 @@ import { useAuth } from "../../../contexts/useAuth"
 import { useDelayedLoading } from "../../../hooks/useDelayedLoading"
 import type { ClassLayoutContext } from "../../../layouts/ClassLayout/ClassLayout"
 import { ApiError } from "../../../services/api"
-import { formatDateTime } from "../../../services/helpers"
+import { formatDateTime, formatPoints } from "../../../services/helpers"
 import { DURATION, EASE_OUT, listContainer, listItem } from "../../../shared/motion"
 import {
   getGradebook,
@@ -35,6 +35,24 @@ function studentName(student: GradebookStudent) {
 
 function cellKey(studentId: number, assignmentId: number) {
   return `${studentId}:${assignmentId}`
+}
+
+// Сумма набранных студентом баллов и максимум за весь курс (по всем заданиям).
+function pointsTotals(
+  studentId: number,
+  assignments: GradebookAssignment[],
+  cellMap: Map<string, GradebookCell>
+) {
+  let earned = 0
+  let max = 0
+  for (const assignment of assignments) {
+    max += assignment.max_grade
+    const cell = cellMap.get(cellKey(studentId, assignment.id))
+    if (cell?.status === "graded" && cell.value != null) {
+      earned += cell.value
+    }
+  }
+  return { earned, max }
 }
 
 export default function GradesPage() {
@@ -195,6 +213,7 @@ function StudentCard({ student, assignments, cellMap, isOpen, onToggle }: Studen
   const avg = student.summary.average_percent
   const gradedCount = student.summary.graded_count
   const totalAssignments = student.summary.total_assignments
+  const { earned, max } = pointsTotals(student.id, assignments, cellMap)
 
   return (
     <div className={styles.studentCard}>
@@ -205,7 +224,12 @@ function StudentCard({ student, assignments, cellMap, isOpen, onToggle }: Studen
           <div className={styles.studentEmail}>{student.email}</div>
         </div>
         <div className={styles.studentStats}>
-          <span className={styles.studentAvg}>{avg === null ? "—" : `${avg}%`}</span>
+          <span className={styles.studentAvg}>
+            {avg === null ? "—" : `${avg}%`}
+            {max > 0 && (
+              <span className={styles.studentPoints}>{formatPoints(earned)} / {formatPoints(max)}</span>
+            )}
+          </span>
           <span className={styles.studentGraded}>оценено {gradedCount} из {totalAssignments}</span>
         </div>
         <span className={`${styles.chevron} ${isOpen ? styles.chevronOpen : ""}`} aria-hidden="true">
@@ -275,6 +299,7 @@ function StudentGrades({ classId, assignments, cellMap, student, search }: Stude
   const average = student.summary.average_percent
   const gradedCount = student.summary.graded_count
   const totalAssignments = student.summary.total_assignments
+  const { earned, max } = pointsTotals(student.id, assignments, cellMap)
 
   const query = search.trim().toLowerCase()
   const visible = query ? assignments.filter((assignment) => assignment.title.toLowerCase().includes(query)) : assignments
@@ -284,7 +309,12 @@ function StudentGrades({ classId, assignments, cellMap, student, search }: Stude
       <div className={styles.summary}>
         <div className={styles.summaryBlock}>
           <div className={styles.summaryLabel}>Средний балл</div>
-          <div className={styles.summaryValue}>{average === null ? "—" : `${average}%`}</div>
+          <div className={styles.summaryValue}>
+            {average === null ? "—" : `${average}%`}
+            {max > 0 && (
+              <span className={styles.summaryPoints}>{formatPoints(earned)} / {formatPoints(max)}</span>
+            )}
+          </div>
         </div>
         <div className={styles.summaryDivider} />
         <div className={styles.summaryBlock}>
