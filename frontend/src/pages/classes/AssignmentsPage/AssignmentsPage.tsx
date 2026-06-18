@@ -109,7 +109,7 @@ function AssignmentCard({ item, showStats, onOpen, onEdit, onTeamSettings, onDel
         <div>до {item.max_grade} баллов</div>
       </div>
 
-      {showStats && <div className={styles.pendingText}>на проверке: {pendingCount}</div>}
+      {showStats && item.type !== "quiz" && <div className={styles.pendingText}>на проверке: {pendingCount}</div>}
     </div>
   )
 }
