@@ -584,9 +584,7 @@ export default function AssignmentsPage() {
   // Для группового задания нужна хотя бы одна группа с участниками
   const hasFilledGroup = groupDrafts.some((g) => g.members.length > 0)
   const groupValid = assignmentType !== "regular" || !isGroup || hasFilledGroup
-  const quizBehaviorSelected = quizSettings.shuffle_questions || quizSettings.shuffle_options
-  const quizPostSubmitSelected = quizSettings.show_result_after_submit || quizSettings.show_correct_answers_after_submit
-  const quizValid = assignmentType !== "quiz" || (quizBehaviorSelected && quizPostSubmitSelected)
+  const quizValid = true
   const editingItem = editingId === null ? null : items.find((item) => item.id === editingId) ?? null
   const currentMaterialFile = editingItem?.material_file && !shouldDeleteMaterialFile
     ? { name: editingItem.material_file.name, size: editingItem.material_file.size }
@@ -755,11 +753,8 @@ export default function AssignmentsPage() {
                       <span>{QUIZ_SETTING_LABELS.show_correct_answers_after_submit}</span>
                     </label>
                   </div>
-                  <div className={styles.hint}>Можно включить сразу все нужные опции.</div>
-                  {!quizBehaviorSelected && <div className={styles.validationHint}>Выберите хотя бы одну настройку теста.</div>}
-                  {!quizPostSubmitSelected && <div className={styles.validationHint}>Выберите хотя бы одно действие после отправки.</div>}
+                  <div className={styles.hint}>По умолчанию тест создаётся без перемешивания и без показа результата или правильных ответов после отправки.</div>
                 </div>
-
                 <label className={styles.field}>
                   <div className={styles.fieldLabel}>Лимит попыток</div>
                   <input
